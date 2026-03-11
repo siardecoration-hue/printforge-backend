@@ -26,11 +26,9 @@ def root():
 async def generate_from_image(file: UploadFile = File(...)):
     task_id = str(uuid.uuid4())[:8]
     tasks[task_id] = {"status": "pending", "progress": 0}
-    
     image_path = f"/tmp/{task_id}_{file.filename}"
     with open(image_path, "wb") as f:
         f.write(await file.read())
-    
     asyncio.create_task(process_image(task_id, image_path))
     return {"task_id": task_id}
 
@@ -38,24 +36,40 @@ async def process_image(task_id, image_path):
     try:
         tasks[task_id]["status"] = "in_progress"
         tasks[task_id]["progress"] = 20
-
         result = await asyncio.to_thread(
             TRELLIS_CLIENT.predict,
             image_path,
             api_name="/image_to_3d"
         )
-        
         tasks[task_id]["progress"] = 70
-
         glb_path = result[0] if isinstance(result, list) else result
         stl_path = f"/tmp/{task_id}.stl"
         mesh = trimesh.load(glb_path)
         mesh.export(stl_path)
-
         tasks[task_id]["status"] = "succeeded"
         tasks[task_id]["progress"] = 100
         tasks[task_id]["stl_path"] = stl_path
-
     except Exception as e:
         tasks[task_id]["status"] = "failed"
-        tasks[task_
+        tasks[task_id]["error"] = str(e)
+
+@app.get("/status/{task_id}")
+async def get_status(task_id: str):
+    if task_id not in tasks:
+        raise HTTPException(status_code=404, detail="Görev bulunamadı")
+    t = tasks[task_id]
+    return {
+        "task_id": task_id,
+        "status": t["status"],
+        "progress": t["progress"],
+        "error": t.get("error", None)
+    }
+
+@app.get("/download/{task_id}")
+async def download_stl(task_id: str):
+    if task_id not in tasks:
+        raise HTTPException(status_code=404, detail="Görev bulunamadı")
+    stl_path = tasks[task_id].get("stl_path")
+    if not stl_path or not os.path.exists(stl_path):
+        raise HTTPException(status_code=404, detail="Dosya hazır değil")
+    return FileResponse(stl_path, filename=f"{task_id}.stl", media_type="application/octet-stream")
