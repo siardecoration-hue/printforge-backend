@@ -35,20 +35,50 @@ async def generate_from_image(file: UploadFile = File(...)):
 async def process_image(task_id, image_path):
     try:
         tasks[task_id]["status"] = "in_progress"
-        tasks[task_id]["progress"] = 20
-        result = await asyncio.to_thread(
+        tasks[task_id]["progress"] = 10
+
+        # Adım 1: Görseli işle
+        preprocessed = await asyncio.to_thread(
             TRELLIS_CLIENT.predict,
             image_path,
+            api_name="/preprocess_image"
+        )
+        tasks[task_id]["progress"] = 30
+
+        # Adım 2: 3D oluştur
+        await asyncio.to_thread(
+            TRELLIS_CLIENT.predict,
+            preprocessed,
+            [],
+            0,
+            7.5,
+            12,
+            3.0,
+            12,
+            "stochastic",
             api_name="/image_to_3d"
         )
         tasks[task_id]["progress"] = 70
-        glb_path = result[0] if isinstance(result, list) else result
+
+        # Adım 3: GLB dosyasını al
+        result = await asyncio.to_thread(
+            TRELLIS_CLIENT.predict,
+            0.95,
+            1024,
+            api_name="/extract_glb"
+        )
+        tasks[task_id]["progress"] = 90
+
+        # GLB'yi STL'e çevir
+        glb_path = result[1] if isinstance(result, tuple) else result
         stl_path = f"/tmp/{task_id}.stl"
         mesh = trimesh.load(glb_path)
         mesh.export(stl_path)
+
         tasks[task_id]["status"] = "succeeded"
         tasks[task_id]["progress"] = 100
         tasks[task_id]["stl_path"] = stl_path
+
     except Exception as e:
         tasks[task_id]["status"] = "failed"
         tasks[task_id]["error"] = str(e)
