@@ -1,12 +1,13 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.responses import FileResponse
+from gradio_client import Client
+import trimesh
 import asyncio
-import random
 import uuid
+import os
 
 app = FastAPI()
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,53 +16,46 @@ app.add_middleware(
 )
 
 tasks = {}
-
-class TextRequest(BaseModel):
-    prompt: str
-    style: str = "geometric"
+TRELLIS_CLIENT = Client("JeffreyXiang/TRELLIS")
 
 @app.get("/")
 def root():
-    return {"status": "OK", "mode": "mock"}
+    return {"status": "OK", "mode": "trellis"}
 
-@app.post("/generate/text")
-async def generate_from_text(req: TextRequest):
+@app.post("/generate/image")
+async def generate_from_image(file: UploadFile = File(...)):
     task_id = str(uuid.uuid4())[:8]
     tasks[task_id] = {"status": "pending", "progress": 0}
-    asyncio.create_task(simulate_progress(task_id, req.prompt, req.style))
+    
+    image_path = f"/tmp/{task_id}_{file.filename}"
+    with open(image_path, "wb") as f:
+        f.write(await file.read())
+    
+    asyncio.create_task(process_image(task_id, image_path))
     return {"task_id": task_id}
 
-async def simulate_progress(task_id, prompt, style):
-    for progress in range(10, 101, 10):
-        await asyncio.sleep(1.5)
-        tasks[task_id]["progress"] = progress
+async def process_image(task_id, image_path):
+    try:
         tasks[task_id]["status"] = "in_progress"
-    tasks[task_id]["status"] = "succeeded"
-    tasks[task_id]["progress"] = 100
-    tasks[task_id]["model_urls"] = {
-        "stl": f"https://mock-cdn.printforge.io/models/{task_id}.stl",
-        "obj": f"https://mock-cdn.printforge.io/models/{task_id}.obj",
-    }
-    tasks[task_id]["stats"] = {
-        "vertices": random.randint(8000, 45000),
-        "faces": random.randint(16000, 90000),
-        "size_mb": round(random.uniform(0.8, 4.5), 1),
-        "print_time": f"{random.randint(0,3)}h {random.randint(10,59)}m",
-        "support_needed": random.choice([True, False]),
-        "infill": f"{random.randint(15, 40)}%",
-        "prompt": prompt,
-        "style": style,
-    }
+        tasks[task_id]["progress"] = 20
 
-@app.get("/status/{task_id}")
-async def get_status(task_id: str):
-    if task_id not in tasks:
-        raise HTTPException(status_code=404, detail="Gorev bulunamadi")
-    t = tasks[task_id]
-    return {
-        "task_id": task_id,
-        "status": t["status"],
-        "progress": t["progress"],
-        "model_urls": t.get("model_urls", {}),
-        "stats": t.get("stats", {}),
-    }
+        result = await asyncio.to_thread(
+            TRELLIS_CLIENT.predict,
+            image_path,
+            api_name="/image_to_3d"
+        )
+        
+        tasks[task_id]["progress"] = 70
+
+        glb_path = result[0] if isinstance(result, list) else result
+        stl_path = f"/tmp/{task_id}.stl"
+        mesh = trimesh.load(glb_path)
+        mesh.export(stl_path)
+
+        tasks[task_id]["status"] = "succeeded"
+        tasks[task_id]["progress"] = 100
+        tasks[task_id]["stl_path"] = stl_path
+
+    except Exception as e:
+        tasks[task_id]["status"] = "failed"
+        tasks[task_
