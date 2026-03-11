@@ -22,7 +22,7 @@ class TextRequest(BaseModel):
 
 @app.get("/")
 def root():
-    return {"status": "PrintForge API çalışıyor ✅", "mode": "mock"}
+    return {"status": "OK", "mode": "mock"}
 
 @app.post("/generate/text")
 async def generate_from_text(req: TextRequest):
@@ -50,3 +50,18 @@ async def simulate_progress(task_id, prompt, style):
         "support_needed": random.choice([True, False]),
         "infill": f"{random.randint(15, 40)}%",
         "prompt": prompt,
+        "style": style,
+    }
+
+@app.get("/status/{task_id}")
+async def get_status(task_id: str):
+    if task_id not in tasks:
+        raise HTTPException(status_code=404, detail="Gorev bulunamadi")
+    t = tasks[task_id]
+    return {
+        "task_id": task_id,
+        "status": t["status"],
+        "progress": t["progress"],
+        "model_urls": t.get("model_urls", {}),
+        "stats": t.get("stats", {}),
+    }
