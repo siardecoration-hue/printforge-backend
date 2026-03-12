@@ -19,6 +19,7 @@ app.add_middleware(
 tasks = {}
 
 COLAB_URL = os.getenv("COLAB_URL", "https://hanna-keratoid-indistinguishably.ngrok-free.app")
+NGROK_HEADER = {"ngrok-skip-browser-warning": "true"}
 
 class TextRequest(BaseModel):
     prompt: str
@@ -42,14 +43,21 @@ async def forward_to_colab(task_id, contents, filename):
         tasks[task_id]["progress"] = 10
         async with httpx.AsyncClient(timeout=300) as client:
             files = {"file": (filename, contents, "image/jpeg")}
-            res = await client.post(f"{COLAB_URL}/generate/image", files=files)
+            res = await client.post(
+                f"{COLAB_URL}/generate/image",
+                files=files,
+                headers=NGROK_HEADER
+            )
             data = res.json()
             colab_task_id = data["task_id"]
             tasks[task_id]["progress"] = 30
 
             while True:
                 await asyncio.sleep(3)
-                status_res = await client.get(f"{COLAB_URL}/status/{colab_task_id}")
+                status_res = await client.get(
+                    f"{COLAB_URL}/status/{colab_task_id}",
+                    headers=NGROK_HEADER
+                )
                 status_data = status_res.json()
                 progress = status_data.get("progress", 0)
                 tasks[task_id]["progress"] = 30 + int(progress * 0.6)
@@ -69,6 +77,7 @@ async def forward_to_colab(task_id, contents, filename):
                     break
                 elif status_data["status"] == "failed":
                     tasks[task_id]["status"] = "failed"
+                    tasks[task_id]["error"] = status_data.get("error", "Bilinmeyen hata")
                     break
     except Exception as e:
         tasks[task_id]["status"] = "failed"
@@ -110,4 +119,5 @@ async def get_status(task_id: str):
         "progress": t["progress"],
         "download_url": t.get("download_url", ""),
         "stats": t.get("stats", {}),
+        "error": t.get("error", ""),
     }
