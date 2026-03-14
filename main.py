@@ -6,7 +6,6 @@ import random
 import uuid
 import httpx
 import os
-import base64
 
 app = FastAPI()
 
@@ -28,58 +27,78 @@ class TextRequest(BaseModel):
 
 @app.get("/")
 def root():
-    return {"status": "OK", "mode": "tripo3d"}
+    return {"status": "OK", "mode": "tripo3d", "key_set": bool(TRIPO_API_KEY)}
 
 @app.post("/generate/image")
 async def generate_from_image(file: UploadFile = File(...)):
     task_id = str(uuid.uuid4())[:8]
     tasks[task_id] = {"status": "pending", "progress": 0}
     contents = await file.read()
-    asyncio.create_task(process_with_tripo(task_id, contents))
+    filename = file.filename or "image.jpg"
+    asyncio.create_task(process_with_tripo(task_id, contents, filename))
     return {"task_id": task_id}
 
-async def process_with_tripo(task_id, contents):
+async def process_with_tripo(task_id, contents, filename):
     try:
         tasks[task_id] = {"status": "in_progress", "progress": 10}
-        headers = {
-            "Authorization": f"Bearer {TRIPO_API_KEY}",
-            "Content-Type": "application/json"
-        }
+        headers_auth = {"Authorization": f"Bearer {TRIPO_API_KEY}"}
 
         async with httpx.AsyncClient(timeout=300) as client:
-            # 1. Görseli base64'e çevir ve task gönder
-            b64_image = base64.b64encode(contents).decode("utf-8")
-            tasks[task_id]["progress"] = 20
 
+            # 1. Görseli yükle → image_token al
+            ext = filename.split(".")[-1].lower()
+            if ext not in ["jpg", "jpeg", "png", "webp"]:
+                ext = "jpeg"
+            mime = f"image/{ext}" if ext != "jpg" else "image/jpeg"
+
+            upload_res = await client.post(
+                f"{TRIPO_BASE}/upload/sts",
+                files={"file": (filename, contents, mime)},
+                headers=headers_auth
+            )
+            upload_json = upload_res.json()
+
+            if upload_json.get("code") != 200:
+                raise Exception(f"Upload failed: {upload_json}")
+
+            image_token = upload_json["data"]["image_token"]
+            tasks[task_id]["progress"] = 30
+
+            # 2. image_to_model task gönder
             task_res = await client.post(
                 f"{TRIPO_BASE}/task",
                 json={
                     "type": "image_to_model",
                     "file": {
-                        "type": "jpg",
-                        "data": b64_image
+                        "type": ext if ext != "jpg" else "jpeg",
+                        "file_token": image_token
                     }
                 },
-                headers=headers
+                headers={**headers_auth, "Content-Type": "application/json"}
             )
-            task_data = task_res.json()
-            tripo_task_id = task_data["data"]["task_id"]
-            tasks[task_id]["progress"] = 30
+            task_json = task_res.json()
 
-            # 2. Sonucu bekle
+            if task_json.get("code") != 200:
+                raise Exception(f"Task failed: {task_json}")
+
+            tripo_task_id = task_json["data"]["task_id"]
+            tasks[task_id]["progress"] = 40
+
+            # 3. Sonucu bekle
             while True:
                 await asyncio.sleep(3)
                 status_res = await client.get(
                     f"{TRIPO_BASE}/task/{tripo_task_id}",
-                    headers=headers
+                    headers=headers_auth
                 )
-                status_data = status_res.json()
-                tripo_status = status_data["data"]["status"]
-                tripo_progress = status_data["data"].get("progress", 0)
-                tasks[task_id]["progress"] = 30 + int(tripo_progress * 0.7)
+                status_json = status_res.json()
+                tripo_data = status_json.get("data", {})
+                tripo_status = tripo_data.get("status", "unknown")
+                tripo_progress = tripo_data.get("progress", 0)
+                tasks[task_id]["progress"] = 40 + int(tripo_progress * 0.6)
 
                 if tripo_status == "success":
-                    model_url = status_data["data"]["output"]["model"]
+                    model_url = tripo_data.get("output", {}).get("model", "")
                     tasks[task_id]["status"] = "succeeded"
                     tasks[task_id]["progress"] = 100
                     tasks[task_id]["download_url"] = model_url
@@ -92,9 +111,9 @@ async def process_with_tripo(task_id, contents):
                         "infill": f"{random.randint(15, 40)}%",
                     }
                     break
-                elif tripo_status == "failed":
+                elif tripo_status in ["failed", "cancelled"]:
                     tasks[task_id]["status"] = "failed"
-                    tasks[task_id]["error"] = "Tripo3D model üretimi başarısız"
+                    tasks[task_id]["error"] = f"Tripo status: {tripo_status}"
                     break
 
     except Exception as e:
