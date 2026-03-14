@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import asyncio
 import random
@@ -28,6 +29,11 @@ class TextRequest(BaseModel):
 @app.get("/")
 def root():
     return {"status": "OK", "mode": "tripo3d", "key_set": bool(TRIPO_API_KEY)}
+
+@app.get("/app")
+def serve_app():
+    html_path = os.path.join(os.path.dirname(__file__), "printforge (2).html")
+    return FileResponse(html_path, media_type="text/html")
 
 @app.post("/generate/image")
 async def generate_from_image(file: UploadFile = File(...)):
