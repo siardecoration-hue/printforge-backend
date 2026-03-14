@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PrintForge</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Courier New', monospace; background: #060d09; color: #c8e8d0; min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* NAV */
+  nav { display: flex; justify-content: space-between; align-items: center; padding: 16px 32px; border-bottom: 1px solid #0d1f14; }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-diamond { width: 20px; height: 20px; border: 1.5px solid #4fffaa; transform: rotate(45deg); display: flex; align-items: center; justify-content: center; }
+  .logo-inner { width: 7px; height: 7px; background: #4fffaa; transform: rotate(-45deg); }
+  .logo-text { font-size: 14px; letter-spacing: 0.2em; color: #4fffaa; }
+  .nav-right { display: flex; align-items: center; gap: 20px; }
+  .status { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: #4fffaa; box-shadow: 0 0 6px #4fffaa; }
+  .status-text { font-size: 9px; color: #2a5a3a; letter-spacing: 0.12em; }
+
+  /* PAGE TABS */
+  .page-tabs { display: flex; gap: 0; border-bottom: 1px solid #0d1f14; }
+  .page-tab { padding: 12px 24px; background: transparent; border: none; border-bottom: 2px solid transparent; color: #2a4a2a; font-family: inherit; font-size: 10px; letter-spacing: 0.15em; cursor: pointer; transition: all 0.15s; }
+  .page-tab.active { color: #4fffaa; border-bottom-color: #4fffaa; }
+
+  /* PAGES */
+  .page { display: none; flex: 1; }
+  .page.active { display: flex; }
+
+  /* ===== GENERATOR PAGE ===== */
+  .left { width: 320px; border-right: 1px solid #0d1f14; padding: 24px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+  .label { font-size: 9px; letter-spacing: 0.18em; color: #2a5a3a; margin-bottom: 8px; text-transform: uppercase; }
+  .mode-tabs { display: flex; border: 1px solid #0d1f14; }
+  .mode-tab { flex: 1; padding: 10px; background: transparent; border: none; color: #2a4a2a; font-family: inherit; font-size: 10px; letter-spacing: 0.1em; cursor: pointer; transition: all 0.15s; }
+  .mode-tab.active { background: #0d2018; color: #4fffaa; }
+  textarea { width: 100%; background: #0a150d; border: 1px solid #0d1f14; color: #c8e8d0; padding: 12px; font-size: 12px; font-family: inherit; line-height: 1.7; resize: none; outline: none; }
+  textarea:focus { border-color: #2a5a3a; }
+  .styles { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .style-btn { background: transparent; border: 1px solid #0d1f14; color: #2a4a2a; padding: 8px 4px; cursor: pointer; font-family: inherit; font-size: 10px; transition: all 0.15s; }
+  .style-btn.active { background: #0d2018; border-color: #2a5a3a; color: #4fffaa; }
+  .style-icon { font-size: 16px; margin-bottom: 3px; }
+  .drop-zone { border: 1px dashed #1a4a2a; padding: 24px; text-align: center; cursor: pointer; transition: all 0.2s; background: #0a150d; }
+  .drop-zone:hover, .drop-zone.dragover { border-color: #4fffaa; background: #0d2018; }
+  .drop-zone input { display: none; }
+  .drop-icon { font-size: 28px; margin-bottom: 8px; opacity: 0.5; }
+  .drop-text { font-size: 10px; color: #2a5a3a; letter-spacing: 0.1em; line-height: 1.8; }
+  .preview-img { width: 100%; max-height: 150px; object-fit: contain; border: 1px solid #0d1f14; margin-top: 8px; display: none; }
+  #generateBtn { background: #0a150d; color: #1a3a2a; border: 1px solid #0d1f14; padding: 15px; font-size: 13px; letter-spacing: 0.18em; cursor: not-allowed; font-family: inherit; transition: all 0.2s; width: 100%; }
+  #generateBtn.ready { background: #4fffaa; color: #060d09; border-color: #4fffaa; cursor: pointer; }
+  #generateBtn.loading { background: #0d1f14; color: #2a5a3a; cursor: not-allowed; }
+  .right { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px; background: #080e09; }
+  .mesh-container { width: 180px; height: 180px; margin: 0 auto 16px; }
+  .idle-text { font-size: 10px; color: #1a3a2a; letter-spacing: 0.15em; margin-top: 8px; }
+  .progress-section { width: 100%; margin-top: 20px; }
+  .progress-row { margin-bottom: 10px; }
+  .progress-labels { display: flex; justify-content: space-between; font-size: 9px; color: #3a6a4a; margin-bottom: 4px; }
+  .progress-track { height: 2px; background: #0d1f14; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #1a6a3a, #4fffaa); transition: width 0.3s; }
+  .result-badge { font-size: 9px; color: #4fffaa; letter-spacing: 0.2em; margin-bottom: 14px; }
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; text-align: left; }
+  .stat-item { border-bottom: 1px solid #0d1f14; padding-bottom: 6px; }
+  .stat-key { font-size: 8px; color: #2a4a2a; margin-bottom: 2px; }
+  .stat-val { font-size: 11px; color: #4fffaa; }
+  .download-btns { display: flex; gap: 8px; }
+  .btn-stl { flex: 1; background: #4fffaa; color: #060d09; border: none; padding: 11px; font-size: 10px; letter-spacing: 0.1em; cursor: pointer; font-family: inherit; }
+  .btn-obj { flex: 1; background: transparent; color: #4fffaa; border: 1px solid #2a5a3a; padding: 11px; font-size: 10px; letter-spacing: 0.1em; cursor: pointer; font-family: inherit; }
+  .btn-reset { width: 100%; background: transparent; color: #2a5a3a; border: 1px solid #0d1f14; padding: 10px; font-size: 10px; letter-spacing: 0.12em; cursor: pointer; font-family: inherit; margin-top: 8px; }
+  .error-box { background: #1a0808; border: 1px solid #3a1010; padding: 12px; font-size: 11px; color: #ff6b6b; line-height: 1.6; display: none; }
+  .info-box { font-size: 9px; color: #1a4a2a; line-height: 1.8; letter-spacing: 0.08em; }
+  .save-btn { width: 100%; background: transparent; color: #4fffaa; border: 1px solid #2a5a3a; padding: 10px; font-size: 10px; letter-spacing: 0.12em; cursor: pointer; font-family: inherit; margin-top: 6px; display: none; }
+  .save-btn:hover { background: #0d2018; }
+
+  /* ===== LIBRARY PAGE ===== */
+  .library-page { flex: 1; flex-direction: column; background: #060d09; }
+  .library-header { padding: 24px 32px; border-bottom: 1px solid #0d1f14; display: flex; justify-content: space-between; align-items: center; }
+  .library-title { font-size: 11px; letter-spacing: 0.2em; color: #4fffaa; }
+  .library-count { font-size: 9px; color: #2a5a3a; letter-spacing: 0.15em; }
+  .library-filters { padding: 16px 32px; border-bottom: 1px solid #0d1f14; display: flex; gap: 8px; align-items: center; }
+  .filter-btn { background: transparent; border: 1px solid #0d1f14; color: #2a4a2a; padding: 6px 14px; font-family: inherit; font-size: 9px; letter-spacing: 0.1em; cursor: pointer; transition: all 0.15s; }
+  .filter-btn.active { background: #0d2018; border-color: #2a5a3a; color: #4fffaa; }
+  .library-grid { padding: 24px 32px; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; overflow-y: auto; flex: 1; }
+  .model-card { background: #0a150d; border: 1px solid #0d1f14; transition: border-color 0.15s; }
+  .model-card:hover { border-color: #2a5a3a; }
+  .model-card-preview { height: 160px; display: flex; align-items: center; justify-content: center; background: #080e09; position: relative; overflow: hidden; }
+  .model-card-preview img { width: 100%; height: 100%; object-fit: cover; opacity: 0.8; }
+  .model-card-preview svg { width: 80px; height: 80px; }
+  .model-card-badge { position: absolute; top: 8px; right: 8px; background: #0a150d; border: 1px solid #1a3a2a; padding: 3px 8px; font-size: 8px; color: #2a5a3a; letter-spacing: 0.1em; }
+  .model-card-body { padding: 14px; }
+  .model-card-name { font-size: 11px; color: #c8e8d0; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .model-card-date { font-size: 8px; color: #1a3a2a; letter-spacing: 0.1em; margin-bottom: 10px; }
+  .model-card-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+  .model-card-stat { font-size: 8px; }
+  .model-card-stat-key { color: #1a3a2a; }
+  .model-card-stat-val { color: #4fffaa; }
+  .model-card-actions { display: flex; gap: 6px; }
+  .btn-download-card { flex: 1; background: #4fffaa; color: #060d09; border: none; padding: 8px; font-size: 9px; letter-spacing: 0.1em; cursor: pointer; font-family: inherit; }
+  .btn-delete-card { background: transparent; color: #3a1a1a; border: 1px solid #1a0808; padding: 8px 10px; font-size: 9px; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .btn-delete-card:hover { color: #ff6b6b; border-color: #3a1010; }
+  .library-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #1a3a2a; padding: 60px; }
+  .library-empty-icon { font-size: 40px; opacity: 0.3; }
+  .library-empty-text { font-size: 10px; letter-spacing: 0.15em; text-align: center; line-height: 2; }
+  .library-empty-btn { background: transparent; color: #2a5a3a; border: 1px solid #1a4a2a; padding: 10px 20px; font-size: 10px; letter-spacing: 0.12em; cursor: pointer; font-family: inherit; margin-top: 8px; }
+  .library-empty-btn:hover { background: #0d2018; color: #4fffaa; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">
+    <div class="logo-diamond"><div class="logo-inner"></div></div>
+    <span class="logo-text">PRINTFORGE</span>
+  </div>
+  <div class="nav-right">
+    <div class="status">
+      <div class="dot"></div>
+      <span class="status-text" id="statusText">BAĞLANIYOR...</span>
+    </div>
+  </div>
+</nav>
+
+<!-- PAGE TABS -->
+<div class="page-tabs">
+  <button class="page-tab active" onclick="switchPage('generator')">◇ MODEL ÜRET</button>
+  <button class="page-tab" onclick="switchPage('library')" id="libraryTab">⬡ KÜTÜPHANEm <span id="libCount"></span></button>
+</div>
+
+<!-- GENERATOR PAGE -->
+<div class="page active" id="generatorPage" style="flex-direction:row">
+  <div class="left">
+    <div>
+      <div class="label">Üretim Modu</div>
+      <div class="mode-tabs">
+        <button class="mode-tab active" onclick="switchMode('text')">✦ PROMPT</button>
+        <button class="mode-tab" onclick="switchMode('image')">⬡ GÖRSEL</button>
+      </div>
+    </div>
+    <div id="textMode">
+      <div class="label">Modelini Tanımla</div>
+      <textarea id="promptInput" rows="4" placeholder="Örnek: Geometric vase 20cm&#10;Örnek: Low-poly fox figurine&#10;Örnek: Cable organizer snap fit" oninput="checkReady()"></textarea>
+      <div style="margin-top:12px">
+        <div class="label">Stil Seç</div>
+        <div class="styles">
+          <button class="style-btn active" data-style="geometric" onclick="selectStyle(this)"><div class="style-icon">◇</div>Geometric</button>
+          <button class="style-btn" data-style="organic" onclick="selectStyle(this)"><div class="style-icon">◎</div>Organic</button>
+          <button class="style-btn" data-style="sculptural" onclick="selectStyle(this)"><div class="style-icon">◈</div>Sculptural</button>
+          <button class="style-btn" data-style="functional" onclick="selectStyle(this)"><div class="style-icon">▣</div>Functional</button>
+          <button class="style-btn" data-style="lattice" onclick="selectStyle(this)"><div class="style-icon">⬡</div>Lattice</button>
+          <button class="style-btn" data-style="miniature" onclick="selectStyle(this)"><div class="style-icon">◦</div>Miniature</button>
+        </div>
+      </div>
+    </div>
+    <div id="imageMode" style="display:none">
+      <div class="label">Görsel Yükle</div>
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+        <input type="file" id="fileInput" accept="image/*" onchange="handleFile(event)">
+        <div class="drop-icon">⬡</div>
+        <div class="drop-text" id="dropText">GÖRSEL SÜRÜKLE<br>veya tıkla<br><span style="color:#1a3a2a">PNG · JPG · WEBP</span></div>
+      </div>
+      <img id="previewImg" class="preview-img" alt="Önizleme">
+      <div class="info-box" style="margin-top:10px">⚡ TripoSR ile gerçek 3D model<br>✦ Arka plan otomatik temizlenir</div>
+    </div>
+    <div class="error-box" id="errorBox"></div>
+    <button id="generateBtn" onclick="generate()">MODEL ÜRET →</button>
+  </div>
+
+  <div class="right">
+    <div style="text-align:center;width:100%;max-width:360px">
+      <div id="idleView">
+        <div class="mesh-container"><svg id="idleMesh" viewBox="0 0 240 240" style="width:100%;height:100%;opacity:0.25"></svg></div>
+        <div class="idle-text">MOD SEÇ → MODEL ÜRET</div>
+      </div>
+      <div id="loadingView" style="display:none">
+        <div class="mesh-container"><svg id="loadingMesh" viewBox="0 0 240 240" style="width:100%;height:100%"></svg></div>
+        <div style="font-size:9px;color:#2a5a3a;letter-spacing:0.15em;margin-bottom:16px" id="loadingText">İŞLENİYOR · %0</div>
+        <div class="progress-section">
+          <div class="progress-row">
+            <div class="progress-labels"><span id="s1">HAZIRLIK</span><span id="p1">%0</span></div>
+            <div class="progress-track"><div class="progress-fill" id="bar1" style="width:0%"></div></div>
+          </div>
+          <div class="progress-row">
+            <div class="progress-labels"><span id="s2">MESH</span><span id="p2">%0</span></div>
+            <div class="progress-track"><div class="progress-fill" id="bar2" style="width:0%"></div></div>
+          </div>
+          <div class="progress-row">
+            <div class="progress-labels"><span id="s3">OPTİMİZASYON</span><span id="p3">%0</span></div>
+            <div class="progress-track"><div class="progress-fill" id="bar3" style="width:0%"></div></div>
+          </div>
+        </div>
+      </div>
+      <div id="resultView" style="display:none">
+        <div class="mesh-container"><svg id="resultMesh" viewBox="0 0 240 240" style="width:100%;height:100%"></svg></div>
+        <div class="result-badge">✓ MODEL HAZIR</div>
+        <div class="stats-grid" id="statsGrid"></div>
+        <div class="download-btns">
+          <button class="btn-stl" id="stlBtn">↓ STL İNDİR</button>
+          <button class="btn-obj">↓ OBJ</button>
+        </div>
+        <button class="save-btn" id="saveBtn" onclick="saveToLibrary()">+ KÜTÜPHANEye KAYDET</button>
+        <button class="btn-reset" onclick="reset()">↺ YENİ MODEL ÜRET</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LIBRARY PAGE -->
+<div class="page library-page" id="libraryPage" style="flex-direction:column">
+  <div class="library-header">
+    <span class="library-title">⬡ MODEL KÜTÜPHANESİ</span>
+    <span class="library-count" id="libHeaderCount">0 MODEL</span>
+  </div>
+  <div class="library-filters" id="libraryFilters">
+    <span style="font-size:9px;color:#1a3a2a;letter-spacing:0.12em;margin-right:4px">FİLTRE:</span>
+    <button class="filter-btn active" onclick="filterLibrary('all', this)">TÜMÜ</button>
+    <button class="filter-btn" onclick="filterLibrary('geometric', this)">◇ GEOMETRİC</button>
+    <button class="filter-btn" onclick="filterLibrary('organic', this)">◎ ORGANIC</button>
+    <button class="filter-btn" onclick="filterLibrary('functional', this)">▣ FUNCTIONAL</button>
+    <button class="filter-btn" onclick="filterLibrary('image', this)">⬡ GÖRSEL</button>
+  </div>
+  <div id="libraryContent" style="flex:1;display:flex;flex-direction:column"></div>
+</div>
+
+<script>
+const API_URL = "https://web-production-a9cb9.up.railway.app";
+let selectedStyle = "geometric";
+let currentMode = "text";
+let selectedFile = null;
+let selectedFileDataUrl = null;
+let pollInterval = null;
+let tick = 0;
+let lastDownloadUrl = null;
+let lastStats = null;
+let lastPrompt = null;
+
+const PATHS = {
+  geometric: "M60,60 L180,60 L210,140 L120,190 L30,140 Z",
+  organic: "M60,120 Q80,40 120,80 Q160,20 180,100 Q200,160 160,180 Q120,200 80,170 Q40,150 60,120Z",
+  sculptural: "M120,30 Q180,80 170,140 Q160,190 120,200 Q80,190 70,140 Q60,80 120,30Z",
+  functional: "M50,70 L190,70 L190,160 L130,160 L130,190 L110,190 L110,160 L50,160 Z",
+  lattice: "M60,60 L180,60 L180,180 L60,180 Z",
+  miniature: "M120,40 L150,90 L200,100 L160,138 L170,190 L120,165 L70,190 L80,138 L40,100 L90,90 Z"
+};
+
+// ===== LIBRARY =====
+function getLibrary() {
+  try { return JSON.parse(localStorage.getItem('printforge_library') || '[]'); }
+  catch { return []; }
+}
+function saveLibrary(lib) {
+  localStorage.setItem('printforge_library', JSON.stringify(lib));
+  updateLibCount();
+}
+function updateLibCount() {
+  const n = getLibrary().length;
+  document.getElementById('libCount').textContent = n > 0 ? `(${n})` : '';
+  document.getElementById('libHeaderCount').textContent = `${n} MODEL`;
+}
+
+function saveToLibrary() {
+  const lib = getLibrary();
+  const model = {
+    id: Date.now().toString(),
+    name: lastPrompt || (selectedFile ? selectedFile.name : 'Model'),
+    style: currentMode === 'image' ? 'image' : selectedStyle,
+    mode: currentMode,
+    date: new Date().toLocaleDateString('tr-TR'),
+    stats: lastStats,
+    downloadUrl: lastDownloadUrl,
+    previewImg: currentMode === 'image' ? selectedFileDataUrl : null,
+  };
+  lib.unshift(model);
+  saveLibrary(lib);
+  document.getElementById('saveBtn').textContent = '✓ KAYDEDİLDİ';
+  document.getElementById('saveBtn').style.color = '#4fffaa';
+  setTimeout(() => {
+    document.getElementById('saveBtn').textContent = '+ KÜTÜPHANEye KAYDET';
+    document.getElementById('saveBtn').style.color = '';
+  }, 2000);
+}
+
+function deleteModel(id) {
+  const lib = getLibrary().filter(m => m.id !== id);
+  saveLibrary(lib);
+  renderLibrary();
+}
+
+let currentFilter = 'all';
+function filterLibrary(filter, btn) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderLibrary();
+}
+
+function renderLibrary() {
+  const container = document.getElementById('libraryContent');
+  let lib = getLibrary();
+  if (currentFilter !== 'all') lib = lib.filter(m => m.style === currentFilter);
+
+  if (lib.length === 0) {
+    container.innerHTML = `
+      <div class="library-empty">
+        <div class="library-empty-icon">⬡</div>
+        <div class="library-empty-text">${currentFilter !== 'all' ? 'Bu filtrede model yok' : 'Henüz model yok'}<br>Model üret ve kütüphaneye kaydet!</div>
+        <button class="library-empty-btn" onclick="switchPage('generator')">→ MODEL ÜRET</button>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = `<div class="library-grid">${lib.map(m => `
+    <div class="model-card">
+      <div class="model-card-preview">
+        ${m.previewImg ? `<img src="${m.previewImg}" alt="${m.name}">` : `<svg viewBox="0 0 240 240">${getMeshSVG(m.style)}</svg>`}
+        <div class="model-card-badge">${m.style.toUpperCase()}</div>
+      </div>
+      <div class="model-card-body">
+        <div class="model-card-name">${m.name}</div>
+        <div class="model-card-date">${m.date}</div>
+        ${m.stats ? `<div class="model-card-stats">
+          <div class="model-card-stat"><span class="model-card-stat-key">Vertices </span><span class="model-card-stat-val">${m.stats.vertices?.toLocaleString() || '-'}</span></div>
+          <div class="model-card-stat"><span class="model-card-stat-key">Faces </span><span class="model-card-stat-val">${m.stats.faces?.toLocaleString() || '-'}</span></div>
+          <div class="model-card-stat"><span class="model-card-stat-key">Boyut </span><span class="model-card-stat-val">${m.stats.size_mb || '-'} MB</span></div>
+          <div class="model-card-stat"><span class="model-card-stat-key">Baskı </span><span class="model-card-stat-val">${m.stats.print_time || '-'}</span></div>
+        </div>` : ''}
+        <div class="model-card-actions">
+          ${m.downloadUrl ? `<button class="btn-download-card" onclick="window.open('${m.downloadUrl}','_blank')">↓ STL İNDİR</button>` : `<button class="btn-download-card" style="opacity:0.4;cursor:default">↓ STL (Mock)</button>`}
+          <button class="btn-delete-card" onclick="deleteModel('${m.id}')">✕</button>
+        </div>
+      </div>
+    </div>`).join('')}</div>`;
+}
+
+function getMeshSVG(style) {
+  const path = PATHS[style] || PATHS.geometric;
+  return `<defs><radialGradient id="rg" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#4fffaa" stop-opacity="0.3"/><stop offset="100%" stop-color="#4fffaa" stop-opacity="0"/></radialGradient></defs><ellipse cx="120" cy="120" rx="90" ry="90" fill="url(#rg)"/><path d="${path}" fill="none" stroke="#4fffaa" stroke-width="1.5" opacity="0.8"/>`;
+}
+
+// ===== PAGE SWITCHING =====
+function switchPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.page-tab').forEach(t => t.classList.remove('active'));
+  if (page === 'generator') {
+    document.getElementById('generatorPage').classList.add('active');
+    document.querySelectorAll('.page-tab')[0].classList.add('active');
+  } else {
+    document.getElementById('libraryPage').classList.add('active');
+    document.querySelectorAll('.page-tab')[1].classList.add('active');
+    renderLibrary();
+  }
+}
+
+// ===== MESH DRAWING =====
+function drawMesh(svgId, style, progress) {
+  const svg = document.getElementById(svgId);
+  if (!svg) return;
+  const path = PATHS[style] || PATHS.geometric;
+  let lines = '';
+  for (let i = 0; i < 8; i++) lines += `<line x1="30" y1="${50+i*20}" x2="210" y2="${50+i*20}" stroke="#1a3a2a" stroke-width="0.5"/>`;
+  for (let i = 0; i < 9; i++) lines += `<line x1="${30+i*20}" y1="30" x2="${30+i*20}" y2="210" stroke="#1a3a2a" stroke-width="0.5"/>`;
+  const offset = 500 - (progress / 100) * 500;
+  svg.innerHTML = `<defs><clipPath id="cp_${svgId}"><path d="${path}"/></clipPath><radialGradient id="rg_${svgId}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#4fffaa" stop-opacity="0.2"/><stop offset="100%" stop-color="#4fffaa" stop-opacity="0"/></radialGradient></defs><ellipse cx="120" cy="120" rx="90" ry="90" fill="url(#rg_${svgId})"/><g clip-path="url(#cp_${svgId})">${lines}</g><path d="${path}" fill="none" stroke="#4fffaa" stroke-width="1.5" stroke-dasharray="500" stroke-dashoffset="${offset}"/>`;
+}
+
+setInterval(() => { tick++; drawMesh('idleMesh', selectedStyle, (tick * 0.5) % 100); }, 80);
+
+async function checkBackend() {
+  try {
+    const r = await fetch(API_URL + '/');
+    if (r.ok) document.getElementById('statusText').textContent = 'BACKEND AKTİF · ' + API_URL.replace('https://','');
+  } catch { document.getElementById('statusText').textContent = 'BACKEND BAĞLANAMADI'; }
+}
+checkBackend();
+updateLibCount();
+
+// ===== GENERATOR =====
+function switchMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-tab').forEach((t, i) => t.classList.toggle('active', (i===0&&mode==='text')||(i===1&&mode==='image')));
+  document.getElementById('textMode').style.display = mode==='text' ? 'block' : 'none';
+  document.getElementById('imageMode').style.display = mode==='image' ? 'block' : 'none';
+  checkReady();
+}
+
+function selectStyle(btn) {
+  document.querySelectorAll('.style-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedStyle = btn.dataset.style;
+}
+
+function checkReady() {
+  const btn = document.getElementById('generateBtn');
+  const ok = (currentMode==='text' && document.getElementById('promptInput').value.trim()) || (currentMode==='image' && selectedFile);
+  btn.classList.toggle('ready', !!ok);
+}
+
+function handleDragOver(e) { e.preventDefault(); document.getElementById('dropZone').classList.add('dragover'); }
+function handleDragLeave() { document.getElementById('dropZone').classList.remove('dragover'); }
+function handleDrop(e) { e.preventDefault(); document.getElementById('dropZone').classList.remove('dragover'); if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); }
+function handleFile(e) { if(e.target.files[0]) setFile(e.target.files[0]); }
+function setFile(file) {
+  selectedFile = file;
+  const reader = new FileReader();
+  reader.onload = e => { selectedFileDataUrl = e.target.result; };
+  reader.readAsDataURL(file);
+  const img = document.getElementById('previewImg');
+  img.src = URL.createObjectURL(file);
+  img.style.display = 'block';
+  document.getElementById('dropText').innerHTML = file.name;
+  checkReady();
+}
+
+async function generate() {
+  const btn = document.getElementById('generateBtn');
+  if (!btn.classList.contains('ready') || btn.classList.contains('loading')) return;
+  btn.classList.remove('ready'); btn.classList.add('loading'); btn.textContent = 'İŞLENİYOR...';
+  document.getElementById('errorBox').style.display = 'none';
+  document.getElementById('idleView').style.display = 'none';
+  document.getElementById('loadingView').style.display = 'block';
+  document.getElementById('resultView').style.display = 'none';
+  document.getElementById('saveBtn').style.display = 'none';
+
+  if (currentMode === 'image') {
+    document.getElementById('s1').textContent = 'ARKA PLAN';
+    document.getElementById('s2').textContent = 'TRIPOSR';
+    document.getElementById('s3').textContent = 'STL DÖNÜŞÜM';
+  } else {
+    document.getElementById('s1').textContent = 'TOPOLOJİ';
+    document.getElementById('s2').textContent = 'MESH';
+    document.getElementById('s3').textContent = 'OPTİMİZASYON';
+  }
+
+  try {
+    let task_id;
+    if (currentMode==='image' && selectedFile) {
+      const fd = new FormData();
+      fd.append('file', selectedFile);
+      const res = await fetch(`${API_URL}/generate/image`, {method:'POST', body:fd});
+      task_id = (await res.json()).task_id;
+    } else {
+      lastPrompt = document.getElementById('promptInput').value.trim();
+      const res = await fetch(`${API_URL}/generate/text`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt:lastPrompt, style:selectedStyle})});
+      task_id = (await res.json()).task_id;
+    }
+
+    pollInterval = setInterval(async () => {
+      try {
+        const d = await (await fetch(`${API_URL}/status/${task_id}`)).json();
+        updateProgress(d.progress);
+        btn.textContent = `İŞLENİYOR... %${Math.round(d.progress)}`;
+        if (d.status==='succeeded') { clearInterval(pollInterval); lastDownloadUrl=d.download_url||null; lastStats=d.stats; showResult(d.stats); }
+        else if (d.status==='failed') { clearInterval(pollInterval); showError('Model üretilemedi: ' + (d.error||'')); }
+      } catch { clearInterval(pollInterval); showError('Bağlantı kesildi.'); }
+    }, 1500);
+  } catch { showError('Backend\'e bağlanılamadı!'); }
+}
+
+function updateProgress(p) {
+  document.getElementById('loadingText').textContent = `İŞLENİYOR · %${Math.round(p)}`;
+  drawMesh('loadingMesh', selectedStyle, p);
+  const p1=Math.min(p,33), p2=Math.max(0,Math.min((p-33)*3,100)), p3=p>=90?Math.min((p-90)*10,100):0;
+  ['bar1','bar2','bar3'].forEach((id,i)=>document.getElementById(id).style.width=[p1,p2,p3][i]+'%');
+  ['p1','p2','p3'].forEach((id,i)=>document.getElementById(id).textContent='%'+Math.round([p1,p2,p3][i]));
+}
+
+function showResult(stats) {
+  document.getElementById('loadingView').style.display = 'none';
+  document.getElementById('resultView').style.display = 'block';
+  drawMesh('resultMesh', selectedStyle, 100);
+  const items = [['Vertices',stats.vertices?.toLocaleString()],['Faces',stats.faces?.toLocaleString()],['Boyut',`${stats.size_mb} MB`],['Baskı',stats.print_time],['Destek',stats.support_needed?'Gerekli':'Yok'],['Infill',stats.infill]];
+  document.getElementById('statsGrid').innerHTML = items.map(([k,v])=>`<div class="stat-item"><div class="stat-key">${k}</div><div class="stat-val">${v||'-'}</div></div>`).join('');
+  const stlBtn = document.getElementById('stlBtn');
+  if (lastDownloadUrl) { stlBtn.onclick=()=>window.open(lastDownloadUrl,'_blank'); stlBtn.textContent='↓ STL İNDİR'; }
+  else { stlBtn.textContent='↓ STL (Mock)'; }
+  document.getElementById('saveBtn').style.display = 'block';
+  document.getElementById('saveBtn').textContent = '+ KÜTÜPHANEye KAYDET';
+  const btn = document.getElementById('generateBtn');
+  btn.classList.remove('loading'); btn.textContent = 'MODEL ÜRET →';
+}
+
+function showError(msg) {
+  document.getElementById('loadingView').style.display='none'; document.getElementById('idleView').style.display='block';
+  const err=document.getElementById('errorBox'); err.style.display='block'; err.textContent='⚠ '+msg;
+  const btn=document.getElementById('generateBtn'); btn.classList.remove('loading'); btn.classList.add('ready'); btn.textContent='MODEL ÜRET →';
+}
+
+function reset() {
+  document.getElementById('resultView').style.display='none'; document.getElementById('idleView').style.display='block';
+  document.getElementById('promptInput').value=''; selectedFile=null; lastDownloadUrl=null; lastStats=null; lastPrompt=null;
+  document.getElementById('previewImg').style.display='none';
+  document.getElementById('saveBtn').style.display='none';
+  const btn=document.getElementById('generateBtn'); btn.classList.remove('ready','loading'); btn.textContent='MODEL ÜRET →';
+}
+</script>
+</body>
+</html>
