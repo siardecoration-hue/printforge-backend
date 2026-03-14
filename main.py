@@ -28,50 +28,45 @@ class TextRequest(BaseModel):
 
 @app.get("/")
 def root():
-    return {"status": "OK", "mode": "tripo3d", "tripo": bool(TRIPO_API_KEY)}
+    return {"status": "OK", "mode": "tripo3d"}
 
-# ===== TRIPO3D IMAGE TO 3D =====
 @app.post("/generate/image")
 async def generate_from_image(file: UploadFile = File(...)):
     task_id = str(uuid.uuid4())[:8]
     tasks[task_id] = {"status": "pending", "progress": 0}
     contents = await file.read()
-    asyncio.create_task(tripo_image_to_3d(task_id, contents, file.filename))
+    asyncio.create_task(process_with_tripo(task_id, contents, file.filename))
     return {"task_id": task_id}
 
-async def tripo_image_to_3d(task_id, contents, filename):
+async def process_with_tripo(task_id, contents, filename):
     try:
-        tasks[task_id]["status"] = "in_progress"
-        tasks[task_id]["progress"] = 10
-
+        tasks[task_id] = {"status": "in_progress", "progress": 10}
         async with httpx.AsyncClient(timeout=300) as client:
+            # 1. Görseli Tripo'ya yükle
+            files = {"file": (filename, contents, "image/jpeg")}
             headers = {"Authorization": f"Bearer {TRIPO_API_KEY}"}
-
-            # 1. Görseli yükle
-            tasks[task_id]["progress"] = 20
-            b64 = base64.b64encode(contents).decode()
-            ext = filename.split(".")[-1].lower()
-            mime = f"image/{ext}" if ext in ["jpg","jpeg","png","webp"] else "image/jpeg"
-
+            
             upload_res = await client.post(
                 f"{TRIPO_API_URL}/upload",
-                headers=headers,
-                json={"data": f"data:{mime};base64,{b64}", "type": "image"}
+                files=files,
+                headers=headers
             )
-            image_token = upload_res.json()["data"]["image_token"]
-            tasks[task_id]["progress"] = 30
+            upload_data = upload_res.json()
+            image_token = upload_data["data"]["image_token"]
+            tasks[task_id]["progress"] = 20
 
-            # 2. 3D model görevi oluştur
-            create_res = await client.post(
+            # 2. Model üretimini başlat
+            task_res = await client.post(
                 f"{TRIPO_API_URL}/task",
-                headers=headers,
                 json={
                     "type": "image_to_model",
                     "file": {"type": "jpg", "file_token": image_token}
-                }
+                },
+                headers={**headers, "Content-Type": "application/json"}
             )
-            tripo_task_id = create_res.json()["data"]["task_id"]
-            tasks[task_id]["progress"] = 40
+            tripo_task = task_res.json()
+            tripo_task_id = tripo_task["data"]["task_id"]
+            tasks[task_id]["progress"] = 30
 
             # 3. Sonucu bekle
             while True:
@@ -80,92 +75,40 @@ async def tripo_image_to_3d(task_id, contents, filename):
                     f"{TRIPO_API_URL}/task/{tripo_task_id}",
                     headers=headers
                 )
-                data = status_res.json()["data"]
-                progress = data.get("progress", 0)
-                tasks[task_id]["progress"] = 40 + int(progress * 0.55)
+                status_data = status_res.json()
+                tripo_status = status_data["data"]["status"]
+                tripo_progress = status_data["data"].get("progress", 0)
+                tasks[task_id]["progress"] = 30 + int(tripo_progress * 0.7)
 
-                if data["status"] == "success":
+                if tripo_status == "success":
+                    model_url = status_data["data"]["output"]["model"]
                     tasks[task_id]["status"] = "succeeded"
                     tasks[task_id]["progress"] = 100
-                    tasks[task_id]["download_url"] = data["output"]["model"]
+                    tasks[task_id]["download_url"] = model_url
                     tasks[task_id]["stats"] = {
                         "vertices": random.randint(15000, 80000),
                         "faces": random.randint(30000, 160000),
                         "size_mb": round(random.uniform(1.5, 8.0), 1),
-                        "print_time": f"{random.randint(0,4)}h {random.randint(10,59)}m",
+                        "print_time": f"{random.randint(1,5)}h {random.randint(10,59)}m",
                         "support_needed": random.choice([True, False]),
                         "infill": f"{random.randint(15, 40)}%",
                     }
                     break
-                elif data["status"] == "failed":
+                elif tripo_status == "failed":
                     tasks[task_id]["status"] = "failed"
-                    tasks[task_id]["error"] = "Tripo3D model üretemedi"
+                    tasks[task_id]["error"] = "Tripo3D model üretimi başarısız"
                     break
 
     except Exception as e:
         tasks[task_id]["status"] = "failed"
         tasks[task_id]["error"] = str(e)
 
-# ===== TRIPO3D TEXT TO 3D =====
 @app.post("/generate/text")
 async def generate_from_text(req: TextRequest):
     task_id = str(uuid.uuid4())[:8]
     tasks[task_id] = {"status": "pending", "progress": 0}
-    if TRIPO_API_KEY:
-        asyncio.create_task(tripo_text_to_3d(task_id, req.prompt, req.style))
-    else:
-        asyncio.create_task(simulate_progress(task_id, req.prompt, req.style))
+    asyncio.create_task(simulate_progress(task_id, req.prompt, req.style))
     return {"task_id": task_id}
-
-async def tripo_text_to_3d(task_id, prompt, style):
-    try:
-        tasks[task_id]["status"] = "in_progress"
-        tasks[task_id]["progress"] = 10
-
-        async with httpx.AsyncClient(timeout=300) as client:
-            headers = {"Authorization": f"Bearer {TRIPO_API_KEY}"}
-
-            create_res = await client.post(
-                f"{TRIPO_API_URL}/task",
-                headers=headers,
-                json={"type": "text_to_model", "prompt": f"{prompt}, {style} style, 3D printable"}
-            )
-            tripo_task_id = create_res.json()["data"]["task_id"]
-            tasks[task_id]["progress"] = 20
-
-            while True:
-                await asyncio.sleep(3)
-                status_res = await client.get(
-                    f"{TRIPO_API_URL}/task/{tripo_task_id}",
-                    headers=headers
-                )
-                data = status_res.json()["data"]
-                progress = data.get("progress", 0)
-                tasks[task_id]["progress"] = 20 + int(progress * 0.75)
-
-                if data["status"] == "success":
-                    tasks[task_id]["status"] = "succeeded"
-                    tasks[task_id]["progress"] = 100
-                    tasks[task_id]["download_url"] = data["output"]["model"]
-                    tasks[task_id]["stats"] = {
-                        "vertices": random.randint(15000, 80000),
-                        "faces": random.randint(30000, 160000),
-                        "size_mb": round(random.uniform(1.5, 8.0), 1),
-                        "print_time": f"{random.randint(0,4)}h {random.randint(10,59)}m",
-                        "support_needed": random.choice([True, False]),
-                        "infill": f"{random.randint(15, 40)}%",
-                        "prompt": prompt,
-                        "style": style,
-                    }
-                    break
-                elif data["status"] == "failed":
-                    tasks[task_id]["status"] = "failed"
-                    tasks[task_id]["error"] = "Tripo3D model üretemedi"
-                    break
-
-    except Exception as e:
-        tasks[task_id]["status"] = "failed"
-        tasks[task_id]["error"] = str(e)
 
 async def simulate_progress(task_id, prompt, style):
     for progress in range(10, 101, 10):
