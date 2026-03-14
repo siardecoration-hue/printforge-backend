@@ -963,6 +963,96 @@ function doPay(){
 }
 
 // Init
+  // ===== GERÇEK API BAĞLANTISI =====
+const API_URL = window.location.origin;
+const PF_TOKEN = localStorage.getItem('pf_token') || '';
+
+// Gerçek giriş fonksiyonu (eskisini değiştir)
+async function doLoginReal() {
+    const e = document.getElementById('le').value.trim();
+    const p = document.getElementById('lp').value;
+    if (!e || !p) { aerr('Tüm alanları doldurun'); return; }
+    
+    try {
+        const res = await fetch(API_URL + '/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: e, password: p })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Hata');
+        
+        localStorage.setItem('pf_token', data.token);
+        localStorage.setItem('pf_user', JSON.stringify(data.user));
+        user = data.user;
+        updateNav();
+        aok('Giriş başarılı!');
+        setTimeout(() => showPage('landing'), 800);
+    } catch (err) {
+        aerr(err.message);
+    }
+}
+
+async function doRegReal() {
+    const n = document.getElementById('rn').value.trim();
+    const e = document.getElementById('re').value.trim();
+    const p = document.getElementById('rp').value;
+    if (!n || !e || !p) { aerr('Tüm alanları doldurun'); return; }
+    if (p.length < 6) { aerr('Şifre en az 6 karakter'); return; }
+    
+    try {
+        const res = await fetch(API_URL + '/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: n, email: e, password: p })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Hata');
+        
+        localStorage.setItem('pf_token', data.token);
+        localStorage.setItem('pf_user', JSON.stringify(data.user));
+        user = data.user;
+        updateNav();
+        aok('Hesap oluşturuldu!');
+        setTimeout(() => showPage('landing'), 800);
+    } catch (err) {
+        aerr(err.message);
+    }
+}
+
+// Eski fonksiyonları değiştir
+doLogin = doLoginReal;
+doReg = doRegReal;
+
+// Gerçek galeri yükleme
+async function loadRealGallery() {
+    try {
+        const res = await fetch(API_URL + '/api/gallery?limit=20&sort=' + sortBy);
+        const data = await res.json();
+        if (data.models && data.models.length > 0) {
+            // Gerçek modelleri MODELS dizisine ekle
+            data.models.forEach(m => {
+                if (!MODELS.find(x => x.id === 'db_' + m.id)) {
+                    MODELS.push({
+                        id: 'db_' + m.id,
+                        title: m.title || 'Model',
+                        author: m.author_name || 'Kullanıcı',
+                        style: m.style || 'geometric',
+                        likes: m.likes || 0,
+                        downloads: m.downloads || 0,
+                        date: (m.created_at || '').slice(0, 10),
+                        task_id: m.task_id,
+                        real: true
+                    });
+                }
+            });
+            renderLib();
+        }
+    } catch (e) { console.log('Gallery load error:', e); }
+}
+
+// Sayfa yüklendiğinde gerçek galeriyi yükle
+setTimeout(loadRealGallery, 1000);
 renderLib();
 </script>
 </body>
