@@ -105,7 +105,30 @@ def init_db():
     print("[DB] Veritabanı hazır")
 
 init_db()
+init_db()
 
+
+@app.on_event("startup")
+async def startup():
+    init_db()
+    db_dir = os.path.dirname(DB_PATH)
+    if db_dir and not os.path.exists(db_dir):
+        try:
+            os.makedirs(db_dir, exist_ok=True)
+            print(f"[DB] {db_dir} klasoru olusturuldu")
+        except Exception as e:
+            print(f"[DB] Klasor olusturulamadi: {e}")
+    if os.path.exists("/data"):
+        print("[DB] /data Volume bagli - Veritabani KALICI")
+    else:
+        print("[DB] /data Volume YOK - Deploy'da veri silinecek!")
+    print(f"[DB] Veritabani yolu: {DB_PATH}")
+    print(f"[DB] Dosya var mi: {os.path.exists(DB_PATH)}")
+
+
+# ══════════════════════════════════════════════
+#              AUTH YARDIMCILAR
+# ══════════════════════════════════════════════
 
 # ══════════════════════════════════════════════
 #              AUTH YARDIMCILAR
