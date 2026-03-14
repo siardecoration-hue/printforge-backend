@@ -20,7 +20,7 @@ app.add_middleware(
 tasks = {}
 
 TRIPO_API_KEY = os.getenv("TRIPO_API_KEY", "")
-TRIPO_API_URL = "https://api.tripo3d.ai/v2/openapi"
+TRIPO_BASE = "https://api.tripo3d.ai/v2/openapi"
 
 class TextRequest(BaseModel):
     prompt: str
@@ -35,44 +35,42 @@ async def generate_from_image(file: UploadFile = File(...)):
     task_id = str(uuid.uuid4())[:8]
     tasks[task_id] = {"status": "pending", "progress": 0}
     contents = await file.read()
-    asyncio.create_task(process_with_tripo(task_id, contents, file.filename))
+    asyncio.create_task(process_with_tripo(task_id, contents))
     return {"task_id": task_id}
 
-async def process_with_tripo(task_id, contents, filename):
+async def process_with_tripo(task_id, contents):
     try:
         tasks[task_id] = {"status": "in_progress", "progress": 10}
+        headers = {
+            "Authorization": f"Bearer {TRIPO_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
         async with httpx.AsyncClient(timeout=300) as client:
-            # 1. Görseli Tripo'ya yükle
-            files = {"file": (filename, contents, "image/jpeg")}
-            headers = {"Authorization": f"Bearer {TRIPO_API_KEY}"}
-            
-            upload_res = await client.post(
-                f"{TRIPO_API_URL}/upload",
-                files=files,
-                headers=headers
-            )
-            upload_data = upload_res.json()
-            image_token = upload_data["data"]["image_token"]
+            # 1. Görseli base64'e çevir ve task gönder
+            b64_image = base64.b64encode(contents).decode("utf-8")
             tasks[task_id]["progress"] = 20
 
-            # 2. Model üretimini başlat
             task_res = await client.post(
-                f"{TRIPO_API_URL}/task",
+                f"{TRIPO_BASE}/task",
                 json={
                     "type": "image_to_model",
-                    "file": {"type": "jpg", "file_token": image_token}
+                    "file": {
+                        "type": "jpg",
+                        "data": b64_image
+                    }
                 },
-                headers={**headers, "Content-Type": "application/json"}
+                headers=headers
             )
-            tripo_task = task_res.json()
-            tripo_task_id = tripo_task["data"]["task_id"]
+            task_data = task_res.json()
+            tripo_task_id = task_data["data"]["task_id"]
             tasks[task_id]["progress"] = 30
 
-            # 3. Sonucu bekle
+            # 2. Sonucu bekle
             while True:
                 await asyncio.sleep(3)
                 status_res = await client.get(
-                    f"{TRIPO_API_URL}/task/{tripo_task_id}",
+                    f"{TRIPO_BASE}/task/{tripo_task_id}",
                     headers=headers
                 )
                 status_data = status_res.json()
