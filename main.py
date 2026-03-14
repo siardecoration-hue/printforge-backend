@@ -64,10 +64,9 @@ async def process_with_tripo(task_id, contents, filename):
             )
             upload_json = upload_res.json()
 
-            if upload_json.get("code") != 200:
+            image_token = upload_json.get("data", {}).get("image_token")
+            if not image_token:
                 raise Exception(f"Upload failed: {upload_json}")
-
-            image_token = upload_json["data"]["image_token"]
             tasks[task_id]["progress"] = 30
 
             # 2. image_to_model task gönder
@@ -84,10 +83,9 @@ async def process_with_tripo(task_id, contents, filename):
             )
             task_json = task_res.json()
 
-            if task_json.get("code") != 200:
-                raise Exception(f"Task failed: {task_json}")
-
-            tripo_task_id = task_json["data"]["task_id"]
+            tripo_task_id = task_json.get("data", {}).get("task_id")
+            if not tripo_task_id:
+                raise Exception(f"Task creation failed: {task_json}")
             tasks[task_id]["progress"] = 40
 
             # 3. Sonucu bekle
