@@ -574,8 +574,7 @@ async def _demo_generate(tid):
         await cache_model(tid,m["glb"])
         tasks[tid]["status"]="done"; tasks[tid]["progress"]=100; tasks[tid]["step"]=f"Demo: {m['name']}"
         save_model(0,tid,m["name"],"demo","demo","",m["glb"])
-    except Exception as e: tasks[tid]["status"]="failed"; tasks[tid]["error"]=str(e)
-        APP_HTML = r"""<!DOCTYPE html>
+    except Exception as e: tasks[tid]["status"]="failed"; tasks[tid]["error"]=str(e)APP_HTML = r"""<!DOCTYPE html>
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
