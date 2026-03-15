@@ -2,221 +2,63 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PrintForge - AI 3D</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <title>PrintForge - Atölye</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
     <script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
     <style>
-        :root { --bg: #04080a; --card: #060c10; --accent: #00e5ff; --accent2: #00ff9d; --text: #c8dde5; --muted: #2a4a5a; }
-        body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; margin: 0; overflow-x: hidden; }
-        h1, h2, h3 { font-family: 'Outfit', sans-serif; color: white; }
-        
-        /* Layout */
-        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
-        .nav { display: flex; justify-content: space-between; padding: 20px; border-bottom: 1px solid #0e2028; background: rgba(4,8,10,0.8); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 100; }
-        
-        /* Cards */
-        .card { background: var(--card); border: 1px solid #0e2028; border-radius: 15px; padding: 25px; margin-bottom: 20px; transition: 0.3s; }
-        .gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
-        .model-card { cursor: pointer; overflow: hidden; }
-        .model-card:hover { border-color: var(--accent); transform: translateY(-5px); }
-        .model-thumb { height: 150px; background: #0a1018; display: flex; align-items: center; justify-content: center; }
-
-        /* Overlay / Detail Page */
-        .overlay { display: none; position: fixed; inset: 0; background: rgba(4,8,10,0.98); z-index: 1000; overflow-y: auto; padding: 40px 20px; }
-        .overlay.active { display: block; }
-        .detail-content { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: 1.2fr 1fr; gap: 30px; }
-        .viewer-box { height: 400px; background: #000; border-radius: 15px; border: 1px solid #0e2028; }
-        
-        /* Buttons */
-        button { background: var(--accent); color: black; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: bold; font-family: 'Outfit'; transition: 0.2s; }
-        button:hover { background: var(--accent2); transform: scale(1.05); }
-        .close-btn { position: absolute; top: 20px; right: 20px; font-size: 30px; color: white; cursor: pointer; }
-
-        /* Comments */
-        .comment-box { margin-top: 20px; border-top: 1px solid #0e2028; padding-top: 20px; }
-        .comment { background: #0a1018; padding: 10px; border-radius: 8px; margin-bottom: 10px; font-size: 14px; }
-        
-        input, textarea { width: 100%; padding: 12px; margin: 10px 0; background: #0a1018; border: 1px solid #0e2028; color: white; border-radius: 8px; }
-        @media (max-width: 768px) { .detail-content { grid-template-columns: 1fr; } }
+        body { background: #04080a; color: white; font-family: 'Outfit', sans-serif; margin: 0; padding: 20px; }
+        .nav { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #0e2028; margin-bottom: 30px; }
+        .card { background: #060c10; padding: 25px; border-radius: 15px; border: 1px solid #0e2028; margin-bottom: 20px; }
+        button { background: #00e5ff; color: black; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        textarea { width: 100%; padding: 15px; background: #0a1018; border: 1px solid #0e2028; color: white; border-radius: 8px; margin: 10px 0; }
+        .viewer { height: 400px; background: #000; border-radius: 10px; margin-top: 20px; }
     </style>
 </head>
 <body>
-
     <div class="nav">
-        <div style="font-weight: 800; color: var(--accent); font-family: 'Outfit';">PRINTFORGE</div>
-        <div id="userInfo"></div>
+        <div style="font-weight:bold; color:#00e5ff">PRINTFORGE ATÖLYE</div>
+        <a href="/" style="color:white; text-decoration:none">← Ana Sayfaya Dön</a>
     </div>
 
-    <div class="container">
-        <!-- Auth -->
-        <div id="authPanel" class="card">
-            <h2>Giriş Yap / Kayıt Ol</h2>
-            <input type="email" id="email" placeholder="E-posta">
-            <input type="password" id="pass" placeholder="Şifre">
-            <button onclick="login()">Giriş Yap</button>
-            <button style="background:none; color:var(--accent)" onclick="register()">Hesap Oluştur</button>
-        </div>
-
-        <!-- App -->
-        <div id="appPanel" style="display:none">
-            <div class="card">
-                <h3>Yeni Model Üret</h3>
-                <textarea id="prompt" placeholder="Örn: sevimli bir ejderha figürü..."></textarea>
-                <button onclick="generate()">Üretmeye Başla</button>
-                <div id="status" style="margin-top:10px"></div>
-            </div>
-
-            <h3>Topluluk Galerisi</h3>
-            <div class="gal-grid" id="gallery">
-                <!-- Modeller buraya gelecek -->
-            </div>
-        </div>
-    </div>
-
-    <!-- Detay Sayfası Overlay -->
-    <div id="detailOverlay" class="overlay">
-        <span class="close-btn" onclick="closeDetail()">&times;</span>
-        <div class="detail-content">
-            <div id="detailViewer" class="viewer-box"></div>
-            <div class="detail-info">
-                <h1 id="dTitle">Model Başlığı</h1>
-                <p id="dAuthor" style="color: var(--accent)">Yazar: ...</p>
-                <div class="card">
-                    <h4>Prompt:</h4>
-                    <p id="dPrompt" style="font-style: italic; font-size: 14px;"></p>
-                </div>
-                
-                <div class="comment-box">
-                    <h4>Yorumlar</h4>
-                    <div id="commentList"></div>
-                    <textarea id="newComment" placeholder="Yorum yazın..."></textarea>
-                    <button onclick="addComment()">Gönder</button>
-                </div>
-
-                <div style="margin-top: 30px;">
-                    <h4>Benzer Modeller</h4>
-                    <div class="gal-grid" id="similarModels" style="grid-template-columns: 1fr 1fr;"></div>
-                </div>
-            </div>
-        </div>
+    <div class="card">
+        <h2>Yeni Bir Model Hayal Et</h2>
+        <textarea id="prompt" placeholder="Örn: Cyberpunk bir kask, antik bir vazo..."></textarea>
+        <button onclick="generate()">AI İle Üret</button>
+        <div id="status" style="margin-top:15px; color:#00ff9d"></div>
+        <div id="result" class="viewer" style="display:none"></div>
     </div>
 
     <script>
         const API = window.location.origin;
-        let token = localStorage.getItem('pf_token');
-        let currentModelId = null;
+        const token = localStorage.getItem('pf_token');
 
-        if(token) { showApp(); loadGallery(); }
-
-        async function login() {
-            const r = await fetch(API+'/api/auth/login', {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({email: document.getElementById('email').value, password: document.getElementById('pass').value})
-            });
-            if(r.ok) {
-                const d = await r.json();
-                localStorage.setItem('pf_token', d.token);
-                location.reload();
-            } else { alert("Giriş başarısız!"); }
-        }
-
-        async function register() {
-            const r = await fetch(API+'/api/auth/register', {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({name: "Maker", email: document.getElementById('email').value, password: document.getElementById('pass').value})
-            });
-            if(r.ok) alert("Kayıt başarılı! Şimdi giriş yapabilirsin.");
-        }
-
-        function showApp() {
-            document.getElementById('authPanel').style.display = 'none';
-            document.getElementById('appPanel').style.display = 'block';
-        }
-
-        async function loadGallery() {
-            const r = await fetch(API+'/api/gallery');
-            const d = await r.json();
-            const gal = document.getElementById('gallery');
-            gal.innerHTML = d.models.map(m => `
-                <div class="card model-card" onclick="openDetail(${m.id})">
-                    <div class="model-thumb">📦</div>
-                    <div style="margin-top:10px; font-weight:bold">${m.title}</div>
-                    <div style="font-size:12px; color:var(--muted)">@${m.author_name || 'Anonim'}</div>
-                </div>
-            `).join('');
-        }
-
-        async function openDetail(id) {
-            currentModelId = id;
-            document.getElementById('detailOverlay').classList.add('active');
-            
-            const r = await fetch(API+`/api/gallery/${id}`);
-            const m = await r.json();
-            
-            document.getElementById('dTitle').textContent = m.title;
-            document.getElementById('dAuthor').textContent = `Yazar: @${m.author_name || 'Anonim'}`;
-            document.getElementById('dPrompt').textContent = m.prompt || "Prompt bilgisi yok.";
-            document.getElementById('detailViewer').innerHTML = `<model-viewer src="${API}/api/model/${m.task_id}/view" auto-rotate camera-controls style="width:100%; height:100%;"></model-viewer>`;
-            
-            loadComments(id);
-            loadSimilar();
-        }
-
-        function closeDetail() {
-            document.getElementById('detailOverlay').classList.remove('active');
-        }
-
-        async function loadComments(id) {
-            // Not: Backend'de yorum endpoint'ini main.py'ye ekleyeceğiz.
-            const r = await fetch(API+`/api/gallery/${id}/comments`);
-            const d = await r.json();
-            document.getElementById('commentList').innerHTML = d.comments.map(c => `
-                <div class="comment"><b>${c.author_name}:</b> ${c.text}</div>
-            `).join('');
-        }
-
-        async function addComment() {
-            const txt = document.getElementById('newComment').value;
-            if(!token) return alert("Yorum yapmak için giriş yapın!");
-            await fetch(API+`/api/gallery/${currentModelId}/comments`, {
-                method:'POST',
-                headers:{'Content-Type':'application/json', 'Authorization': 'Bearer '+token},
-                body: JSON.stringify({text: txt})
-            });
-            document.getElementById('newComment').value = '';
-            loadComments(currentModelId);
-        }
-
-        async function loadSimilar() {
-            const r = await fetch(API+'/api/gallery'); // Şimdilik galeriden rastgele çekiyoruz
-            const d = await r.json();
-            document.getElementById('similarModels').innerHTML = d.models.slice(0,2).map(m => `
-                <div class="card model-card" style="padding:10px" onclick="openDetail(${m.id})">
-                    <div style="font-size:11px">${m.title}</div>
-                </div>
-            `).join('');
-        }
+        if(!token) window.location.href = '/';
 
         async function generate() {
+            const btn = document.querySelector('button');
             const st = document.getElementById('status');
-            const pr = document.getElementById('prompt').value;
-            st.textContent = "⚙️ AI Hayal Ediyor...";
+            btn.disabled = true;
+            st.textContent = "🚀 Yapay zeka modeli örüyor, lütfen bekleyin...";
+
             const r = await fetch(API+'/api/generate/text', {
                 method:'POST',
                 headers:{'Content-Type':'application/json', 'Authorization': 'Bearer '+token},
-                body: JSON.stringify({prompt: pr})
+                body: JSON.stringify({prompt: document.getElementById('prompt').value})
             });
             const d = await r.json();
+            
             let poll = setInterval(async () => {
                 const res = await fetch(API+'/api/status/'+d.task_id);
                 const data = await res.json();
                 if(data.status === 'done') {
                     clearInterval(poll);
-                    st.textContent = "✅ Üretim Tamamlandı!";
-                    loadGallery();
+                    st.textContent = "✅ Başarıyla Üretildi!";
+                    const resDiv = document.getElementById('result');
+                    resDiv.style.display = 'block';
+                    resDiv.innerHTML = `<model-viewer src="${API}/api/model/${d.task_id}/view" auto-rotate camera-controls style="width:100%; height:100%"></model-viewer>`;
+                    btn.disabled = false;
                 }
-            }, 3000);
+            }, 5000);
         }
     </script>
 </body>
