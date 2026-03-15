@@ -575,11 +575,19 @@ async def _demo_generate(tid):
         tasks[tid]["status"]="done"; tasks[tid]["progress"]=100; tasks[tid]["step"]=f"Demo: {m['name']}"
         save_model(0,tid,m["name"],"demo","demo","",m["glb"])
     except Exception as e: tasks[tid]["status"]="failed"; tasks[tid]["error"]=str(e)
-    def load_app_html():
+def load_app_html():
+    path = os.path.join(os.path.dirname(__file__), "app.html")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+def load_app_html():
     path = os.path.join(os.path.dirname(__file__), "app.html")
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             return f.read()
     return "<html><body><h1>app.html bulunamadi</h1></body></html>"
 
-APP_HTML = load_app_html()
+
+@app.get("/app", response_class=HTMLResponse)
+def serve_app():
+    return HTMLResponse(load_app_html())
