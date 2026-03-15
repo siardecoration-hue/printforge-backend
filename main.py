@@ -29,6 +29,8 @@ SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_hex(32))
 DB_PATH = os.getenv("DB_PATH", "printforge.db")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+EMAIL_FROM = os.getenv("EMAIL_FROM", "onboarding@resend.dev")
 TRIPO_BASE = "https://api.tripo3d.ai/v2/openapi"
 MESHY_BASE = "https://api.meshy.ai/openapi/v2"
 
@@ -124,26 +126,115 @@ async def validate_email(email):
     return True, "OK"
 
 
+# ════════ E-POSTA GONDERME ════════
+async def send_email(to, subject, html_content):
+    """Resend API ile e-posta gonder"""
+    if not RESEND_API_KEY:
+        print(f"[MAIL] API key yok, mail gonderilemedi: {to}")
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {RESEND_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "from": EMAIL_FROM,
+                    "to": [to],
+                    "subject": subject,
+                    "html": html_content
+                }
+            )
+            if r.status_code in (200, 201):
+                print(f"[MAIL] Gonderildi: {to}")
+                return True
+            else:
+                print(f"[MAIL] Hata: {r.status_code} - {r.text}")
+                return False
+    except Exception as e:
+        print(f"[MAIL] Exception: {e}")
+        return False
+
+
+async def send_verification_email(email, token):
+    """Dogrulama maili gonder"""
+    link = f"{get_site_url()}/api/auth/verify?token={token}"
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:30px;background:#04080a;border:1px solid #0e2028;border-radius:12px">
+        <div style="text-align:center;margin-bottom:24px">
+            <span style="font-size:24px;font-weight:800;color:#00e5ff;letter-spacing:0.1em">PRINTFORGE</span>
+        </div>
+        <h2 style="color:#c8dde5;font-size:18px;margin-bottom:12px">Hesabinizi Dogrulayin</h2>
+        <p style="color:#2a4a5a;font-size:14px;line-height:1.8;margin-bottom:24px">
+            PrintForge'a hosgeldiniz! Hesabinizi aktif etmek icin asagidaki butona tiklayin.
+        </p>
+        <div style="text-align:center;margin-bottom:24px">
+            <a href="{link}" style="display:inline-block;padding:14px 36px;background:#00e5ff;color:#04080a;text-decoration:none;font-weight:700;font-size:14px;border-radius:8px">
+                Hesabi Dogrula
+            </a>
+        </div>
+        <p style="color:#2a4a5a;font-size:11px;line-height:1.6">
+            Bu link 24 saat gecerlidir. Eger siz kayit olmadiysiniz bu maili gormezden gelin.
+        </p>
+        <hr style="border:none;border-top:1px solid #0e2028;margin:20px 0">
+        <p style="color:#2a4a5a;font-size:10px;text-align:center">PrintForge - AI ile 3D Model Uretici</p>
+    </div>
+    """
+    return await send_email(email, "PrintForge - Hesap Dogrulama", html)
+
+
+async def send_reset_email(email, token):
+    """Sifre sifirlama maili gonder"""
+    link = f"{get_site_url()}/app?reset={token}"
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:30px;background:#04080a;border:1px solid #0e2028;border-radius:12px">
+        <div style="text-align:center;margin-bottom:24px">
+            <span style="font-size:24px;font-weight:800;color:#00e5ff;letter-spacing:0.1em">PRINTFORGE</span>
+        </div>
+        <h2 style="color:#c8dde5;font-size:18px;margin-bottom:12px">Sifre Sifirlama</h2>
+        <p style="color:#2a4a5a;font-size:14px;line-height:1.8;margin-bottom:24px">
+            Sifrenizi sifirlamak icin asagidaki butona tiklayin.
+        </p>
+        <div style="text-align:center;margin-bottom:24px">
+            <a href="{link}" style="display:inline-block;padding:14px 36px;background:#00e5ff;color:#04080a;text-decoration:none;font-weight:700;font-size:14px;border-radius:8px">
+                Sifremi Sifirla
+            </a>
+        </div>
+        <p style="color:#2a4a5a;font-size:11px;line-height:1.6">
+            Bu link 1 saat gecerlidir. Eger siz talep etmediyseniz bu maili gormezden gelin.
+        </p>
+        <hr style="border:none;border-top:1px solid #0e2028;margin:20px 0">
+        <p style="color:#2a4a5a;font-size:10px;text-align:center">PrintForge - AI ile 3D Model Uretici</p>
+    </div>
+    """
+    return await send_email(email, "PrintForge - Sifre Sifirlama", html)
+
+
 class TextRequest(BaseModel):
     prompt: str
     style: str = "realistic"
-
 
 class RegisterReq(BaseModel):
     name: str
     email: str
     password: str
 
-
 class LoginReq(BaseModel):
     email: str
     password: str
-
 
 class UpdateProfileReq(BaseModel):
     name: Optional[str] = None
     password: Optional[str] = None
 
+class ForgotPasswordReq(BaseModel):
+    email: str
+
+class ResetPasswordReq(BaseModel):
+    token: str
+    password: str
 
 STYLE_MAP = {
     "realistic": "realistic", "cartoon": "cartoon", "lowpoly": "low-poly",
@@ -151,13 +242,13 @@ STYLE_MAP = {
     "geometric": "realistic",
 }
 
-
 def get_api():
     if TRIPO_API_KEY:
         return "tripo"
     if MESHY_API_KEY:
         return "meshy"
-        # ════════ VERITABANI ════════
+    return "demo"
+    # ════════ VERITABANI ════════
 def get_db():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -176,6 +267,10 @@ def init_db():
             plan TEXT DEFAULT 'free',
             google_id TEXT,
             avatar_url TEXT,
+            verified INTEGER DEFAULT 0,
+            verify_token TEXT,
+            reset_token TEXT,
+            reset_expires TEXT,
             created_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS models (
@@ -222,6 +317,8 @@ async def startup():
         except:
             pass
     print(f"[DB] Yol: {DB_PATH}")
+    print(f"[MAIL] Resend: {'ON' if RESEND_API_KEY else 'OFF'}")
+    print(f"[GOOGLE] OAuth: {'ON' if GOOGLE_CLIENT_ID else 'OFF'}")
 
 
 # ════════ AUTH HELPERS ════════
@@ -261,13 +358,13 @@ async def get_user(authorization: Optional[str] = Header(None)):
         return None
     conn = get_db()
     row = conn.execute(
-        "SELECT id,email,name,plan,avatar_url,created_at FROM users WHERE id=?",
+        "SELECT id,email,name,plan,avatar_url,verified,created_at FROM users WHERE id=?",
         (data["user_id"],)
     ).fetchone()
     conn.close()
     if row:
         return {"id": row[0], "email": row[1], "name": row[2], "plan": row[3],
-                "avatar_url": row[4], "created_at": row[5]}
+                "avatar_url": row[4], "verified": row[5], "created_at": row[6]}
     return None
 
 
@@ -329,25 +426,29 @@ def serve_app():
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             return HTMLResponse(f.read())
-    return HTMLResponse("<html><body><h1>app.html bulunamadi</h1><p>GitHub reposuna app.html dosyasi ekleyin.</p></body></html>")
+    return HTMLResponse("<html><body><h1>app.html bulunamadi</h1></body></html>")
 
 
 # ════════ AUTH API ════════
 @app.post("/api/auth/register")
 async def register(req: RegisterReq):
     if len(req.password) < 6:
-        raise HTTPException(400, "Sifre en az 6 karakter")
+        raise HTTPException(400, "Sifre en az 6 karakter olmali")
     if not req.name.strip() or len(req.name.strip()) < 2:
         raise HTTPException(400, "Gecerli bir isim girin")
     valid, msg = await validate_email(req.email)
     if not valid:
         raise HTTPException(400, msg)
+
     salt, h = hash_pw(req.password)
+    verify_token = secrets.token_urlsafe(32)
+
     conn = get_db()
     try:
         conn.execute(
-            "INSERT INTO users(email,name,password_hash,salt) VALUES(?,?,?,?)",
-            (req.email.lower().strip(), req.name.strip(), h, salt)
+            "INSERT INTO users(email,name,password_hash,salt,verify_token,verified) VALUES(?,?,?,?,?,?)",
+            (req.email.lower().strip(), req.name.strip(), h, salt, verify_token,
+             0 if RESEND_API_KEY else 1)
         )
         conn.commit()
         uid = conn.execute("SELECT id FROM users WHERE email=?", (req.email.lower().strip(),)).fetchone()[0]
@@ -355,15 +456,31 @@ async def register(req: RegisterReq):
     except sqlite3.IntegrityError:
         conn.close()
         raise HTTPException(400, "Bu e-posta zaten kayitli")
+
+    # E-posta dogrulama maili gonder
+    if RESEND_API_KEY:
+        await send_verification_email(req.email.lower().strip(), verify_token)
+
     token = create_token(uid, req.email, req.name, "free")
-    return {"token": token, "user": {"id": uid, "name": req.name, "email": req.email, "plan": "free"}}
+
+    if RESEND_API_KEY:
+        return {
+            "token": token,
+            "user": {"id": uid, "name": req.name, "email": req.email, "plan": "free", "verified": 0},
+            "message": "Dogrulama maili gonderildi. Lutfen e-postanizi kontrol edin."
+        }
+    else:
+        return {
+            "token": token,
+            "user": {"id": uid, "name": req.name, "email": req.email, "plan": "free", "verified": 1}
+        }
 
 
 @app.post("/api/auth/login")
 async def login(req: LoginReq):
     conn = get_db()
     row = conn.execute(
-        "SELECT id,email,name,password_hash,salt,plan FROM users WHERE email=?",
+        "SELECT id,email,name,password_hash,salt,plan,verified FROM users WHERE email=?",
         (req.email.lower().strip(),)
     ).fetchone()
     conn.close()
@@ -371,8 +488,13 @@ async def login(req: LoginReq):
         raise HTTPException(401, "E-posta veya sifre hatali")
     if not verify_pw(req.password, row["salt"], row["password_hash"]):
         raise HTTPException(401, "E-posta veya sifre hatali")
+
     token = create_token(row["id"], row["email"], row["name"], row["plan"])
-    return {"token": token, "user": {"id": row["id"], "name": row["name"], "email": row["email"], "plan": row["plan"]}}
+    return {
+        "token": token,
+        "user": {"id": row["id"], "name": row["name"], "email": row["email"],
+                 "plan": row["plan"], "verified": row["verified"]}
+    }
 
 
 @app.get("/api/auth/me")
@@ -383,7 +505,111 @@ async def get_me(authorization: Optional[str] = Header(None)):
     used = get_usage(user["id"])
     limit = PLAN_LIMITS.get(user["plan"], 5)
     stats = get_user_stats(user["id"])
-    return {"user": user, "usage": {"used": used, "limit": limit, "remaining": max(0, limit - used)}, "stats": stats}
+    return {
+        "user": user,
+        "usage": {"used": used, "limit": limit, "remaining": max(0, limit - used)},
+        "stats": stats
+    }
+
+
+@app.get("/api/auth/verify")
+async def verify_email(token: str = ""):
+    """E-posta dogrulama linki"""
+    if not token:
+        raise HTTPException(400, "Gecersiz link")
+    conn = get_db()
+    row = conn.execute("SELECT id,email FROM users WHERE verify_token=?", (token,)).fetchone()
+    if not row:
+        conn.close()
+        return HTMLResponse("""
+        <html><body style="background:#04080a;color:#ff4466;font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column">
+        <h2>Gecersiz veya suresi dolmus link</h2>
+        <a href="/app" style="color:#00e5ff;margin-top:16px">Uygulamaya Don</a>
+        </body></html>
+        """)
+    conn.execute("UPDATE users SET verified=1, verify_token=NULL WHERE id=?", (row["id"],))
+    conn.commit()
+    conn.close()
+    return HTMLResponse("""
+    <html><body style="background:#04080a;color:#00ff9d;font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column">
+    <h2>Hesabiniz dogrulandi!</h2>
+    <p style="color:#c8dde5;margin-top:8px">Artik PrintForge'u kullanabilirsiniz.</p>
+    <a href="/app" style="color:#00e5ff;margin-top:16px;font-size:18px">Uygulamaya Git</a>
+    </body></html>
+    """)
+
+
+@app.post("/api/auth/resend-verification")
+async def resend_verification(authorization: Optional[str] = Header(None)):
+    """Dogrulama mailini tekrar gonder"""
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    if user.get("verified") == 1:
+        return {"message": "Hesabiniz zaten dogrulanmis"}
+    if not RESEND_API_KEY:
+        raise HTTPException(400, "E-posta servisi yapilandirilmamis")
+
+    new_token = secrets.token_urlsafe(32)
+    conn = get_db()
+    conn.execute("UPDATE users SET verify_token=? WHERE id=?", (new_token, user["id"]))
+    conn.commit()
+    conn.close()
+
+    await send_verification_email(user["email"], new_token)
+    return {"message": "Dogrulama maili tekrar gonderildi"}
+
+
+@app.post("/api/auth/forgot-password")
+async def forgot_password(req: ForgotPasswordReq):
+    """Sifre sifirlama maili gonder"""
+    if not RESEND_API_KEY:
+        raise HTTPException(400, "E-posta servisi yapilandirilmamis")
+
+    conn = get_db()
+    row = conn.execute("SELECT id,email FROM users WHERE email=?", (req.email.lower().strip(),)).fetchone()
+    if not row:
+        # Guvenlik icin hata verme, basarili gibi goster
+        return {"message": "Eger bu e-posta kayitliysa sifirlama maili gonderildi"}
+
+    reset_token = secrets.token_urlsafe(32)
+    expires = (datetime.utcnow() + timedelta(hours=1)).isoformat()
+    conn.execute("UPDATE users SET reset_token=?, reset_expires=? WHERE id=?", (reset_token, expires, row["id"]))
+    conn.commit()
+    conn.close()
+
+    await send_reset_email(row["email"], reset_token)
+    return {"message": "Sifre sifirlama maili gonderildi. E-postanizi kontrol edin."}
+
+
+@app.post("/api/auth/reset-password")
+async def reset_password(req: ResetPasswordReq):
+    """Sifre sifirlama"""
+    if len(req.password) < 6:
+        raise HTTPException(400, "Sifre en az 6 karakter olmali")
+
+    conn = get_db()
+    row = conn.execute("SELECT id,reset_expires FROM users WHERE reset_token=?", (req.token,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(400, "Gecersiz veya suresi dolmus link")
+
+    # Sure kontrolu
+    if row["reset_expires"]:
+        try:
+            expires = datetime.fromisoformat(row["reset_expires"])
+            if datetime.utcnow() > expires:
+                conn.close()
+                raise HTTPException(400, "Sifirlama linkinin suresi dolmus. Yeni link talep edin.")
+        except:
+            pass
+
+    salt, h = hash_pw(req.password)
+    conn.execute("UPDATE users SET password_hash=?, salt=?, reset_token=NULL, reset_expires=NULL WHERE id=?",
+                 (h, salt, row["id"]))
+    conn.commit()
+    conn.close()
+    return {"message": "Sifreniz basariyla degistirildi. Giris yapabilirsiniz."}
 
 
 @app.post("/api/auth/update-profile")
@@ -450,11 +676,11 @@ async def google_callback(code: str = ""):
     ex = conn.execute("SELECT id,name,plan FROM users WHERE email=?", (email,)).fetchone()
     if ex:
         uid, name, plan = ex["id"], ex["name"], ex["plan"]
-        conn.execute("UPDATE users SET google_id=?,avatar_url=? WHERE id=?", (gid, avatar, uid))
+        conn.execute("UPDATE users SET google_id=?,avatar_url=?,verified=1 WHERE id=?", (gid, avatar, uid))
     else:
         salt, h = hash_pw(secrets.token_hex(16))
         conn.execute(
-            "INSERT INTO users(email,name,password_hash,salt,google_id,avatar_url) VALUES(?,?,?,?,?,?)",
+            "INSERT INTO users(email,name,password_hash,salt,google_id,avatar_url,verified) VALUES(?,?,?,?,?,?,1)",
             (email, name, h, salt, gid, avatar)
         )
         uid = conn.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()[0]
@@ -479,11 +705,11 @@ async def generate_text(req: TextRequest, authorization: Optional[str] = Header(
     user = await get_user(authorization)
     if api != "demo":
         if not user:
-            raise HTTPException(401, "Giris yapin")
+            raise HTTPException(401, "Model uretmek icin giris yapin")
         used = get_usage(user["id"])
         limit = PLAN_LIMITS.get(user["plan"], 5)
         if used >= limit:
-            raise HTTPException(403, f"Aylik limit doldu ({limit})")
+            raise HTTPException(403, f"Aylik limitinize ulastiniz ({limit} model). Planizi yukseltin.")
         add_usage(user["id"])
     tid = str(uuid.uuid4())[:8]
     tasks[tid] = {
@@ -506,15 +732,15 @@ async def generate_image(file: UploadFile = File(...), authorization: Optional[s
     user = await get_user(authorization)
     if api != "demo":
         if not user:
-            raise HTTPException(401, "Giris yapin")
+            raise HTTPException(401, "Model uretmek icin giris yapin")
         used = get_usage(user["id"])
         limit = PLAN_LIMITS.get(user["plan"], 5)
         if used >= limit:
-            raise HTTPException(403, f"Aylik limit doldu ({limit})")
+            raise HTTPException(403, f"Aylik limitinize ulastiniz ({limit} model). Planizi yukseltin.")
         add_usage(user["id"])
     contents = await file.read()
     if len(contents) > 10 * 1024 * 1024:
-        raise HTTPException(400, "Max 10MB")
+        raise HTTPException(400, "Dosya cok buyuk (max 10MB)")
     tid = str(uuid.uuid4())[:8]
     fname = file.filename or "image.jpg"
     tasks[tid] = {
@@ -534,7 +760,7 @@ async def generate_image(file: UploadFile = File(...), authorization: Optional[s
 @app.get("/api/status/{task_id}")
 async def get_status(task_id: str):
     if task_id not in tasks:
-        raise HTTPException(404, "Bulunamadi")
+        raise HTTPException(404, "Gorev bulunamadi")
     t = tasks[task_id]
     return {
         "task_id": task_id, "status": t["status"], "progress": t["progress"],
@@ -598,7 +824,7 @@ async def download_glb(task_id: str):
 @app.get("/api/model/{task_id}/stl")
 async def download_stl(task_id: str):
     if not HAS_TRIMESH:
-        raise HTTPException(500, "STL yuklu degil")
+        raise HTTPException(500, "STL donusturme yuklu degil")
     if not await ensure_cached(task_id):
         raise HTTPException(404, "Model bulunamadi")
     try:
@@ -608,7 +834,7 @@ async def download_stl(task_id: str):
         else:
             meshes = [scene]
         if not meshes:
-            raise Exception("Mesh yok")
+            raise Exception("Mesh bulunamadi")
         stl = trimesh.util.concatenate(meshes).export(file_type="stl")
         conn = get_db()
         conn.execute("UPDATE models SET downloads=downloads+1 WHERE task_id=?", (task_id,))
@@ -626,7 +852,7 @@ async def download_stl(task_id: str):
 @app.get("/api/model/{task_id}/obj")
 async def download_obj(task_id: str):
     if not HAS_TRIMESH:
-        raise HTTPException(500, "OBJ yuklu degil")
+        raise HTTPException(500, "OBJ donusturme yuklu degil")
     if not await ensure_cached(task_id):
         raise HTTPException(404, "Model bulunamadi")
     try:
@@ -643,7 +869,6 @@ async def download_obj(task_id: str):
         )
     except Exception as e:
         raise HTTPException(500, f"OBJ hatasi: {e}")
-    return "demo"
     # ════════ GALERI ════════
 @app.get("/api/gallery")
 async def gallery(page: int = 1, limit: int = 20, sort: str = "newest", search: str = ""):
@@ -673,7 +898,7 @@ async def model_detail(model_id: int):
     ).fetchone()
     conn.close()
     if not row:
-        raise HTTPException(404, "Bulunamadi")
+        raise HTTPException(404, "Model bulunamadi")
     return dict(row)
 
 
@@ -769,6 +994,7 @@ async def health():
         "stl_ready": HAS_TRIMESH,
         "auth_ready": HAS_JWT,
         "google_ready": bool(GOOGLE_CLIENT_ID),
+        "email_ready": bool(RESEND_API_KEY),
         "cached_models": len(model_cache),
     }
 
@@ -819,7 +1045,7 @@ async def _tripo_text(tid, prompt, style):
                 raise Exception(f"Tripo hata {r.status_code}")
             tripo_id = r.json().get("data", {}).get("task_id")
             if not tripo_id:
-                raise Exception("Task ID yok")
+                raise Exception("Task ID alinamadi")
             tasks[tid]["progress"] = 25
             await _tripo_poll(c, h, tid, tripo_id)
     except Exception as e:
@@ -842,7 +1068,7 @@ async def _tripo_image(tid, contents, fname):
                 raise Exception(f"Upload hata {ur.status_code}")
             token = ur.json().get("data", {}).get("image_token")
             if not token:
-                raise Exception("Token yok")
+                raise Exception("Token alinamadi")
             tasks[tid]["progress"] = 25
             tasks[tid]["step"] = "Model olusturuluyor..."
             tr = await c.post(
@@ -854,7 +1080,7 @@ async def _tripo_image(tid, contents, fname):
                 raise Exception(f"Task hata {tr.status_code}")
             tripo_id = tr.json().get("data", {}).get("task_id")
             if not tripo_id:
-                raise Exception("Task ID yok")
+                raise Exception("Task ID alinamadi")
             tasks[tid]["progress"] = 35
             await _tripo_poll(c, h, tid, tripo_id)
     except Exception as e:
@@ -871,7 +1097,7 @@ async def _tripo_poll(client, headers, tid, tripo_id):
             st = d.get("status", "")
             pr = d.get("progress", 0)
             tasks[tid]["progress"] = 35 + int(pr * 0.55)
-            tasks[tid]["step"] = f"Uretiliyor %{pr}"
+            tasks[tid]["step"] = f"Model uretiliyor... %{pr}"
             if st == "success":
                 url = extract_model_url(d.get("output", {}))
                 tasks[tid]["model_url"] = url
@@ -954,7 +1180,7 @@ async def _meshy_poll(client, h, tid, mid, ep):
             status = d.get("status", "")
             progress = d.get("progress", 0)
             tasks[tid]["progress"] = 25 + int(progress * 0.7)
-            tasks[tid]["step"] = f"Uretiliyor %{progress}"
+            tasks[tid]["step"] = f"Model uretiliyor... %{progress}"
             if status == "SUCCEEDED":
                 glb = d.get("model_urls", {}).get("glb", "")
                 tasks[tid]["model_url"] = glb
@@ -968,7 +1194,7 @@ async def _meshy_poll(client, h, tid, mid, ep):
                 save_model(uid, tid, prompt[:50], prompt, tasks[tid].get("type", ""), "", glb)
                 return
             elif status == "FAILED":
-                raise Exception("Meshy uretilemedi")
+                raise Exception("Meshy: Model uretilemedi")
         except Exception as e:
             if "uretilemedi" in str(e):
                 tasks[tid]["status"] = "failed"
