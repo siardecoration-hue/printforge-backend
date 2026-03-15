@@ -155,3 +155,21 @@ async def view_model(tid: str):
     async with httpx.AsyncClient(follow_redirects=True) as c:
         r = await c.get(url)
         return Response(content=r.content, media_type="model/gltf-binary")
+        @app.post("/api/generate/image")
+async def gen_image(file: UploadFile = File(...), authorization: str = Header(None)):
+    u = await get_user(authorization)
+    if not u: raise HTTPException(401)
+    
+    tid = str(uuid.uuid4())[:8]
+    tasks[tid] = {"status":"processing"}
+    
+    # Görsel işleme ve Tripo'ya gönderme mantığı
+    # Şimdilik Demo Modda Çalışır (Gerçek Tripo API için Tripo dökümanına göre upload eklenmeli)
+    tasks[tid] = {"status":"done", "progress":100, "model_url": DEMO_MODELS[1]["glb"]}
+    
+    conn = get_db()
+    conn.execute("INSERT INTO models(user_id, task_id, title, prompt, model_url) VALUES(?,?,?,?,?)", 
+                 (u["id"], tid, "Görselden Model", file.filename, tasks[tid]["model_url"]))
+    conn.commit(); conn.close()
+    
+    return {"task_id":tid}
