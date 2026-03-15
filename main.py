@@ -1,787 +1,734 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Header
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse, Response, RedirectResponse
-from pydantic import BaseModel
-import asyncio, uuid, httpx, base64, random, json, os, io, re
-import hashlib, secrets, sqlite3
-from datetime import datetime, timedelta
-from typing import Optional
-from urllib.parse import urlencode
-
-try:
-    import jwt as pyjwt
-    HAS_JWT = True
-except ImportError:
-    HAS_JWT = False
-
-try:
-    import trimesh, numpy
-    HAS_TRIMESH = True
-except ImportError:
-    HAS_TRIMESH = False
-
-app = FastAPI(title="PrintForge")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-
-TRIPO_API_KEY = os.getenv("TRIPO_API_KEY", "")
-MESHY_API_KEY = os.getenv("MESHY_API_KEY", "")
-SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_hex(32))
-DB_PATH = os.getenv("DB_PATH", "printforge.db")
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-EMAIL_FROM = os.getenv("EMAIL_FROM", "onboarding@resend.dev")
-TRIPO_BASE = "https://api.tripo3d.ai/v2/openapi"
-MESHY_BASE = "https://api.meshy.ai/openapi/v2"
-
-def get_site_url():
-    d = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
-    return f"https://{d}" if d else "http://localhost:8000"
-
-tasks = {}
-model_cache = {}
-MAX_CACHE = 50
-PLAN_LIMITS = {"free": 5, "pro": 100, "business": 999999}
-
-DEMO_MODELS = [
-    {"name": "Damaged Helmet", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb"},
-    {"name": "Avocado", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Avocado/glTF-Binary/Avocado.glb"},
-    {"name": "Duck", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/glTF-Binary/Duck.glb"},
-    {"name": "Lantern", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Lantern/glTF-Binary/Lantern.glb"},
-    {"name": "Water Bottle", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/WaterBottle/glTF-Binary/WaterBottle.glb"},
-]
-
-BLOCKED_DOMAINS = set([
-    "tempmail.com","throwaway.email","guerrillamail.com","mailinator.com",
-    "yopmail.com","sharklasers.com","guerrillamailblock.com","grr.la",
-    "dispostable.com","trashmail.com","trashmail.net","10minutemail.com",
-    "temp-mail.org","tempail.com","tmpmail.net","mohmal.com","getnada.com",
-    "emailondeck.com","33mail.com","maildrop.cc","inboxbear.com",
-    "fakeinbox.com","tmpmail.org","tempinbox.com","bupmail.com",
-    "burnermail.io","discard.email","discardmail.com","mytemp.email",
-    "temp-mail.io","wegwerfmail.de","trash-mail.com","safetymail.info",
-    "mailnull.com","mailmoat.com","mailshell.com","tempmailaddress.com",
-    "meltmail.com","getairmail.com","mailsac.com","drdrb.com",
-])
-
-ALLOWED_DOMAINS = set([
-    "gmail.com","googlemail.com","outlook.com","outlook.com.tr",
-    "hotmail.com","hotmail.com.tr","live.com","live.com.tr",
-    "yahoo.com","yahoo.com.tr","yandex.com","yandex.com.tr",
-    "icloud.com","me.com","mac.com","protonmail.com","proton.me",
-    "aol.com","mail.com","zoho.com","gmx.com","gmx.net","msn.com",
-])
-
-BLOCKED_PATTERNS = [
-    r"^test\d*@", r"^fake\d*@", r"^spam\d*@", r"^trash\d*@",
-    r"^temp\d*@", r"^dummy\d*@", r"^noreply@", r"^no-reply@",
-    r"^asdf+@", r"^qwer+@", r"^xxx+@", r"^aaa+@",
-    r"^111+@", r"^123+@", r"^\d{8,}@",
-]
-
-BLOG_POSTS = [
-    {
-        "id": 1, "slug": "3d-baski-nedir",
-        "title": "3D Baski Nedir? Baslangic Rehberi",
-        "summary": "3D baski teknolojisinin temelleri, nasil calisir ve neler yapabilirsiniz.",
-        "category": "rehber", "date": "2025-01-15", "read_time": "5 dk",
-        "content": "<h2>3D Baski Nedir?</h2><p>3D baski, dijital bir 3D modelden fiziksel bir nesne olusturma teknolojisidir. Katman katman malzeme eklenerek nesneler uretilir.</p><h2>Nasil Calisir?</h2><p>1. <strong>3D Model Olusturma:</strong> Bilgisayarda veya AI ile 3D model tasarlanir.</p><p>2. <strong>Dilimleme (Slicing):</strong> Model, yazici icin katmanlara ayrilir.</p><p>3. <strong>Baski:</strong> Yazici malzemeyi katman katman ekleyerek nesneyi olusturur.</p><h2>Hangi Malzemeler Kullanilir?</h2><p><strong>PLA:</strong> En yaygin, kolay kullanim, biyolojik olarak parcalanabilir.</p><p><strong>ABS:</strong> Dayanikli, isiya direncli, endustriyel kullanim.</p><p><strong>PETG:</strong> PLA ve ABS arasi, suya direncli.</p><h2>PrintForge ile 3D Model Uretme</h2><p>PrintForge sayesinde kendi 3D modellerinizi AI ile saniyeler icinde uretebilirsiniz!</p>"
-    },
-    {
-        "id": 2, "slug": "stl-dosyasi-nedir",
-        "title": "STL Dosyasi Nedir? Format Rehberi",
-        "summary": "STL, OBJ ve GLB dosya formatlari arasindaki farklar ve hangisini ne zaman kullanmalisiniz.",
-        "category": "rehber", "date": "2025-01-20", "read_time": "4 dk",
-        "content": "<h2>3D Model Formatlari</h2><h3>STL (Stereolithography)</h3><p>3D baski icin en yaygin format. Sadece geometri bilgisi icerir. Tum slicer yazilimlariyla uyumludur.</p><h3>OBJ (Wavefront)</h3><p>Daha detayli format. Geometri + texture + malzeme bilgisi icerir.</p><h3>GLB/GLTF</h3><p>Web icin optimize format. Animasyon ve PBR malzeme destegi vardir.</p><h2>Hangisini Kullanmaliyim?</h2><p><strong>3D Baski icin:</strong> STL</p><p><strong>3D Modelleme icin:</strong> OBJ</p><p><strong>Web/Oyun icin:</strong> GLB</p>"
-    },
-    {
-        "id": 3, "slug": "en-iyi-3d-yazicilar",
-        "title": "2025 En Iyi 3D Yazicilar",
-        "summary": "Baslangic seviyesinden profesyonele, butceye uygun en iyi 3D yazici onerileri.",
-        "category": "liste", "date": "2025-02-01", "read_time": "6 dk",
-        "content": "<h2>Baslangic Seviyesi</h2><p><strong>Creality Ender 3 V3:</strong> En populer baslangic yazicisi. Uygun fiyat, buyuk topluluk destegi.</p><p><strong>Anycubic Kobra 2:</strong> Hizli baski, otomatik yatak seviyeleme.</p><h2>Orta Seviye</h2><p><strong>Bambu Lab P1S:</strong> Yuksek hiz, coklu malzeme destegi.</p><p><strong>Prusa MK4:</strong> Guvenilir, acik kaynak, mukemmel baski kalitesi.</p><h2>Profesyonel</h2><p><strong>Bambu Lab X1 Carbon:</strong> En hizli FDM yazici, LIDAR tarama.</p><p><strong>Formlabs Form 4:</strong> Resin yazici, ultra yuksek detay.</p>"
-    },
-    {
-        "id": 4, "slug": "ai-ile-3d-model-uretme",
-        "title": "AI ile 3D Model Uretme Rehberi",
-        "summary": "Yapay zeka kullanarak profesyonel 3D modeller nasil uretilir, ipuclari.",
-        "category": "rehber", "date": "2025-02-10", "read_time": "5 dk",
-        "content": "<h2>AI ile 3D Model Nedir?</h2><p>Yapay zeka, metin veya gorsellerden otomatik olarak 3D modeller uretebilir.</p><h2>Iyi Bir Prompt Nasil Yazilir?</h2><p><strong>Detayli olun:</strong> 'araba' yerine 'kirmizi spor araba, parlak boya, spoiler'</p><p><strong>Stil belirtin:</strong> 'low poly tavsan', 'gercekci insan figurunu'</p><h2>Gorsel ile Model Uretme</h2><p>1. Temiz arka plan kullanin</p><p>2. Nesneyi ortada ve net cekin</p><p>3. Iyi aydinlatma saglayin</p><p>4. Tek bir nesne olsun</p>"
-    },
-    {
-        "id": 5, "slug": "3d-baski-ipuclari",
-        "title": "3D Baski Icin 10 Altin Ipucu",
-        "summary": "Basarili 3D baskilar icin bilmeniz gereken en onemli ipuclari.",
-        "category": "ipucu", "date": "2025-02-15", "read_time": "4 dk",
-        "content": "<h2>1. Yatak Sicakligini Dogru Ayarlayin</h2><p>PLA: 60C, ABS: 100C, PETG: 80C</p><h2>2. Ilk Katman Cok Onemli</h2><p>Ilk katman yapismazsa tum baski basarisiz olur.</p><h2>3. Destek Yapilarini Dogru Kullanin</h2><p>45 dereceden fazla egimli yuzeyler icin destek kullanin.</p><h2>4. Doluluk Oranini Ayarlayin</h2><p>Dekoratif: %10-15, Normal: %20-30, Guclu: %50-100</p><h2>5. Katman Yuksekligini Secin</h2><p>Hizli: 0.3mm, Normal: 0.2mm, Detayli: 0.1mm</p>"
-    },
-]
-
-
-async def verify_email_dns(domain):
-    try:
-        async with httpx.AsyncClient(timeout=5) as c:
-            r = await c.get(f"https://dns.google/resolve?name={domain}&type=MX")
-            if r.json().get("Answer"):
-                return True
-            r2 = await c.get(f"https://dns.google/resolve?name={domain}&type=A")
-            return bool(r2.json().get("Answer"))
-    except:
-        return True
-
-
-async def validate_email(email):
-    email = email.lower().strip()
-    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9._%+-]*@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
-        return False, "Gecerli bir e-posta girin"
-    local, domain = email.split("@", 1)
-    if len(local) < 2: return False, "E-posta cok kisa"
-    if len(domain) < 4: return False, "Gecerli bir e-posta saglayicisi kullanin"
-    if domain in BLOCKED_DOMAINS: return False, "Gecici e-posta kabul edilmiyor. Gmail, Outlook veya Yahoo kullanin."
-    for b in BLOCKED_DOMAINS:
-        if domain.endswith("." + b): return False, "Bu e-posta saglayicisi kabul edilmiyor."
-    for pat in BLOCKED_PATTERNS:
-        if re.match(pat, email): return False, "Bu e-posta gecersiz."
-    if domain not in ALLOWED_DOMAINS:
-        if not await verify_email_dns(domain): return False, "Bu e-posta domaini bulunamadi."
-    return True, "OK"
-
-
-async def send_email(to, subject, html_content):
-    if not RESEND_API_KEY: return False
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            r = await client.post("https://api.resend.com/emails",
-                headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
-                json={"from": EMAIL_FROM, "to": [to], "subject": subject, "html": html_content})
-            return r.status_code in (200, 201)
-    except: return False
-
-
-async def send_verification_email(email, token):
-    link = f"{get_site_url()}/api/auth/verify?token={token}"
-    html = f'<div style="font-family:Arial;max-width:500px;margin:0 auto;padding:30px;background:#04080a;border:1px solid #0e2028;border-radius:12px"><div style="text-align:center;margin-bottom:24px"><span style="font-size:24px;font-weight:800;color:#00e5ff">PRINTFORGE</span></div><h2 style="color:#c8dde5">Hesabinizi Dogrulayin</h2><p style="color:#2a4a5a;line-height:1.8;margin-bottom:24px">Hesabinizi aktif etmek icin butona tiklayin.</p><div style="text-align:center;margin-bottom:24px"><a href="{link}" style="display:inline-block;padding:14px 36px;background:#00e5ff;color:#04080a;text-decoration:none;font-weight:700;border-radius:8px">Hesabi Dogrula</a></div></div>'
-    return await send_email(email, "PrintForge - Hesap Dogrulama", html)
-
-
-async def send_reset_email(email, token):
-    link = f"{get_site_url()}/app?reset={token}"
-    html = f'<div style="font-family:Arial;max-width:500px;margin:0 auto;padding:30px;background:#04080a;border:1px solid #0e2028;border-radius:12px"><div style="text-align:center;margin-bottom:24px"><span style="font-size:24px;font-weight:800;color:#00e5ff">PRINTFORGE</span></div><h2 style="color:#c8dde5">Sifre Sifirlama</h2><p style="color:#2a4a5a;line-height:1.8;margin-bottom:24px">Sifrenizi sifirlamak icin butona tiklayin.</p><div style="text-align:center;margin-bottom:24px"><a href="{link}" style="display:inline-block;padding:14px 36px;background:#00e5ff;color:#04080a;text-decoration:none;font-weight:700;border-radius:8px">Sifremi Sifirla</a></div></div>'
-    return await send_email(email, "PrintForge - Sifre Sifirlama", html)
-
-
-class TextRequest(BaseModel):
-    prompt: str
-    style: str = "realistic"
-
-class RegisterReq(BaseModel):
-    name: str
-    email: str
-    password: str
-
-class LoginReq(BaseModel):
-    email: str
-    password: str
-
-class UpdateProfileReq(BaseModel):
-    name: Optional[str] = None
-    password: Optional[str] = None
-
-class ForgotPasswordReq(BaseModel):
-    email: str
-
-class ResetPasswordReq(BaseModel):
-    token: str
-    password: str
-
-class CommentReq(BaseModel):
-    text: str
-
-class CollectionReq(BaseModel):
-    name: str
-    description: str = ""
-    is_public: int = 1
-
-STYLE_MAP = {
-    "realistic": "realistic", "cartoon": "cartoon", "lowpoly": "low-poly",
-    "sculpture": "sculpture", "mechanical": "pbr", "miniature": "sculpture",
-    "geometric": "realistic",
-}
-
-def get_api():
-    if TRIPO_API_KEY: return "tripo"
-    if MESHY_API_KEY: return "meshy"
-    return "demo"
-    from fastapi import FastAPI, HTTPException, UploadFile, File, Header
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse, Response, RedirectResponse
-from pydantic import BaseModel
-import asyncio, uuid, httpx, base64, random, json, os, io, re
-import hashlib, secrets, sqlite3
-from datetime import datetime, timedelta
-from typing import Optional
-from urllib.parse import urlencode
-
-try:
-    import jwt as pyjwt
-    HAS_JWT = True
-except ImportError:
-    HAS_JWT = False
-
-try:
-    import trimesh, numpy
-    HAS_TRIMESH = True
-except ImportError:
-    HAS_TRIMESH = False
-
-app = FastAPI(title="PrintForge")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-
-TRIPO_API_KEY = os.getenv("TRIPO_API_KEY", "")
-MESHY_API_KEY = os.getenv("MESHY_API_KEY", "")
-SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_hex(32))
-DB_PATH = os.getenv("DB_PATH", "printforge.db")
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-EMAIL_FROM = os.getenv("EMAIL_FROM", "onboarding@resend.dev")
-TRIPO_BASE = "https://api.tripo3d.ai/v2/openapi"
-MESHY_BASE = "https://api.meshy.ai/openapi/v2"
-
-def get_site_url():
-    d = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
-    return f"https://{d}" if d else "http://localhost:8000"
-
-tasks = {}
-model_cache = {}
-MAX_CACHE = 50
-PLAN_LIMITS = {"free": 5, "pro": 100, "business": 999999}
-
-DEMO_MODELS = [
-    {"name": "Damaged Helmet", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb"},
-    {"name": "Avocado", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Avocado/glTF-Binary/Avocado.glb"},
-    {"name": "Duck", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/glTF-Binary/Duck.glb"},
-    {"name": "Lantern", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Lantern/glTF-Binary/Lantern.glb"},
-    {"name": "Water Bottle", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/WaterBottle/glTF-Binary/WaterBottle.glb"},
-]
-
-BLOCKED_DOMAINS = set([
-    "tempmail.com","throwaway.email","guerrillamail.com","mailinator.com",
-    "yopmail.com","sharklasers.com","guerrillamailblock.com","grr.la",
-    "dispostable.com","trashmail.com","trashmail.net","10minutemail.com",
-    "temp-mail.org","tempail.com","tmpmail.net","mohmal.com","getnada.com",
-    "emailondeck.com","33mail.com","maildrop.cc","inboxbear.com",
-    "fakeinbox.com","tmpmail.org","tempinbox.com","bupmail.com",
-    "burnermail.io","discard.email","discardmail.com","mytemp.email",
-    "temp-mail.io","wegwerfmail.de","trash-mail.com","safetymail.info",
-    "mailnull.com","mailmoat.com","mailshell.com","tempmailaddress.com",
-    "meltmail.com","getairmail.com","mailsac.com","drdrb.com",
-])
-
-ALLOWED_DOMAINS = set([
-    "gmail.com","googlemail.com","outlook.com","outlook.com.tr",
-    "hotmail.com","hotmail.com.tr","live.com","live.com.tr",
-    "yahoo.com","yahoo.com.tr","yandex.com","yandex.com.tr",
-    "icloud.com","me.com","mac.com","protonmail.com","proton.me",
-    "aol.com","mail.com","zoho.com","gmx.com","gmx.net","msn.com",
-])
-
-BLOCKED_PATTERNS = [
-    r"^test\d*@", r"^fake\d*@", r"^spam\d*@", r"^trash\d*@",
-    r"^temp\d*@", r"^dummy\d*@", r"^noreply@", r"^no-reply@",
-    r"^asdf+@", r"^qwer+@", r"^xxx+@", r"^aaa+@",
-    r"^111+@", r"^123+@", r"^\d{8,}@",
-]
-
-BLOG_POSTS = [
-    {
-        "id": 1, "slug": "3d-baski-nedir",
-        "title": "3D Baski Nedir? Baslangic Rehberi",
-        "summary": "3D baski teknolojisinin temelleri, nasil calisir ve neler yapabilirsiniz.",
-        "category": "rehber", "date": "2025-01-15", "read_time": "5 dk",
-        "content": "<h2>3D Baski Nedir?</h2><p>3D baski, dijital bir 3D modelden fiziksel bir nesne olusturma teknolojisidir. Katman katman malzeme eklenerek nesneler uretilir.</p><h2>Nasil Calisir?</h2><p>1. <strong>3D Model Olusturma:</strong> Bilgisayarda veya AI ile 3D model tasarlanir.</p><p>2. <strong>Dilimleme (Slicing):</strong> Model, yazici icin katmanlara ayrilir.</p><p>3. <strong>Baski:</strong> Yazici malzemeyi katman katman ekleyerek nesneyi olusturur.</p><h2>Hangi Malzemeler Kullanilir?</h2><p><strong>PLA:</strong> En yaygin, kolay kullanim, biyolojik olarak parcalanabilir.</p><p><strong>ABS:</strong> Dayanikli, isiya direncli, endustriyel kullanim.</p><p><strong>PETG:</strong> PLA ve ABS arasi, suya direncli.</p><h2>PrintForge ile 3D Model Uretme</h2><p>PrintForge sayesinde kendi 3D modellerinizi AI ile saniyeler icinde uretebilirsiniz!</p>"
-    },
-    {
-        "id": 2, "slug": "stl-dosyasi-nedir",
-        "title": "STL Dosyasi Nedir? Format Rehberi",
-        "summary": "STL, OBJ ve GLB dosya formatlari arasindaki farklar ve hangisini ne zaman kullanmalisiniz.",
-        "category": "rehber", "date": "2025-01-20", "read_time": "4 dk",
-        "content": "<h2>3D Model Formatlari</h2><h3>STL (Stereolithography)</h3><p>3D baski icin en yaygin format. Sadece geometri bilgisi icerir. Tum slicer yazilimlariyla uyumludur.</p><h3>OBJ (Wavefront)</h3><p>Daha detayli format. Geometri + texture + malzeme bilgisi icerir.</p><h3>GLB/GLTF</h3><p>Web icin optimize format. Animasyon ve PBR malzeme destegi vardir.</p><h2>Hangisini Kullanmaliyim?</h2><p><strong>3D Baski icin:</strong> STL</p><p><strong>3D Modelleme icin:</strong> OBJ</p><p><strong>Web/Oyun icin:</strong> GLB</p>"
-    },
-    {
-        "id": 3, "slug": "en-iyi-3d-yazicilar",
-        "title": "2025 En Iyi 3D Yazicilar",
-        "summary": "Baslangic seviyesinden profesyonele, butceye uygun en iyi 3D yazici onerileri.",
-        "category": "liste", "date": "2025-02-01", "read_time": "6 dk",
-        "content": "<h2>Baslangic Seviyesi</h2><p><strong>Creality Ender 3 V3:</strong> En populer baslangic yazicisi. Uygun fiyat, buyuk topluluk destegi.</p><p><strong>Anycubic Kobra 2:</strong> Hizli baski, otomatik yatak seviyeleme.</p><h2>Orta Seviye</h2><p><strong>Bambu Lab P1S:</strong> Yuksek hiz, coklu malzeme destegi.</p><p><strong>Prusa MK4:</strong> Guvenilir, acik kaynak, mukemmel baski kalitesi.</p><h2>Profesyonel</h2><p><strong>Bambu Lab X1 Carbon:</strong> En hizli FDM yazici, LIDAR tarama.</p><p><strong>Formlabs Form 4:</strong> Resin yazici, ultra yuksek detay.</p>"
-    },
-    {
-        "id": 4, "slug": "ai-ile-3d-model-uretme",
-        "title": "AI ile 3D Model Uretme Rehberi",
-        "summary": "Yapay zeka kullanarak profesyonel 3D modeller nasil uretilir, ipuclari.",
-        "category": "rehber", "date": "2025-02-10", "read_time": "5 dk",
-        "content": "<h2>AI ile 3D Model Nedir?</h2><p>Yapay zeka, metin veya gorsellerden otomatik olarak 3D modeller uretebilir.</p><h2>Iyi Bir Prompt Nasil Yazilir?</h2><p><strong>Detayli olun:</strong> 'araba' yerine 'kirmizi spor araba, parlak boya, spoiler'</p><p><strong>Stil belirtin:</strong> 'low poly tavsan', 'gercekci insan figurunu'</p><h2>Gorsel ile Model Uretme</h2><p>1. Temiz arka plan kullanin</p><p>2. Nesneyi ortada ve net cekin</p><p>3. Iyi aydinlatma saglayin</p><p>4. Tek bir nesne olsun</p>"
-    },
-    {
-        "id": 5, "slug": "3d-baski-ipuclari",
-        "title": "3D Baski Icin 10 Altin Ipucu",
-        "summary": "Basarili 3D baskilar icin bilmeniz gereken en onemli ipuclari.",
-        "category": "ipucu", "date": "2025-02-15", "read_time": "4 dk",
-        "content": "<h2>1. Yatak Sicakligini Dogru Ayarlayin</h2><p>PLA: 60C, ABS: 100C, PETG: 80C</p><h2>2. Ilk Katman Cok Onemli</h2><p>Ilk katman yapismazsa tum baski basarisiz olur.</p><h2>3. Destek Yapilarini Dogru Kullanin</h2><p>45 dereceden fazla egimli yuzeyler icin destek kullanin.</p><h2>4. Doluluk Oranini Ayarlayin</h2><p>Dekoratif: %10-15, Normal: %20-30, Guclu: %50-100</p><h2>5. Katman Yuksekligini Secin</h2><p>Hizli: 0.3mm, Normal: 0.2mm, Detayli: 0.1mm</p>"
-    },
-]
-
-
-async def verify_email_dns(domain):
-    try:
-        async with httpx.AsyncClient(timeout=5) as c:
-            r = await c.get(f"https://dns.google/resolve?name={domain}&type=MX")
-            if r.json().get("Answer"):
-                return True
-            r2 = await c.get(f"https://dns.google/resolve?name={domain}&type=A")
-            return bool(r2.json().get("Answer"))
-    except:
-        return True
-
-
-async def validate_email(email):
-    email = email.lower().strip()
-    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9._%+-]*@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
-        return False, "Gecerli bir e-posta girin"
-    local, domain = email.split("@", 1)
-    if len(local) < 2: return False, "E-posta cok kisa"
-    if len(domain) < 4: return False, "Gecerli bir e-posta saglayicisi kullanin"
-    if domain in BLOCKED_DOMAINS: return False, "Gecici e-posta kabul edilmiyor. Gmail, Outlook veya Yahoo kullanin."
-    for b in BLOCKED_DOMAINS:
-        if domain.endswith("." + b): return False, "Bu e-posta saglayicisi kabul edilmiyor."
-    for pat in BLOCKED_PATTERNS:
-        if re.match(pat, email): return False, "Bu e-posta gecersiz."
-    if domain not in ALLOWED_DOMAINS:
-        if not await verify_email_dns(domain): return False, "Bu e-posta domaini bulunamadi."
-    return True, "OK"
-
-
-async def send_email(to, subject, html_content):
-    if not RESEND_API_KEY: return False
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            r = await client.post("https://api.resend.com/emails",
-                headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
-                json={"from": EMAIL_FROM, "to": [to], "subject": subject, "html": html_content})
-            return r.status_code in (200, 201)
-    except: return False
-
-
-async def send_verification_email(email, token):
-    link = f"{get_site_url()}/api/auth/verify?token={token}"
-    html = f'<div style="font-family:Arial;max-width:500px;margin:0 auto;padding:30px;background:#04080a;border:1px solid #0e2028;border-radius:12px"><div style="text-align:center;margin-bottom:24px"><span style="font-size:24px;font-weight:800;color:#00e5ff">PRINTFORGE</span></div><h2 style="color:#c8dde5">Hesabinizi Dogrulayin</h2><p style="color:#2a4a5a;line-height:1.8;margin-bottom:24px">Hesabinizi aktif etmek icin butona tiklayin.</p><div style="text-align:center;margin-bottom:24px"><a href="{link}" style="display:inline-block;padding:14px 36px;background:#00e5ff;color:#04080a;text-decoration:none;font-weight:700;border-radius:8px">Hesabi Dogrula</a></div></div>'
-    return await send_email(email, "PrintForge - Hesap Dogrulama", html)
-
-
-async def send_reset_email(email, token):
-    link = f"{get_site_url()}/app?reset={token}"
-    html = f'<div style="font-family:Arial;max-width:500px;margin:0 auto;padding:30px;background:#04080a;border:1px solid #0e2028;border-radius:12px"><div style="text-align:center;margin-bottom:24px"><span style="font-size:24px;font-weight:800;color:#00e5ff">PRINTFORGE</span></div><h2 style="color:#c8dde5">Sifre Sifirlama</h2><p style="color:#2a4a5a;line-height:1.8;margin-bottom:24px">Sifrenizi sifirlamak icin butona tiklayin.</p><div style="text-align:center;margin-bottom:24px"><a href="{link}" style="display:inline-block;padding:14px 36px;background:#00e5ff;color:#04080a;text-decoration:none;font-weight:700;border-radius:8px">Sifremi Sifirla</a></div></div>'
-    return await send_email(email, "PrintForge - Sifre Sifirlama", html)
-
-
-class TextRequest(BaseModel):
-    prompt: str
-    style: str = "realistic"
-
-class RegisterReq(BaseModel):
-    name: str
-    email: str
-    password: str
-
-class LoginReq(BaseModel):
-    email: str
-    password: str
-
-class UpdateProfileReq(BaseModel):
-    name: Optional[str] = None
-    password: Optional[str] = None
-
-class ForgotPasswordReq(BaseModel):
-    email: str
-
-class ResetPasswordReq(BaseModel):
-    token: str
-    password: str
-
-class CommentReq(BaseModel):
-    text: str
-
-class CollectionReq(BaseModel):
-    name: str
-    description: str = ""
-    is_public: int = 1
-
-STYLE_MAP = {
-    "realistic": "realistic", "cartoon": "cartoon", "lowpoly": "low-poly",
-    "sculpture": "sculpture", "mechanical": "pbr", "miniature": "sculpture",
-    "geometric": "realistic",
-}
-
-def get_api():
-    if TRIPO_API_KEY: return "tripo"
-    if MESHY_API_KEY: return "meshy"
-    return "demo"
-    # ════════ GALERI ════════
-@app.get("/api/gallery")
-async def gallery(page: int = 1, limit: int = 20, sort: str = "newest", search: str = ""):
-    conn = get_db()
-    offset = (page - 1) * limit
-    where = "WHERE is_public=1 AND model_url != ''"
-    params = []
-    if search:
-        where += " AND (title LIKE ? OR prompt LIKE ?)"
-        params += [f"%{search}%", f"%{search}%"]
-    order = {"popular": "ORDER BY likes DESC", "downloads": "ORDER BY downloads DESC"}.get(sort, "ORDER BY created_at DESC")
-    rows = conn.execute(f"SELECT m.*, u.name as author_name FROM models m LEFT JOIN users u ON m.user_id=u.id {where} {order} LIMIT ? OFFSET ?", params + [limit, offset]).fetchall()
-    total = conn.execute(f"SELECT COUNT(*) FROM models {where}", params).fetchone()[0]
-    conn.close()
-    return {"models": [dict(r) for r in rows], "total": total, "page": page, "pages": max(1, (total + limit - 1) // limit)}
-
-@app.get("/api/gallery/{model_id}")
-async def model_detail(model_id: int):
-    conn = get_db()
-    row = conn.execute("SELECT m.*, u.name as author_name FROM models m LEFT JOIN users u ON m.user_id=u.id WHERE m.id=?", (model_id,)).fetchone()
-    conn.close()
-    if not row: raise HTTPException(404, "Model bulunamadi")
-    return dict(row)
-
-@app.get("/api/gallery/{model_id}/similar")
-async def similar_models(model_id: int, limit: int = 6):
-    conn = get_db()
-    cur = conn.execute("SELECT style, gen_type FROM models WHERE id=?", (model_id,)).fetchone()
-    if not cur: conn.close(); raise HTTPException(404, "Bulunamadi")
-    style, gtype = cur["style"] or "", cur["gen_type"] or ""
-    rows = conn.execute("SELECT m.*, u.name as author_name FROM models m LEFT JOIN users u ON m.user_id=u.id WHERE m.id!=? AND m.is_public=1 AND m.model_url!='' AND (m.style=? OR m.gen_type=?) ORDER BY m.likes DESC LIMIT ?", (model_id, style, gtype, limit)).fetchall()
-    if len(rows) < limit:
-        extra = conn.execute("SELECT m.*, u.name as author_name FROM models m LEFT JOIN users u ON m.user_id=u.id WHERE m.id!=? AND m.is_public=1 AND m.model_url!='' ORDER BY RANDOM() LIMIT ?", (model_id, limit - len(rows))).fetchall()
-        rows = list(rows) + list(extra)
-    conn.close()
-    return {"models": [dict(r) for r in rows]}
-
-@app.post("/api/gallery/{model_id}/like")
-async def toggle_like(model_id: int, authorization: Optional[str] = Header(None)):
-    user = await get_user(authorization)
-    if not user: raise HTTPException(401, "Giris yapin")
-    conn = get_db()
-    ex = conn.execute("SELECT 1 FROM user_likes WHERE user_id=? AND model_id=?", (user["id"], model_id)).fetchone()
-    if ex:
-        conn.execute("DELETE FROM user_likes WHERE user_id=? AND model_id=?", (user["id"], model_id))
-        conn.execute("UPDATE models SET likes=likes-1 WHERE id=?", (model_id,))
-        liked = False
-    else:
-        conn.execute("INSERT INTO user_likes(user_id,model_id) VALUES(?,?)", (user["id"], model_id))
-        conn.execute("UPDATE models SET likes=likes+1 WHERE id=?", (model_id,))
-        liked = True
-    conn.commit()
-    conn.close()
-    return {"liked": liked}
-
-@app.get("/api/my-models")
-async def my_models(authorization: Optional[str] = Header(None)):
-    user = await get_user(authorization)
-    if not user: raise HTTPException(401, "Giris yapin")
-    conn = get_db()
-    rows = conn.execute("SELECT * FROM models WHERE user_id=? ORDER BY created_at DESC", (user["id"],)).fetchall()
-    conn.close()
-    return {"models": [dict(r) for r in rows]}
-
-@app.delete("/api/my-models/{model_id}")
-async def delete_model(model_id: int, authorization: Optional[str] = Header(None)):
-    user = await get_user(authorization)
-    if not user: raise HTTPException(401, "Giris yapin")
-    conn = get_db()
-    conn.execute("DELETE FROM models WHERE id=? AND user_id=?", (model_id, user["id"]))
-    conn.execute("DELETE FROM comments WHERE model_id=?", (model_id,))
-    conn.execute("DELETE FROM collection_models WHERE model_id=?", (model_id,))
-    conn.commit()
-    conn.close()
-    return {"deleted": True}
-
-
-# ════════ YORUM SİSTEMİ ════════
-@app.get("/api/gallery/{model_id}/comments")
-async def get_comments(model_id: int):
-    conn = get_db()
-    rows = conn.execute(
-        "SELECT c.*, u.name as author_name FROM comments c LEFT JOIN users u ON c.user_id=u.id WHERE c.model_id=? ORDER BY c.created_at DESC",
-        (model_id,)
-    ).fetchall()
-    conn.close()
-    return {"comments": [dict(r) for r in rows]}
-
-@app.post("/api/gallery/{model_id}/comments")
-async def add_comment(model_id: int, req: CommentReq, authorization: Optional[str] = Header(None)):
-    user = await get_user(authorization)
-    if not user: raise HTTPException(401, "Yorum yapmak icin giris yapin")
-    text = req.text.strip()
-    if not text or len(text) < 2: raise HTTPException(400, "Yorum cok kisa")
-    if len(text) > 500: raise HTTPException(400, "Yorum en fazla 500 karakter olabilir")
-    conn = get_db()
-    conn.execute("INSERT INTO comments(model_id, user_id, text) VALUES(?,?,?)", (model_id, user["id"], text))
-    conn.commit()
-    conn.close()
-    return {"success": True}
-
-@app.delete("/api/comments/{comment_id}")
-async def delete_comment(comment_id: int, authorization: Optional[str] = Header(None)):
-    user = await get_user(authorization)
-    if not user: raise HTTPException(401, "Giris yapin")
-    conn = get_db()
-    row = conn.execute("SELECT user_id FROM comments WHERE id=?", (comment_id,)).fetchone()
-    if not row: raise HTTPException(404, "Yorum bulunamadi")
-    if row["user_id"] != user["id"]: raise HTTPException(403, "Bu yorumu silemezsiniz")
-    conn.execute("DELETE FROM comments WHERE id=?", (comment_id,))
-    conn.commit()
-    conn.close()
-    return {"deleted": True}
-
-
-# ════════ KOLEKSİYON SİSTEMİ ════════
-@app.get("/api/collections")
-async def get_my_collections(authorization: Optional[str] = Header(None)):
-    user = await get_user(authorization)
-    if not user: raise HTTPException(401, "Giris yapin")
-    conn = get_db()
-    rows = conn.execute(
-        "SELECT c.*, (SELECT COUNT(*) FROM collection_models cm WHERE cm.collection_id=c.id) as model_count FROM collections c WHERE c.user_id=? ORDER BY c.created_at DESC",
-        (user["id"],)
-    ).fetchall()
-    conn.close()
-    return {"collections": [dict(r) for r in rows]}
-
-@app.post("/api/collections")
-async def create_collection(req: CollectionReq, authorization: Optional[str] = Header(None)):
-    user = await get_user(authorization)
-    if not user: raise HTTPException(401, "Giris yapin")
-    name = req.name.strip()
-    if not name or len(name) < 2: raise HTTPException(400, "Koleksiyon adi cok kisa")
-    if len(name) > 50: raise HTTPException(400, "Koleksiyon adi en fazla 50 karakter")
-    conn = get_db()
-    conn.execute("INSERT INTO collections(user_id, name, description, is_public) VALUES(?,?,?,?)",
-                 (user["id"], name, req.description.strip()[:200], req.is_public))
-    conn.commit()
-    cid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-    conn.close()
-    return {"id": cid, "success": True}
-
-@app.delete("/api/collections/{collection_id}")
-async def delete_collection(collection_id: int, authorization: Optional[str] = Header(None)):
-    user = await get_user(authorization)
-    if not user: raise HTTPException(401, "Giris yapin")
-    conn = get_db()
-    row = conn.execute("SELECT user_id FROM collections WHERE id=?", (collection_id,)).fetchone()
-    if not row: raise HTTPException(404, "Koleksiyon bulunamadi")
-    if row["user_id"] != user["id"]: raise HTTPException(403, "Bu koleksiyonu silemezsiniz")
-    conn.execute("DELETE FROM collection_models WHERE collection_id=?", (collection_id,))
-    conn.execute("DELETE FROM collections WHERE id=?", (collection_id,))
-    conn.commit()
-    conn.close()
-    return {"deleted": True}
-
-@app.get("/api/collections/{collection_id}")
-async def get_collection(collection_id: int):
-    conn = get_db()
-    col = conn.execute(
-        "SELECT c.*, u.name as owner_name FROM collections c LEFT JOIN users u ON c.user_id=u.id WHERE c.id=?",
-        (collection_id,)
-    ).fetchone()
-    if not col: conn.close(); raise HTTPException(404, "Koleksiyon bulunamadi")
-    models = conn.execute(
-        "SELECT m.*, u.name as author_name FROM collection_models cm JOIN models m ON cm.model_id=m.id LEFT JOIN users u ON m.user_id=u.id WHERE cm.collection_id=? ORDER BY cm.added_at DESC",
-        (collection_id,)
-    ).fetchall()
-    conn.close()
-    return {"collection": dict(col), "models": [dict(r) for r in models]}
-
-@app.post("/api/collections/{collection_id}/add/{model_id}")
-async def add_to_collection(collection_id: int, model_id: int, authorization: Optional[str] = Header(None)):
-    user = await get_user(authorization)
-    if not user: raise HTTPException(401, "Giris yapin")
-    conn = get_db()
-    col = conn.execute("SELECT user_id FROM collections WHERE id=?", (collection_id,)).fetchone()
-    if not col: conn.close(); raise HTTPException(404, "Koleksiyon bulunamadi")
-    if col["user_id"] != user["id"]: conn.close(); raise HTTPException(403, "Bu koleksiyona ekleyemezsiniz")
-    try:
-        conn.execute("INSERT INTO collection_models(collection_id, model_id) VALUES(?,?)", (collection_id, model_id))
-        conn.commit()
-    except: pass
-    conn.close()
-    return {"success": True}
-
-@app.delete("/api/collections/{collection_id}/remove/{model_id}")
-async def remove_from_collection(collection_id: int, model_id: int, authorization: Optional[str] = Header(None)):
-    user = await get_user(authorization)
-    if not user: raise HTTPException(401, "Giris yapin")
-    conn = get_db()
-    col = conn.execute("SELECT user_id FROM collections WHERE id=?", (collection_id,)).fetchone()
-    if not col or col["user_id"] != user["id"]: conn.close(); raise HTTPException(403, "Yetkiniz yok")
-    conn.execute("DELETE FROM collection_models WHERE collection_id=? AND model_id=?", (collection_id, model_id))
-    conn.commit()
-    conn.close()
-    return {"removed": True}
-
-
-# ════════ BLOG ════════
-@app.get("/api/blog")
-async def get_blog_posts():
-    return {"posts": BLOG_POSTS}
-
-@app.get("/api/blog/{slug}")
-async def get_blog_post(slug: str):
-    for post in BLOG_POSTS:
-        if post["slug"] == slug:
-            return post
-    raise HTTPException(404, "Yazi bulunamadi")
-
-
-# ════════ DIGER ════════
-@app.post("/api/payment/upgrade")
-async def upgrade_plan(authorization: Optional[str] = Header(None)):
-    user = await get_user(authorization)
-    if not user: raise HTTPException(401, "Giris yapin")
-    conn = get_db()
-    conn.execute("UPDATE users SET plan='pro' WHERE id=?", (user["id"],))
-    conn.commit()
-    conn.close()
-    return {"success": True, "plan": "pro"}
-
-@app.get("/api/health")
-async def health():
-    api = get_api()
-    return {"status": "online", "active_api": api, "api_ready": True, "is_demo": api == "demo", "stl_ready": HAS_TRIMESH, "auth_ready": HAS_JWT, "google_ready": bool(GOOGLE_CLIENT_ID), "email_ready": bool(RESEND_API_KEY), "cached_models": len(model_cache)}
-
-@app.get("/api/debug/{task_id}")
-async def debug_task(task_id: str):
-    if task_id not in tasks: return {"error": "Bulunamadi"}
-    return {"task_id": task_id, "data": tasks[task_id], "cached": task_id in model_cache}
-
-
-# ════════ URL CIKARMA ════════
-def extract_model_url(data):
-    if not data: return ""
-    if isinstance(data, str) and data.startswith("http"): return data
-    if not isinstance(data, dict): return ""
-    for key in ["model", "pbr_model", "base_model"]:
-        val = data.get(key, "")
-        if isinstance(val, str) and val.startswith("http"): return val
-        if isinstance(val, dict):
-            url = val.get("url", "") or val.get("download_url", "")
-            if url and url.startswith("http"): return url
-    for k, v in data.items():
-        if isinstance(v, str) and v.startswith("http"):
-            if any(x in v.lower() for x in [".glb", ".gltf", "model"]): return v
-    return ""
-
-
-# ════════ TRIPO3D ════════
-async def _tripo_text(tid, prompt, style):
-    try:
-        h = {"Authorization": f"Bearer {TRIPO_API_KEY}"}
-        tasks[tid]["progress"] = 10; tasks[tid]["step"] = "Prompt gonderiliyor..."
-        async with httpx.AsyncClient(timeout=600) as c:
-            r = await c.post(f"{TRIPO_BASE}/task", json={"type": "text_to_model", "prompt": f"{prompt}, {style} style"}, headers={**h, "Content-Type": "application/json"})
-            if r.status_code != 200: raise Exception(f"Tripo hata {r.status_code}")
-            tripo_id = r.json().get("data", {}).get("task_id")
-            if not tripo_id: raise Exception("Task ID alinamadi")
-            tasks[tid]["progress"] = 25; await _tripo_poll(c, h, tid, tripo_id)
-    except Exception as e: tasks[tid]["status"] = "failed"; tasks[tid]["error"] = str(e)
-
-async def _tripo_image(tid, contents, fname):
-    try:
-        h = {"Authorization": f"Bearer {TRIPO_API_KEY}"}
-        ext = fname.rsplit(".", 1)[-1].lower()
-        if ext not in ("jpg", "jpeg", "png", "webp"): ext = "jpeg"
-        mime = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
-        tasks[tid]["progress"] = 10; tasks[tid]["step"] = "Gorsel yukleniyor..."
-        async with httpx.AsyncClient(timeout=600) as c:
-            ur = await c.post(f"{TRIPO_BASE}/upload", files={"file": (fname, contents, mime)}, headers=h)
-            if ur.status_code != 200: raise Exception(f"Upload hata {ur.status_code}")
-            token = ur.json().get("data", {}).get("image_token")
-            if not token: raise Exception("Token alinamadi")
-            tasks[tid]["progress"] = 25; tasks[tid]["step"] = "Model olusturuluyor..."
-            tr = await c.post(f"{TRIPO_BASE}/task", json={"type": "image_to_model", "file": {"type": ext if ext != "jpg" else "jpeg", "file_token": token}}, headers={**h, "Content-Type": "application/json"})
-            if tr.status_code != 200: raise Exception(f"Task hata {tr.status_code}")
-            tripo_id = tr.json().get("data", {}).get("task_id")
-            if not tripo_id: raise Exception("Task ID alinamadi")
-            tasks[tid]["progress"] = 35; await _tripo_poll(c, h, tid, tripo_id)
-    except Exception as e: tasks[tid]["status"] = "failed"; tasks[tid]["error"] = str(e)
-
-async def _tripo_poll(client, headers, tid, tripo_id):
-    for _ in range(200):
-        await asyncio.sleep(3)
-        try:
-            r = await client.get(f"{TRIPO_BASE}/task/{tripo_id}", headers=headers)
-            d = r.json().get("data", {}); st = d.get("status", ""); pr = d.get("progress", 0)
-            tasks[tid]["progress"] = 35 + int(pr * 0.55); tasks[tid]["step"] = f"Model uretiliyor... %{pr}"
-            if st == "success":
-                url = extract_model_url(d.get("output", {}))
-                tasks[tid]["model_url"] = url; tasks[tid]["progress"] = 92; tasks[tid]["step"] = "Model indiriliyor..."
-                if url: await cache_model(tid, url)
-                tasks[tid]["status"] = "done"; tasks[tid]["progress"] = 100; tasks[tid]["step"] = "Tamamlandi!"
-                uid = tasks[tid].get("user_id", 0); prompt = tasks[tid].get("prompt", "")
-                save_model(uid, tid, prompt[:50], prompt, tasks[tid].get("type", ""), tasks[tid].get("style", ""), url)
-                return
-            elif st in ("failed", "cancelled"): raise Exception(f"Tripo: {st}")
-        except Exception as e:
-            if any(x in str(e) for x in ["Tripo", "failed", "cancelled"]): tasks[tid]["status"] = "failed"; tasks[tid]["error"] = str(e); return
-    tasks[tid]["status"] = "failed"; tasks[tid]["error"] = "Zaman asimi"
-
-async def _meshy_text(tid, prompt, style):
-    try:
-        h = {"Authorization": f"Bearer {MESHY_API_KEY}", "Content-Type": "application/json"}
-        tasks[tid]["progress"] = 10; tasks[tid]["step"] = "Prompt gonderiliyor..."
-        async with httpx.AsyncClient(timeout=600) as c:
-            r = await c.post(f"{MESHY_BASE}/text-to-3d", json={"mode": "preview", "prompt": prompt, "art_style": "realistic"}, headers=h)
-            if r.status_code not in (200, 202): raise Exception(f"Meshy hata {r.status_code}")
-            mid = r.json().get("result"); tasks[tid]["progress"] = 20
-            await _meshy_poll(c, h, tid, mid, "text-to-3d")
-    except Exception as e: tasks[tid]["status"] = "failed"; tasks[tid]["error"] = str(e)
-
-async def _meshy_image(tid, contents, fname):
-    try:
-        h = {"Authorization": f"Bearer {MESHY_API_KEY}", "Content-Type": "application/json"}
-        ext = fname.rsplit(".", 1)[-1].lower()
-        mime = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
-        b64 = base64.b64encode(contents).decode()
-        tasks[tid]["progress"] = 15; tasks[tid]["step"] = "Gorsel gonderiliyor..."
-        async with httpx.AsyncClient(timeout=600) as c:
-            r = await c.post(f"{MESHY_BASE}/image-to-3d", json={"image_url": f"data:{mime};base64,{b64}", "enable_pbr": True}, headers=h)
-            if r.status_code not in (200, 202): raise Exception(f"Meshy hata {r.status_code}")
-            mid = r.json().get("result"); tasks[tid]["progress"] = 25
-            await _meshy_poll(c, h, tid, mid, "image-to-3d")
-    except Exception as e: tasks[tid]["status"] = "failed"; tasks[tid]["error"] = str(e)
-
-async def _meshy_poll(client, h, tid, mid, ep):
-    for _ in range(200):
-        await asyncio.sleep(3)
-        try:
-            r = await client.get(f"{MESHY_BASE}/{ep}/{mid}", headers=h)
-            if r.status_code != 200: continue
-            d = r.json(); status = d.get("status", ""); progress = d.get("progress", 0)
-            tasks[tid]["progress"] = 25 + int(progress * 0.7); tasks[tid]["step"] = f"Model uretiliyor... %{progress}"
-            if status == "SUCCEEDED":
-                glb = d.get("model_urls", {}).get("glb", "")
-                tasks[tid]["model_url"] = glb
-                if glb: await cache_model(tid, glb)
-                tasks[tid]["status"] = "done"; tasks[tid]["progress"] = 100; tasks[tid]["step"] = "Tamamlandi!"
-                uid = tasks[tid].get("user_id", 0); prompt = tasks[tid].get("prompt", "")
-                save_model(uid, tid, prompt[:50], prompt, tasks[tid].get("type", ""), "", glb); return
-            elif status == "FAILED": raise Exception("Meshy: Model uretilemedi")
-        except Exception as e:
-            if "uretilemedi" in str(e): tasks[tid]["status"] = "failed"; tasks[tid]["error"] = str(e); return
-    tasks[tid]["status"] = "failed"; tasks[tid]["error"] = "Zaman asimi"
-
-async def _demo_generate(tid):
-    try:
-        for pr, st in [(8, "Analiz ediliyor..."), (22, "AI yukleniyor..."), (40, "Geometri olusturuluyor..."), (58, "Mesh uretiliyor..."), (72, "Texture uygulaniyor..."), (88, "Optimize ediliyor..."), (95, "Hazirlaniyor...")]:
-            tasks[tid]["progress"] = pr; tasks[tid]["step"] = st; await asyncio.sleep(random.uniform(1.0, 2.0))
-        m = random.choice(DEMO_MODELS); tasks[tid]["model_url"] = m["glb"]
-        await cache_model(tid, m["glb"])
-        tasks[tid]["status"] = "done"; tasks[tid]["progress"] = 100; tasks[tid]["step"] = f"Demo: {m['name']}"
-        save_model(0, tid, m["name"], "demo", "demo", "", m["glb"])
-    except Exception as e: tasks[tid]["status"] = "failed"; tasks[tid]["error"] = str(e)
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PrintForge - AI ile 3D Model Uretici</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+<style>
+:root{--bg:#04080a;--bg2:#070d10;--border:#0e2028;--accent:#00e5ff;--accent2:#00ff9d;--text:#c8dde5;--muted:#2a4a5a;--card:#060c10;--red:#ff4466;--orange:#ffaa00;--purple:#a855f7;--glass:rgba(6,12,16,0.85)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+h1,h2,h3,h4{font-family:'Outfit',sans-serif}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--muted);border-radius:4px}
+#bgCanvas{position:fixed;inset:0;z-index:0;pointer-events:none}
+.bg-gradient{position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 60% 50% at 20% 20%,rgba(0,229,255,0.04),transparent),radial-gradient(ellipse 50% 40% at 80% 80%,rgba(0,255,157,0.03),transparent)}
+.bg-grid{position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(rgba(0,229,255,0.015) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.015) 1px,transparent 1px);background-size:60px 60px}
+.scan-line{position:fixed;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,229,255,0.04),transparent);animation:scanLine 8s linear infinite;z-index:0;pointer-events:none}
+@keyframes scanLine{from{top:-1px}to{top:100vh}}
+.nav{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between;align-items:center;padding:12px 24px;background:var(--glass);backdrop-filter:blur(24px);border-bottom:1px solid rgba(0,229,255,0.06);gap:10px;flex-wrap:wrap}
+.nav-logo{display:flex;align-items:center;gap:8px;text-decoration:none}
+.nlm{width:22px;height:22px;border:1.5px solid var(--accent);transform:rotate(45deg);display:flex;align-items:center;justify-content:center;transition:all 0.3s}
+.nav-logo:hover .nlm{border-color:var(--accent2)}
+.nli{width:6px;height:6px;background:var(--accent);transform:rotate(-45deg)}
+.nlt{font-family:'Outfit',sans-serif;font-size:15px;font-weight:800;color:var(--accent);letter-spacing:0.08em}
+.nav-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.nav-status{font-size:8px;color:var(--muted);display:flex;align-items:center;gap:4px;padding:4px 10px;border:1px solid var(--border);border-radius:20px}
+.nav-dot{width:5px;height:5px;border-radius:50%;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.nav-user{display:flex;align-items:center;gap:8px}
+.nav-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,rgba(0,229,255,0.2),rgba(168,85,247,0.2));border:1.5px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--accent);cursor:pointer;font-family:'Outfit',sans-serif;font-weight:700}
+.nav-uname{font-size:10px;color:var(--text);font-weight:500}
+.nav-usage{font-size:8px;color:var(--accent2);background:rgba(0,255,157,0.06);padding:3px 10px;border:1px solid rgba(0,255,157,0.15);border-radius:20px;font-weight:600}
+.nbtn{padding:6px 14px;font-family:'Inter',sans-serif;font-size:9px;letter-spacing:0.08em;cursor:pointer;transition:all 0.2s;border:1px solid var(--border);background:transparent;color:var(--text);border-radius:8px;font-weight:500}
+.nbtn:hover{border-color:var(--accent);color:var(--accent)}
+.nbtn.accent{background:linear-gradient(135deg,var(--accent),#0099cc);color:#04080a;border:none;font-weight:600}
+.nbtn.accent:hover{background:linear-gradient(135deg,var(--accent2),var(--accent))}
+.nbtn.red{color:var(--red);border-color:rgba(255,68,102,0.2)}
+.banner{padding:8px 20px;text-align:center;font-size:9px;display:none;position:relative;z-index:1}
+.banner.demo{background:rgba(255,170,0,0.06);color:var(--orange);border-bottom:1px solid rgba(255,170,0,0.1)}
+.banner.usage{background:rgba(0,255,157,0.04);color:var(--accent2);border-bottom:1px solid rgba(0,255,157,0.1)}
+.banner.verify{background:rgba(255,170,0,0.06);color:var(--orange);border-bottom:1px solid rgba(255,170,0,0.1)}
+.banner a{color:var(--accent);cursor:pointer;text-decoration:underline}
+.container{position:relative;z-index:1;max-width:920px;margin:0 auto;padding:28px 20px 80px}
+
+/* AUTH */
+.auth-overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(4,8,10,0.94);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px}
+.auth-overlay.on{display:flex}
+.auth-box{background:var(--card);border:1px solid var(--border);padding:36px 30px;width:100%;max-width:400px;position:relative;border-radius:20px;box-shadow:0 24px 64px rgba(0,0,0,0.4)}
+.auth-close{position:absolute;top:14px;right:16px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer}
+.auth-logo{text-align:center;margin-bottom:20px;font-family:'Outfit',sans-serif;font-size:20px;font-weight:800;color:var(--accent)}
+.auth-tabs{display:flex;border:1px solid var(--border);margin-bottom:18px;border-radius:10px;overflow:hidden}
+.auth-tab{flex:1;padding:10px;background:transparent;border:none;color:var(--muted);font-family:'Inter',sans-serif;font-size:10px;cursor:pointer;font-weight:500}
+.auth-tab.on{background:rgba(0,229,255,0.06);color:var(--accent)}
+.fg{margin-bottom:12px}
+.fg label{font-size:9px;letter-spacing:0.1em;color:var(--muted);margin-bottom:5px;display:block;font-weight:500}
+.fg input{width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:11px 14px;font-size:13px;font-family:'Inter',sans-serif;border-radius:10px}
+.fg input:focus{outline:none;border-color:rgba(0,229,255,0.4)}
+.fg input::placeholder{color:var(--muted)}
+.auth-btn{width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),#0099cc);color:#04080a;border:none;font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;margin-top:8px;border-radius:10px;font-weight:700}
+.auth-btn:hover{background:linear-gradient(135deg,var(--accent2),var(--accent))}
+.auth-divider{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--muted);font-size:9px}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.google-btn{width:100%;padding:11px;background:transparent;border:1px solid var(--border);color:var(--text);font-family:'Inter',sans-serif;font-size:11px;cursor:pointer;border-radius:10px;display:flex;align-items:center;justify-content:center;gap:10px;font-weight:500}
+.google-btn:hover{border-color:var(--accent)}
+.google-btn svg{width:16px;height:16px}
+.auth-msg{padding:8px 12px;font-size:10px;margin-bottom:10px;display:none;border-radius:8px;line-height:1.6}
+.auth-msg.err{background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.2);color:var(--red);display:block}
+.auth-msg.ok{background:rgba(0,255,157,0.08);border:1px solid rgba(0,255,157,0.2);color:var(--accent2);display:block}
+.auth-footer{text-align:center;margin-top:14px;font-size:9px;color:var(--muted)}
+.auth-footer a{color:var(--accent);cursor:pointer}
+.auth-link{font-size:10px;color:var(--accent);cursor:pointer;text-align:center;display:block;margin-top:10px}
+
+/* TABS */
+.tabs{display:flex;border:1px solid var(--border);margin-bottom:24px;border-radius:12px;overflow:hidden;background:var(--glass)}
+.tab{flex:1;padding:12px 6px;background:transparent;border:none;color:var(--muted);font-family:'Inter',sans-serif;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:500;position:relative}
+.tab.on{color:var(--accent)}
+.tab.on::after{content:'';position:absolute;bottom:0;left:15%;right:15%;height:2px;background:var(--accent);border-radius:1px}
+.tab:hover:not(.on){background:rgba(0,229,255,0.02);color:var(--text)}
+.panel{display:none}.panel.on{display:block}
+.card{background:var(--glass);border:1px solid var(--border);padding:26px;margin-bottom:14px;border-radius:16px}
+.label{font-size:9px;letter-spacing:0.12em;color:var(--muted);margin-bottom:6px;display:block;font-weight:600}
+textarea{width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:12px;font-size:13px;font-family:'Inter',sans-serif;resize:vertical;min-height:70px;border-radius:12px}
+textarea:focus{outline:none;border-color:rgba(0,229,255,0.4)}
+textarea::placeholder{color:var(--muted)}
+.examples{margin-top:10px;display:flex;gap:5px;flex-wrap:wrap}
+.ex-btn{padding:6px 12px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Inter',sans-serif;font-size:9px;cursor:pointer;border-radius:8px;font-weight:500}
+.ex-btn:hover{border-color:var(--accent);color:var(--accent)}
+.style-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
+.style-opt{padding:12px 8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Inter',sans-serif;font-size:9px;cursor:pointer;text-align:center;border-radius:12px;font-weight:500}
+.style-opt:hover{border-color:rgba(0,229,255,0.3);color:var(--text)}
+.style-opt.on{border-color:var(--accent);color:var(--accent);background:rgba(0,229,255,0.04)}
+.style-opt .ico{font-size:18px;display:block;margin-bottom:4px}
+.upload{border:2px dashed var(--border);padding:36px 20px;text-align:center;cursor:pointer;position:relative;overflow:hidden;border-radius:16px}
+.upload:hover,.upload.drag{border-color:var(--accent)}
+.upload.has{border-color:var(--accent2);border-style:solid}
+.upload input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.upload .ico{font-size:30px;margin-bottom:8px;color:var(--accent)}
+.upload p{font-size:11px;color:var(--muted)}
+.preview{margin-top:14px;display:none;position:relative}.preview.on{display:block}
+.preview img{max-width:100%;max-height:200px;display:block;margin:0 auto;border:1px solid var(--border);border-radius:12px}
+.preview .rm{position:absolute;top:6px;right:6px;width:26px;height:26px;background:rgba(255,68,102,0.85);border:none;color:#fff;border-radius:50%;cursor:pointer;font-size:11px}
+.gen-btn{width:100%;padding:14px;background:linear-gradient(135deg,var(--accent),#0099cc);color:#04080a;border:none;font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;font-weight:700;margin-top:14px;border-radius:12px}
+.gen-btn:hover:not(:disabled){background:linear-gradient(135deg,var(--accent2),var(--accent))}
+.gen-btn:disabled{opacity:0.4;cursor:not-allowed}
+.sec{display:none;margin-bottom:20px}.sec.on{display:block}
+.prog-card{background:var(--glass);border:1px solid var(--border);padding:24px;border-radius:16px}
+.prog-top{display:flex;justify-content:space-between;margin-bottom:14px}
+.prog-title{font-family:'Outfit',sans-serif;font-size:15px;font-weight:700}
+.prog-pct{font-family:'Outfit',sans-serif;font-size:22px;font-weight:800;color:var(--accent)}
+.prog-bar-bg{width:100%;height:6px;background:var(--bg2);overflow:hidden;margin-bottom:10px;border-radius:3px}
+.prog-bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0%;transition:width 0.5s;border-radius:3px}
+.prog-step{font-size:10px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.spinner{display:inline-block;width:10px;height:10px;border:2px solid var(--muted);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.result-card{background:var(--glass);border:1px solid var(--accent2);padding:24px;text-align:center;border-radius:16px}
+.result-card h3{font-family:'Outfit',sans-serif;font-size:20px;font-weight:800;margin-bottom:6px}
+.result-card>p{font-size:11px;color:var(--muted);margin-bottom:16px}
+.viewer{width:100%;height:360px;background:var(--bg2);border:1px solid var(--border);margin-bottom:16px;overflow:hidden;display:flex;align-items:center;justify-content:center;border-radius:14px}
+.viewer model-viewer{width:100%;height:100%}
+.dl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
+.dl-btn{padding:12px 8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:'Inter',sans-serif;font-size:10px;cursor:pointer;text-decoration:none;text-align:center;display:flex;flex-direction:column;align-items:center;gap:3px;border-radius:10px;font-weight:500}
+.dl-btn:hover{border-color:var(--accent);color:var(--accent)}
+.dl-btn .dl-fmt{font-size:7px;color:var(--muted)}
+.dl-btn.primary{border-color:var(--accent2);background:rgba(0,255,157,0.05)}
+.new-btn{width:100%;padding:11px;border:1px solid var(--border);background:transparent;color:var(--text);font-family:'Inter',sans-serif;font-size:10px;cursor:pointer;border-radius:10px;font-weight:500}
+.new-btn:hover{border-color:var(--accent);color:var(--accent)}
+.err-card{background:rgba(255,68,102,0.04);border:1px solid rgba(255,68,102,0.15);padding:24px;text-align:center;border-radius:16px}
+.err-card h3{color:var(--red);font-size:15px;margin-bottom:6px}
+.err-card p{font-size:10px;color:var(--muted);margin-bottom:14px}
+
+/* GALLERY */
+.gal-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.gal-toolbar input{flex:1;min-width:140px;background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:10px 14px;font-family:'Inter',sans-serif;font-size:12px;border-radius:10px}
+.gal-toolbar select{background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:10px;font-family:'Inter',sans-serif;font-size:11px;border-radius:10px}
+.gal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+.gal-card{background:var(--card);border:1px solid var(--border);cursor:pointer;border-radius:16px;overflow:hidden;transition:all 0.25s}
+.gal-card:hover{border-color:rgba(0,229,255,0.25);transform:translateY(-4px);box-shadow:0 16px 40px rgba(0,0,0,0.3)}
+.gal-thumb{height:180px;background:var(--bg2);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative}
+.gal-thumb model-viewer{width:100%;height:100%}
+.gal-badge{position:absolute;top:8px;left:8px;background:var(--glass);border:1px solid rgba(0,229,255,0.15);padding:3px 8px;font-size:8px;color:var(--accent);border-radius:6px;font-weight:600}
+.gal-body{padding:14px}
+.gal-title{font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gal-meta{font-size:9px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:8px}
+.gal-stats{display:flex;gap:14px;margin-bottom:10px}
+.gal-stat{font-size:9px;color:var(--muted)}.gal-stat span{color:var(--accent2);font-weight:600}
+.gal-actions{display:flex;gap:5px}
+.gal-btn{flex:1;padding:7px;border:1px solid var(--border);background:transparent;color:var(--text);font-family:'Inter',sans-serif;font-size:9px;cursor:pointer;text-align:center;border-radius:8px;text-decoration:none;display:flex;align-items:center;justify-content:center;font-weight:500}
+.gal-btn:hover{border-color:var(--accent);color:var(--accent)}
+.gal-btn.liked{color:var(--red);border-color:rgba(255,68,102,0.3)}
+.gal-btn.dl{background:rgba(0,229,255,0.04);border-color:rgba(0,229,255,0.15)}
+.gal-empty{text-align:center;padding:60px 20px;color:var(--muted);font-size:12px;grid-column:1/-1}
+
+/* DETAIL */
+.detail-overlay{display:none;position:fixed;inset:0;z-index:150;background:rgba(4,8,10,0.96);overflow-y:auto;padding:20px}
+.detail-overlay.on{display:block}
+.detail-container{max-width:900px;margin:0 auto}
+.detail-back{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:11px;cursor:pointer;margin-bottom:20px;padding:8px 16px;border:1px solid var(--border);background:transparent;border-radius:10px;font-family:'Inter',sans-serif;font-weight:500}
+.detail-back:hover{border-color:var(--accent);color:var(--accent)}
+.detail-main{display:grid;grid-template-columns:1.3fr 1fr;gap:24px;margin-bottom:24px}
+.detail-viewer{background:var(--bg2);border:1px solid var(--border);border-radius:16px;overflow:hidden;height:420px}
+.detail-viewer model-viewer{width:100%;height:100%}
+.detail-info{display:flex;flex-direction:column}
+.detail-title{font-family:'Outfit',sans-serif;font-size:24px;font-weight:800;margin-bottom:8px}
+.detail-author{font-size:12px;color:var(--muted);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.detail-author-avatar{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,rgba(0,229,255,0.2),rgba(168,85,247,0.2));border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--accent);font-weight:700}
+.detail-stats-row{display:flex;gap:16px;margin-bottom:18px;padding:14px;background:var(--bg2);border-radius:12px}
+.detail-stat{text-align:center;flex:1}
+.detail-stat-num{font-family:'Outfit',sans-serif;font-size:20px;font-weight:800;color:var(--accent)}
+.detail-stat-lbl{font-size:7px;color:var(--muted);letter-spacing:0.12em;margin-top:2px}
+.detail-section{margin-bottom:14px}
+.detail-section-title{font-size:9px;letter-spacing:0.12em;color:var(--muted);margin-bottom:8px;font-weight:600}
+.detail-tags{display:flex;gap:6px;flex-wrap:wrap}
+.detail-tag{padding:4px 10px;background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.12);color:var(--accent);font-size:9px;border-radius:8px;font-weight:500}
+.detail-prompt{background:var(--bg2);border:1px solid var(--border);padding:12px 16px;font-size:12px;color:var(--text);line-height:1.7;border-radius:12px;font-style:italic}
+.detail-dl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.detail-dl{padding:14px;border:1px solid var(--border);background:var(--card);text-align:center;cursor:pointer;text-decoration:none;color:var(--text);border-radius:12px;font-weight:500}
+.detail-dl:hover{border-color:var(--accent);color:var(--accent)}
+.detail-dl .dl-name{font-size:12px;font-weight:600}
+.detail-dl .dl-desc{font-size:8px;color:var(--muted);margin-top:2px}
+.detail-dl.primary{border-color:var(--accent2);background:rgba(0,255,157,0.04)}
+.detail-like-btn{width:100%;padding:12px;border:1px solid var(--border);background:transparent;color:var(--text);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;margin-top:10px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:600}
+.detail-like-btn:hover{border-color:var(--red);color:var(--red)}
+.detail-like-btn.liked{background:rgba(255,68,102,0.06);border-color:var(--red);color:var(--red)}
+
+/* COMMENTS */
+.comments-section{margin-bottom:24px}
+.comments-title{font-family:'Outfit',sans-serif;font-size:16px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.comments-title::before{content:'';width:3px;height:16px;background:var(--accent);border-radius:2px}
+.comment-input{display:flex;gap:8px;margin-bottom:16px}
+.comment-input textarea{min-height:40px;flex:1;border-radius:10px;font-size:12px;padding:10px}
+.comment-send{padding:10px 20px;background:var(--accent);color:#04080a;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:11px;cursor:pointer;font-weight:600;align-self:flex-end}
+.comment-send:hover{background:var(--accent2)}
+.comment-list{display:flex;flex-direction:column;gap:10px}
+.comment-item{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px}
+.comment-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.comment-author{font-size:11px;font-weight:600;color:var(--accent)}
+.comment-date{font-size:9px;color:var(--muted)}
+.comment-text{font-size:12px;line-height:1.6;color:var(--text)}
+.comment-delete{background:none;border:none;color:var(--red);font-size:9px;cursor:pointer;margin-top:6px}
+
+/* COLLECTION ADD */
+.col-add-btn{padding:8px 14px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Inter',sans-serif;font-size:9px;cursor:pointer;border-radius:8px;margin-top:8px;width:100%;text-align:center}
+.col-add-btn:hover{border-color:var(--accent);color:var(--accent)}
+.col-dropdown{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;margin-top:8px;display:none}
+.col-dropdown.on{display:block}
+.col-dropdown-item{padding:8px 12px;cursor:pointer;font-size:11px;border-radius:6px;display:flex;justify-content:space-between}
+.col-dropdown-item:hover{background:rgba(0,229,255,0.06);color:var(--accent)}
+.col-new-input{display:flex;gap:6px;margin-top:8px}
+.col-new-input input{flex:1;background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 12px;font-size:11px;font-family:'Inter',sans-serif;border-radius:8px}
+.col-new-input button{padding:8px 14px;background:var(--accent);color:#04080a;border:none;border-radius:8px;font-size:10px;cursor:pointer;font-weight:600}
+
+/* SIMILAR */
+.similar-section{margin-bottom:40px}
+.similar-title{font-family:'Outfit',sans-serif;font-size:18px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.similar-title::before{content:'';width:3px;height:18px;background:linear-gradient(var(--accent),var(--accent2));border-radius:2px}
+.similar-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.similar-card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;cursor:pointer}
+.similar-card:hover{border-color:rgba(0,229,255,0.25);transform:translateY(-2px)}
+.similar-thumb{height:130px;background:var(--bg2);overflow:hidden}
+.similar-thumb model-viewer{width:100%;height:100%}
+.similar-body{padding:10px 12px}
+.similar-name{font-family:'Outfit',sans-serif;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.similar-meta{font-size:8px;color:var(--muted);margin-top:3px}
+
+/* COLLECTIONS */
+.col-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-top:16px}
+.col-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;cursor:pointer;transition:all 0.2s}
+.col-card:hover{border-color:rgba(0,229,255,0.25);transform:translateY(-2px)}
+.col-card-name{font-family:'Outfit',sans-serif;font-size:16px;font-weight:700;margin-bottom:4px}
+.col-card-desc{font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.5}
+.col-card-meta{font-size:9px;color:var(--muted);display:flex;justify-content:space-between}
+.col-card-count{color:var(--accent);font-weight:600}
+.col-create-card{background:transparent;border:2px dashed var(--border);border-radius:16px;padding:30px 20px;cursor:pointer;text-align:center;transition:all 0.2s}
+.col-create-card:hover{border-color:var(--accent)}
+.col-create-card .ico{font-size:28px;color:var(--accent);margin-bottom:8px}
+.col-create-card p{font-size:11px;color:var(--muted)}
+.col-detail-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.col-detail-title{font-family:'Outfit',sans-serif;font-size:20px;font-weight:800}
+.col-detail-desc{font-size:11px;color:var(--muted);margin-bottom:16px}
+
+/* BLOG */
+.blog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:16px}
+.blog-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;cursor:pointer;transition:all 0.2s}
+.blog-card:hover{border-color:rgba(0,229,255,0.25);transform:translateY(-2px)}
+.blog-cat{font-size:8px;color:var(--accent);letter-spacing:0.12em;font-weight:600;margin-bottom:8px;text-transform:uppercase}
+.blog-card-title{font-family:'Outfit',sans-serif;font-size:16px;font-weight:700;margin-bottom:8px;line-height:1.3}
+.blog-card-summary{font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:12px}
+.blog-card-meta{font-size:9px;color:var(--muted);display:flex;gap:16px}
+.blog-detail{max-width:700px;margin:0 auto}
+.blog-detail-title{font-family:'Outfit',sans-serif;font-size:28px;font-weight:800;margin-bottom:12px;line-height:1.2}
+.blog-detail-meta{font-size:10px;color:var(--muted);margin-bottom:24px;display:flex;gap:16px}
+.blog-detail-content{font-size:14px;line-height:1.9;color:var(--text)}
+.blog-detail-content h2{font-family:'Outfit',sans-serif;font-size:20px;font-weight:700;color:var(--accent);margin:28px 0 12px}
+.blog-detail-content h3{font-family:'Outfit',sans-serif;font-size:16px;font-weight:600;margin:20px 0 8px}
+.blog-detail-content p{margin-bottom:14px}
+.blog-detail-content strong{color:var(--accent2)}
+.blog-back{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:11px;cursor:pointer;margin-bottom:24px;padding:8px 16px;border:1px solid var(--border);background:transparent;border-radius:10px;font-weight:500}
+.blog-back:hover{border-color:var(--accent);color:var(--accent)}
+
+/* PROFILE */
+.profile-header{background:linear-gradient(135deg,rgba(0,229,255,0.06),rgba(168,85,247,0.04));border:1px solid var(--border);border-radius:20px;padding:30px;margin-bottom:20px;position:relative;overflow:hidden}
+.profile-header::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(0,229,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.03) 1px,transparent 1px);background-size:30px 30px}
+.profile-top{display:flex;align-items:center;gap:18px;position:relative;z-index:1;flex-wrap:wrap}
+.profile-avatar{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,rgba(0,229,255,0.2),rgba(168,85,247,0.2));border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--accent);font-family:'Outfit',sans-serif;font-weight:800}
+.profile-name{font-family:'Outfit',sans-serif;font-size:22px;font-weight:800}
+.profile-email{font-size:11px;color:var(--muted);margin-top:2px}
+.profile-plan{display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:4px 12px;border-radius:20px;font-size:9px;font-weight:600}
+.profile-plan.free{background:rgba(0,229,255,0.08);color:var(--accent);border:1px solid rgba(0,229,255,0.15)}
+.profile-plan.pro{background:rgba(168,85,247,0.08);color:var(--purple);border:1px solid rgba(168,85,247,0.15)}
+.profile-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px;position:relative;z-index:1}
+.pstat{text-align:center;padding:14px;background:var(--glass);border:1px solid var(--border);border-radius:14px}
+.pstat-num{font-family:'Outfit',sans-serif;font-size:24px;font-weight:800;color:var(--accent);line-height:1}
+.pstat-lbl{font-size:8px;color:var(--muted);letter-spacing:0.12em;margin-top:4px}
+.profile-tabs{display:flex;gap:4px;margin-bottom:16px}
+.ptab{padding:8px 18px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Inter',sans-serif;font-size:10px;cursor:pointer;border-radius:8px;font-weight:500}
+.ptab.on{background:rgba(0,229,255,0.06);border-color:var(--accent);color:var(--accent)}
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:500px}
+.settings-grid .fg{margin-bottom:0}
+.save-btn{padding:10px 24px;background:linear-gradient(135deg,var(--accent),#0099cc);color:#04080a;border:none;font-family:'Inter',sans-serif;font-size:11px;cursor:pointer;border-radius:10px;font-weight:600;margin-top:12px}
+.danger-btn{padding:10px 24px;background:transparent;border:1px solid rgba(255,68,102,0.3);color:var(--red);font-family:'Inter',sans-serif;font-size:11px;cursor:pointer;border-radius:10px;margin-top:12px;margin-left:8px}
+.usage-bar-container{margin-top:16px;margin-bottom:12px}
+.usage-bar-bg{height:8px;background:var(--bg2);border-radius:4px;overflow:hidden}
+.usage-bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:4px;transition:width 0.5s}
+.usage-text{display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--muted)}
+@media(max-width:768px){.detail-main{grid-template-columns:1fr}.detail-viewer{height:280px}.profile-stats{grid-template-columns:repeat(2,1fr)}.profile-top{text-align:center;justify-content:center;flex-direction:column}.settings-grid{grid-template-columns:1fr}.nav{padding:10px 14px}.container{padding:20px 12px}.style-grid{grid-template-columns:repeat(2,1fr)}.viewer{height:260px}.gal-grid,.blog-grid,.col-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+<div class="bg-gradient"></div>
+<div class="bg-grid"></div>
+<div class="scan-line"></div>
+
+<!-- AUTH -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-box">
+    <button class="auth-close" onclick="closeAuth()">&times;</button>
+    <div class="auth-logo">PRINTFORGE</div>
+    <div class="auth-tabs"><button class="auth-tab on" id="aLT" onclick="authTab('login')">Giris Yap</button><button class="auth-tab" id="aRT" onclick="authTab('register')">Kayit Ol</button></div>
+    <div id="authMsg" class="auth-msg"></div>
+    <div id="loginForm">
+      <div class="fg"><label>E-POSTA</label><input type="email" id="lEmail" placeholder="ornek@gmail.com"></div>
+      <div class="fg"><label>SIFRE</label><input type="password" id="lPass" placeholder="Sifreniz"></div>
+      <button class="auth-btn" onclick="doLogin()">Giris Yap</button>
+      <span class="auth-link" onclick="authTab('forgot')">Sifremi unuttum</span>
+      <div class="auth-divider">veya</div>
+      <button class="google-btn" onclick="googleLogin()"><svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.07 5.07 0 01-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>Google ile Devam Et</button>
+      <div class="auth-footer">Hesabiniz yok mu? <a onclick="authTab('register')">Kayit Olun</a></div>
+    </div>
+    <div id="regForm" style="display:none">
+      <div class="fg"><label>AD SOYAD</label><input type="text" id="rName" placeholder="Adiniz Soyadiniz"></div>
+      <div class="fg"><label>E-POSTA</label><input type="email" id="rEmail" placeholder="ornek@gmail.com"></div>
+      <div class="fg"><label>SIFRE</label><input type="password" id="rPass" placeholder="En az 6 karakter"></div>
+      <button class="auth-btn" onclick="doRegister()">Kayit Ol</button>
+      <div class="auth-divider">veya</div>
+      <button class="google-btn" onclick="googleLogin()"><svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.07 5.07 0 01-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>Google ile Devam Et</button>
+      <div class="auth-footer">Hesabiniz var mi? <a onclick="authTab('login')">Giris Yapin</a></div>
+    </div>
+    <div id="forgotForm" style="display:none">
+      <p style="font-size:12px;color:var(--text);margin-bottom:16px">E-posta adresinizi girin, sifre sifirlama baglantisi gonderelim.</p>
+      <div class="fg"><label>E-POSTA</label><input type="email" id="fEmail" placeholder="ornek@gmail.com"></div>
+      <button class="auth-btn" onclick="doForgotPassword()">Sifirlama Maili Gonder</button>
+      <div class="auth-footer" style="margin-top:16px"><a onclick="authTab('login')">Girise Don</a></div>
+    </div>
+    <div id="resetForm" style="display:none">
+      <p style="font-size:12px;color:var(--text);margin-bottom:16px">Yeni sifrenizi belirleyin.</p>
+      <div class="fg"><label>YENI SIFRE</label><input type="password" id="resetPass" placeholder="En az 6 karakter"></div>
+      <div class="fg"><label>SIFRE TEKRAR</label><input type="password" id="resetPass2" placeholder="Ayni sifreyi girin"></div>
+      <button class="auth-btn" onclick="doResetPassword()">Sifreyi Degistir</button>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL -->
+<div class="detail-overlay" id="detailOverlay">
+  <div class="detail-container">
+    <button class="detail-back" onclick="closeDetail()">&#8592; Geri Don</button>
+    <div class="detail-main">
+      <div class="detail-viewer" id="detailViewer"></div>
+      <div class="detail-info">
+        <h2 class="detail-title" id="dTitle">-</h2>
+        <div class="detail-author"><div class="detail-author-avatar" id="dAvatar">U</div><span id="dAuthor">-</span></div>
+        <div class="detail-stats-row">
+          <div class="detail-stat"><div class="detail-stat-num" id="dLikes">0</div><div class="detail-stat-lbl">BEGENI</div></div>
+          <div class="detail-stat"><div class="detail-stat-num" id="dDls">0</div><div class="detail-stat-lbl">INDIRME</div></div>
+          <div class="detail-stat"><div class="detail-stat-num" id="dType">-</div><div class="detail-stat-lbl">TUR</div></div>
+        </div>
+        <div class="detail-section" id="dPromptSec"><div class="detail-section-title">KULLANILAN PROMPT</div><div class="detail-prompt" id="dPrompt">-</div></div>
+        <div class="detail-section"><div class="detail-section-title">ETIKETLER</div><div class="detail-tags" id="dTags"></div></div>
+        <div class="detail-section"><div class="detail-section-title">INDIR</div><div class="detail-dl-grid" id="dDlGrid"></div></div>
+        <button class="detail-like-btn" id="dLikeBtn" onclick="likeDetail()">&#9829; Begen</button>
+        <button class="col-add-btn" onclick="toggleColDropdown()">+ Koleksiyona Ekle</button>
+        <div class="col-dropdown" id="colDropdown"><div id="colDropdownList"></div>
+          <div class="col-new-input"><input type="text" id="newColName" placeholder="Yeni koleksiyon adi"><button onclick="createColAndAdd()">Olustur</button></div>
+        </div>
+      </div>
+    </div>
+    <!-- YORUMLAR -->
+    <div class="comments-section">
+      <div class="comments-title">Yorumlar (<span id="commentCount">0</span>)</div>
+      <div class="comment-input"><textarea id="commentText" placeholder="Yorum yazin..." rows="2"></textarea><button class="comment-send" onclick="addComment()">Gonder</button></div>
+      <div class="comment-list" id="commentList"></div>
+    </div>
+    <div class="similar-section" id="simSec"><div class="similar-title">Benzer Modeller</div><div class="similar-grid" id="simGrid"></div></div>
+  </div>
+</div>
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PrintForge - AI ile 3D Model Uretici</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+<style>
+:root{--bg:#04080a;--bg2:#070d10;--border:#0e2028;--accent:#00e5ff;--accent2:#00ff9d;--text:#c8dde5;--muted:#2a4a5a;--card:#060c10;--red:#ff4466;--orange:#ffaa00;--purple:#a855f7;--glass:rgba(6,12,16,0.85)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+h1,h2,h3,h4{font-family:'Outfit',sans-serif}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--muted);border-radius:4px}
+#bgCanvas{position:fixed;inset:0;z-index:0;pointer-events:none}
+.bg-gradient{position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 60% 50% at 20% 20%,rgba(0,229,255,0.04),transparent),radial-gradient(ellipse 50% 40% at 80% 80%,rgba(0,255,157,0.03),transparent)}
+.bg-grid{position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(rgba(0,229,255,0.015) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.015) 1px,transparent 1px);background-size:60px 60px}
+.scan-line{position:fixed;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,229,255,0.04),transparent);animation:scanLine 8s linear infinite;z-index:0;pointer-events:none}
+@keyframes scanLine{from{top:-1px}to{top:100vh}}
+.nav{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between;align-items:center;padding:12px 24px;background:var(--glass);backdrop-filter:blur(24px);border-bottom:1px solid rgba(0,229,255,0.06);gap:10px;flex-wrap:wrap}
+.nav-logo{display:flex;align-items:center;gap:8px;text-decoration:none}
+.nlm{width:22px;height:22px;border:1.5px solid var(--accent);transform:rotate(45deg);display:flex;align-items:center;justify-content:center;transition:all 0.3s}
+.nav-logo:hover .nlm{border-color:var(--accent2)}
+.nli{width:6px;height:6px;background:var(--accent);transform:rotate(-45deg)}
+.nlt{font-family:'Outfit',sans-serif;font-size:15px;font-weight:800;color:var(--accent);letter-spacing:0.08em}
+.nav-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.nav-status{font-size:8px;color:var(--muted);display:flex;align-items:center;gap:4px;padding:4px 10px;border:1px solid var(--border);border-radius:20px}
+.nav-dot{width:5px;height:5px;border-radius:50%;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.nav-user{display:flex;align-items:center;gap:8px}
+.nav-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,rgba(0,229,255,0.2),rgba(168,85,247,0.2));border:1.5px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--accent);cursor:pointer;font-family:'Outfit',sans-serif;font-weight:700}
+.nav-uname{font-size:10px;color:var(--text);font-weight:500}
+.nav-usage{font-size:8px;color:var(--accent2);background:rgba(0,255,157,0.06);padding:3px 10px;border:1px solid rgba(0,255,157,0.15);border-radius:20px;font-weight:600}
+.nbtn{padding:6px 14px;font-family:'Inter',sans-serif;font-size:9px;letter-spacing:0.08em;cursor:pointer;transition:all 0.2s;border:1px solid var(--border);background:transparent;color:var(--text);border-radius:8px;font-weight:500}
+.nbtn:hover{border-color:var(--accent);color:var(--accent)}
+.nbtn.accent{background:linear-gradient(135deg,var(--accent),#0099cc);color:#04080a;border:none;font-weight:600}
+.nbtn.accent:hover{background:linear-gradient(135deg,var(--accent2),var(--accent))}
+.nbtn.red{color:var(--red);border-color:rgba(255,68,102,0.2)}
+.banner{padding:8px 20px;text-align:center;font-size:9px;display:none;position:relative;z-index:1}
+.banner.demo{background:rgba(255,170,0,0.06);color:var(--orange);border-bottom:1px solid rgba(255,170,0,0.1)}
+.banner.usage{background:rgba(0,255,157,0.04);color:var(--accent2);border-bottom:1px solid rgba(0,255,157,0.1)}
+.banner.verify{background:rgba(255,170,0,0.06);color:var(--orange);border-bottom:1px solid rgba(255,170,0,0.1)}
+.banner a{color:var(--accent);cursor:pointer;text-decoration:underline}
+.container{position:relative;z-index:1;max-width:920px;margin:0 auto;padding:28px 20px 80px}
+
+/* AUTH */
+.auth-overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(4,8,10,0.94);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px}
+.auth-overlay.on{display:flex}
+.auth-box{background:var(--card);border:1px solid var(--border);padding:36px 30px;width:100%;max-width:400px;position:relative;border-radius:20px;box-shadow:0 24px 64px rgba(0,0,0,0.4)}
+.auth-close{position:absolute;top:14px;right:16px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer}
+.auth-logo{text-align:center;margin-bottom:20px;font-family:'Outfit',sans-serif;font-size:20px;font-weight:800;color:var(--accent)}
+.auth-tabs{display:flex;border:1px solid var(--border);margin-bottom:18px;border-radius:10px;overflow:hidden}
+.auth-tab{flex:1;padding:10px;background:transparent;border:none;color:var(--muted);font-family:'Inter',sans-serif;font-size:10px;cursor:pointer;font-weight:500}
+.auth-tab.on{background:rgba(0,229,255,0.06);color:var(--accent)}
+.fg{margin-bottom:12px}
+.fg label{font-size:9px;letter-spacing:0.1em;color:var(--muted);margin-bottom:5px;display:block;font-weight:500}
+.fg input{width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:11px 14px;font-size:13px;font-family:'Inter',sans-serif;border-radius:10px}
+.fg input:focus{outline:none;border-color:rgba(0,229,255,0.4)}
+.fg input::placeholder{color:var(--muted)}
+.auth-btn{width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),#0099cc);color:#04080a;border:none;font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;margin-top:8px;border-radius:10px;font-weight:700}
+.auth-btn:hover{background:linear-gradient(135deg,var(--accent2),var(--accent))}
+.auth-divider{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--muted);font-size:9px}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.google-btn{width:100%;padding:11px;background:transparent;border:1px solid var(--border);color:var(--text);font-family:'Inter',sans-serif;font-size:11px;cursor:pointer;border-radius:10px;display:flex;align-items:center;justify-content:center;gap:10px;font-weight:500}
+.google-btn:hover{border-color:var(--accent)}
+.google-btn svg{width:16px;height:16px}
+.auth-msg{padding:8px 12px;font-size:10px;margin-bottom:10px;display:none;border-radius:8px;line-height:1.6}
+.auth-msg.err{background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.2);color:var(--red);display:block}
+.auth-msg.ok{background:rgba(0,255,157,0.08);border:1px solid rgba(0,255,157,0.2);color:var(--accent2);display:block}
+.auth-footer{text-align:center;margin-top:14px;font-size:9px;color:var(--muted)}
+.auth-footer a{color:var(--accent);cursor:pointer}
+.auth-link{font-size:10px;color:var(--accent);cursor:pointer;text-align:center;display:block;margin-top:10px}
+
+/* TABS */
+.tabs{display:flex;border:1px solid var(--border);margin-bottom:24px;border-radius:12px;overflow:hidden;background:var(--glass)}
+.tab{flex:1;padding:12px 6px;background:transparent;border:none;color:var(--muted);font-family:'Inter',sans-serif;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:500;position:relative}
+.tab.on{color:var(--accent)}
+.tab.on::after{content:'';position:absolute;bottom:0;left:15%;right:15%;height:2px;background:var(--accent);border-radius:1px}
+.tab:hover:not(.on){background:rgba(0,229,255,0.02);color:var(--text)}
+.panel{display:none}.panel.on{display:block}
+.card{background:var(--glass);border:1px solid var(--border);padding:26px;margin-bottom:14px;border-radius:16px}
+.label{font-size:9px;letter-spacing:0.12em;color:var(--muted);margin-bottom:6px;display:block;font-weight:600}
+textarea{width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:12px;font-size:13px;font-family:'Inter',sans-serif;resize:vertical;min-height:70px;border-radius:12px}
+textarea:focus{outline:none;border-color:rgba(0,229,255,0.4)}
+textarea::placeholder{color:var(--muted)}
+.examples{margin-top:10px;display:flex;gap:5px;flex-wrap:wrap}
+.ex-btn{padding:6px 12px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Inter',sans-serif;font-size:9px;cursor:pointer;border-radius:8px;font-weight:500}
+.ex-btn:hover{border-color:var(--accent);color:var(--accent)}
+.style-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
+.style-opt{padding:12px 8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Inter',sans-serif;font-size:9px;cursor:pointer;text-align:center;border-radius:12px;font-weight:500}
+.style-opt:hover{border-color:rgba(0,229,255,0.3);color:var(--text)}
+.style-opt.on{border-color:var(--accent);color:var(--accent);background:rgba(0,229,255,0.04)}
+.style-opt .ico{font-size:18px;display:block;margin-bottom:4px}
+.upload{border:2px dashed var(--border);padding:36px 20px;text-align:center;cursor:pointer;position:relative;overflow:hidden;border-radius:16px}
+.upload:hover,.upload.drag{border-color:var(--accent)}
+.upload.has{border-color:var(--accent2);border-style:solid}
+.upload input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.upload .ico{font-size:30px;margin-bottom:8px;color:var(--accent)}
+.upload p{font-size:11px;color:var(--muted)}
+.preview{margin-top:14px;display:none;position:relative}.preview.on{display:block}
+.preview img{max-width:100%;max-height:200px;display:block;margin:0 auto;border:1px solid var(--border);border-radius:12px}
+.preview .rm{position:absolute;top:6px;right:6px;width:26px;height:26px;background:rgba(255,68,102,0.85);border:none;color:#fff;border-radius:50%;cursor:pointer;font-size:11px}
+.gen-btn{width:100%;padding:14px;background:linear-gradient(135deg,var(--accent),#0099cc);color:#04080a;border:none;font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;font-weight:700;margin-top:14px;border-radius:12px}
+.gen-btn:hover:not(:disabled){background:linear-gradient(135deg,var(--accent2),var(--accent))}
+.gen-btn:disabled{opacity:0.4;cursor:not-allowed}
+.sec{display:none;margin-bottom:20px}.sec.on{display:block}
+.prog-card{background:var(--glass);border:1px solid var(--border);padding:24px;border-radius:16px}
+.prog-top{display:flex;justify-content:space-between;margin-bottom:14px}
+.prog-title{font-family:'Outfit',sans-serif;font-size:15px;font-weight:700}
+.prog-pct{font-family:'Outfit',sans-serif;font-size:22px;font-weight:800;color:var(--accent)}
+.prog-bar-bg{width:100%;height:6px;background:var(--bg2);overflow:hidden;margin-bottom:10px;border-radius:3px}
+.prog-bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0%;transition:width 0.5s;border-radius:3px}
+.prog-step{font-size:10px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.spinner{display:inline-block;width:10px;height:10px;border:2px solid var(--muted);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.result-card{background:var(--glass);border:1px solid var(--accent2);padding:24px;text-align:center;border-radius:16px}
+.result-card h3{font-family:'Outfit',sans-serif;font-size:20px;font-weight:800;margin-bottom:6px}
+.result-card>p{font-size:11px;color:var(--muted);margin-bottom:16px}
+.viewer{width:100%;height:360px;background:var(--bg2);border:1px solid var(--border);margin-bottom:16px;overflow:hidden;display:flex;align-items:center;justify-content:center;border-radius:14px}
+.viewer model-viewer{width:100%;height:100%}
+.dl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
+.dl-btn{padding:12px 8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:'Inter',sans-serif;font-size:10px;cursor:pointer;text-decoration:none;text-align:center;display:flex;flex-direction:column;align-items:center;gap:3px;border-radius:10px;font-weight:500}
+.dl-btn:hover{border-color:var(--accent);color:var(--accent)}
+.dl-btn .dl-fmt{font-size:7px;color:var(--muted)}
+.dl-btn.primary{border-color:var(--accent2);background:rgba(0,255,157,0.05)}
+.new-btn{width:100%;padding:11px;border:1px solid var(--border);background:transparent;color:var(--text);font-family:'Inter',sans-serif;font-size:10px;cursor:pointer;border-radius:10px;font-weight:500}
+.new-btn:hover{border-color:var(--accent);color:var(--accent)}
+.err-card{background:rgba(255,68,102,0.04);border:1px solid rgba(255,68,102,0.15);padding:24px;text-align:center;border-radius:16px}
+.err-card h3{color:var(--red);font-size:15px;margin-bottom:6px}
+.err-card p{font-size:10px;color:var(--muted);margin-bottom:14px}
+
+/* GALLERY */
+.gal-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.gal-toolbar input{flex:1;min-width:140px;background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:10px 14px;font-family:'Inter',sans-serif;font-size:12px;border-radius:10px}
+.gal-toolbar select{background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:10px;font-family:'Inter',sans-serif;font-size:11px;border-radius:10px}
+.gal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+.gal-card{background:var(--card);border:1px solid var(--border);cursor:pointer;border-radius:16px;overflow:hidden;transition:all 0.25s}
+.gal-card:hover{border-color:rgba(0,229,255,0.25);transform:translateY(-4px);box-shadow:0 16px 40px rgba(0,0,0,0.3)}
+.gal-thumb{height:180px;background:var(--bg2);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative}
+.gal-thumb model-viewer{width:100%;height:100%}
+.gal-badge{position:absolute;top:8px;left:8px;background:var(--glass);border:1px solid rgba(0,229,255,0.15);padding:3px 8px;font-size:8px;color:var(--accent);border-radius:6px;font-weight:600}
+.gal-body{padding:14px}
+.gal-title{font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gal-meta{font-size:9px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:8px}
+.gal-stats{display:flex;gap:14px;margin-bottom:10px}
+.gal-stat{font-size:9px;color:var(--muted)}.gal-stat span{color:var(--accent2);font-weight:600}
+.gal-actions{display:flex;gap:5px}
+.gal-btn{flex:1;padding:7px;border:1px solid var(--border);background:transparent;color:var(--text);font-family:'Inter',sans-serif;font-size:9px;cursor:pointer;text-align:center;border-radius:8px;text-decoration:none;display:flex;align-items:center;justify-content:center;font-weight:500}
+.gal-btn:hover{border-color:var(--accent);color:var(--accent)}
+.gal-btn.liked{color:var(--red);border-color:rgba(255,68,102,0.3)}
+.gal-btn.dl{background:rgba(0,229,255,0.04);border-color:rgba(0,229,255,0.15)}
+.gal-empty{text-align:center;padding:60px 20px;color:var(--muted);font-size:12px;grid-column:1/-1}
+
+/* DETAIL */
+.detail-overlay{display:none;position:fixed;inset:0;z-index:150;background:rgba(4,8,10,0.96);overflow-y:auto;padding:20px}
+.detail-overlay.on{display:block}
+.detail-container{max-width:900px;margin:0 auto}
+.detail-back{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:11px;cursor:pointer;margin-bottom:20px;padding:8px 16px;border:1px solid var(--border);background:transparent;border-radius:10px;font-family:'Inter',sans-serif;font-weight:500}
+.detail-back:hover{border-color:var(--accent);color:var(--accent)}
+.detail-main{display:grid;grid-template-columns:1.3fr 1fr;gap:24px;margin-bottom:24px}
+.detail-viewer{background:var(--bg2);border:1px solid var(--border);border-radius:16px;overflow:hidden;height:420px}
+.detail-viewer model-viewer{width:100%;height:100%}
+.detail-info{display:flex;flex-direction:column}
+.detail-title{font-family:'Outfit',sans-serif;font-size:24px;font-weight:800;margin-bottom:8px}
+.detail-author{font-size:12px;color:var(--muted);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.detail-author-avatar{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,rgba(0,229,255,0.2),rgba(168,85,247,0.2));border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--accent);font-weight:700}
+.detail-stats-row{display:flex;gap:16px;margin-bottom:18px;padding:14px;background:var(--bg2);border-radius:12px}
+.detail-stat{text-align:center;flex:1}
+.detail-stat-num{font-family:'Outfit',sans-serif;font-size:20px;font-weight:800;color:var(--accent)}
+.detail-stat-lbl{font-size:7px;color:var(--muted);letter-spacing:0.12em;margin-top:2px}
+.detail-section{margin-bottom:14px}
+.detail-section-title{font-size:9px;letter-spacing:0.12em;color:var(--muted);margin-bottom:8px;font-weight:600}
+.detail-tags{display:flex;gap:6px;flex-wrap:wrap}
+.detail-tag{padding:4px 10px;background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.12);color:var(--accent);font-size:9px;border-radius:8px;font-weight:500}
+.detail-prompt{background:var(--bg2);border:1px solid var(--border);padding:12px 16px;font-size:12px;color:var(--text);line-height:1.7;border-radius:12px;font-style:italic}
+.detail-dl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.detail-dl{padding:14px;border:1px solid var(--border);background:var(--card);text-align:center;cursor:pointer;text-decoration:none;color:var(--text);border-radius:12px;font-weight:500}
+.detail-dl:hover{border-color:var(--accent);color:var(--accent)}
+.detail-dl .dl-name{font-size:12px;font-weight:600}
+.detail-dl .dl-desc{font-size:8px;color:var(--muted);margin-top:2px}
+.detail-dl.primary{border-color:var(--accent2);background:rgba(0,255,157,0.04)}
+.detail-like-btn{width:100%;padding:12px;border:1px solid var(--border);background:transparent;color:var(--text);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;margin-top:10px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:600}
+.detail-like-btn:hover{border-color:var(--red);color:var(--red)}
+.detail-like-btn.liked{background:rgba(255,68,102,0.06);border-color:var(--red);color:var(--red)}
+
+/* COMMENTS */
+.comments-section{margin-bottom:24px}
+.comments-title{font-family:'Outfit',sans-serif;font-size:16px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.comments-title::before{content:'';width:3px;height:16px;background:var(--accent);border-radius:2px}
+.comment-input{display:flex;gap:8px;margin-bottom:16px}
+.comment-input textarea{min-height:40px;flex:1;border-radius:10px;font-size:12px;padding:10px}
+.comment-send{padding:10px 20px;background:var(--accent);color:#04080a;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:11px;cursor:pointer;font-weight:600;align-self:flex-end}
+.comment-send:hover{background:var(--accent2)}
+.comment-list{display:flex;flex-direction:column;gap:10px}
+.comment-item{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px}
+.comment-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.comment-author{font-size:11px;font-weight:600;color:var(--accent)}
+.comment-date{font-size:9px;color:var(--muted)}
+.comment-text{font-size:12px;line-height:1.6;color:var(--text)}
+.comment-delete{background:none;border:none;color:var(--red);font-size:9px;cursor:pointer;margin-top:6px}
+
+/* COLLECTION ADD */
+.col-add-btn{padding:8px 14px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Inter',sans-serif;font-size:9px;cursor:pointer;border-radius:8px;margin-top:8px;width:100%;text-align:center}
+.col-add-btn:hover{border-color:var(--accent);color:var(--accent)}
+.col-dropdown{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;margin-top:8px;display:none}
+.col-dropdown.on{display:block}
+.col-dropdown-item{padding:8px 12px;cursor:pointer;font-size:11px;border-radius:6px;display:flex;justify-content:space-between}
+.col-dropdown-item:hover{background:rgba(0,229,255,0.06);color:var(--accent)}
+.col-new-input{display:flex;gap:6px;margin-top:8px}
+.col-new-input input{flex:1;background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 12px;font-size:11px;font-family:'Inter',sans-serif;border-radius:8px}
+.col-new-input button{padding:8px 14px;background:var(--accent);color:#04080a;border:none;border-radius:8px;font-size:10px;cursor:pointer;font-weight:600}
+
+/* SIMILAR */
+.similar-section{margin-bottom:40px}
+.similar-title{font-family:'Outfit',sans-serif;font-size:18px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.similar-title::before{content:'';width:3px;height:18px;background:linear-gradient(var(--accent),var(--accent2));border-radius:2px}
+.similar-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.similar-card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;cursor:pointer}
+.similar-card:hover{border-color:rgba(0,229,255,0.25);transform:translateY(-2px)}
+.similar-thumb{height:130px;background:var(--bg2);overflow:hidden}
+.similar-thumb model-viewer{width:100%;height:100%}
+.similar-body{padding:10px 12px}
+.similar-name{font-family:'Outfit',sans-serif;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.similar-meta{font-size:8px;color:var(--muted);margin-top:3px}
+
+/* COLLECTIONS */
+.col-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-top:16px}
+.col-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;cursor:pointer;transition:all 0.2s}
+.col-card:hover{border-color:rgba(0,229,255,0.25);transform:translateY(-2px)}
+.col-card-name{font-family:'Outfit',sans-serif;font-size:16px;font-weight:700;margin-bottom:4px}
+.col-card-desc{font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.5}
+.col-card-meta{font-size:9px;color:var(--muted);display:flex;justify-content:space-between}
+.col-card-count{color:var(--accent);font-weight:600}
+.col-create-card{background:transparent;border:2px dashed var(--border);border-radius:16px;padding:30px 20px;cursor:pointer;text-align:center;transition:all 0.2s}
+.col-create-card:hover{border-color:var(--accent)}
+.col-create-card .ico{font-size:28px;color:var(--accent);margin-bottom:8px}
+.col-create-card p{font-size:11px;color:var(--muted)}
+.col-detail-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.col-detail-title{font-family:'Outfit',sans-serif;font-size:20px;font-weight:800}
+.col-detail-desc{font-size:11px;color:var(--muted);margin-bottom:16px}
+
+/* BLOG */
+.blog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:16px}
+.blog-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;cursor:pointer;transition:all 0.2s}
+.blog-card:hover{border-color:rgba(0,229,255,0.25);transform:translateY(-2px)}
+.blog-cat{font-size:8px;color:var(--accent);letter-spacing:0.12em;font-weight:600;margin-bottom:8px;text-transform:uppercase}
+.blog-card-title{font-family:'Outfit',sans-serif;font-size:16px;font-weight:700;margin-bottom:8px;line-height:1.3}
+.blog-card-summary{font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:12px}
+.blog-card-meta{font-size:9px;color:var(--muted);display:flex;gap:16px}
+.blog-detail{max-width:700px;margin:0 auto}
+.blog-detail-title{font-family:'Outfit',sans-serif;font-size:28px;font-weight:800;margin-bottom:12px;line-height:1.2}
+.blog-detail-meta{font-size:10px;color:var(--muted);margin-bottom:24px;display:flex;gap:16px}
+.blog-detail-content{font-size:14px;line-height:1.9;color:var(--text)}
+.blog-detail-content h2{font-family:'Outfit',sans-serif;font-size:20px;font-weight:700;color:var(--accent);margin:28px 0 12px}
+.blog-detail-content h3{font-family:'Outfit',sans-serif;font-size:16px;font-weight:600;margin:20px 0 8px}
+.blog-detail-content p{margin-bottom:14px}
+.blog-detail-content strong{color:var(--accent2)}
+.blog-back{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:11px;cursor:pointer;margin-bottom:24px;padding:8px 16px;border:1px solid var(--border);background:transparent;border-radius:10px;font-weight:500}
+.blog-back:hover{border-color:var(--accent);color:var(--accent)}
+
+/* PROFILE */
+.profile-header{background:linear-gradient(135deg,rgba(0,229,255,0.06),rgba(168,85,247,0.04));border:1px solid var(--border);border-radius:20px;padding:30px;margin-bottom:20px;position:relative;overflow:hidden}
+.profile-header::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(0,229,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.03) 1px,transparent 1px);background-size:30px 30px}
+.profile-top{display:flex;align-items:center;gap:18px;position:relative;z-index:1;flex-wrap:wrap}
+.profile-avatar{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,rgba(0,229,255,0.2),rgba(168,85,247,0.2));border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--accent);font-family:'Outfit',sans-serif;font-weight:800}
+.profile-name{font-family:'Outfit',sans-serif;font-size:22px;font-weight:800}
+.profile-email{font-size:11px;color:var(--muted);margin-top:2px}
+.profile-plan{display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:4px 12px;border-radius:20px;font-size:9px;font-weight:600}
+.profile-plan.free{background:rgba(0,229,255,0.08);color:var(--accent);border:1px solid rgba(0,229,255,0.15)}
+.profile-plan.pro{background:rgba(168,85,247,0.08);color:var(--purple);border:1px solid rgba(168,85,247,0.15)}
+.profile-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px;position:relative;z-index:1}
+.pstat{text-align:center;padding:14px;background:var(--glass);border:1px solid var(--border);border-radius:14px}
+.pstat-num{font-family:'Outfit',sans-serif;font-size:24px;font-weight:800;color:var(--accent);line-height:1}
+.pstat-lbl{font-size:8px;color:var(--muted);letter-spacing:0.12em;margin-top:4px}
+.profile-tabs{display:flex;gap:4px;margin-bottom:16px}
+.ptab{padding:8px 18px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Inter',sans-serif;font-size:10px;cursor:pointer;border-radius:8px;font-weight:500}
+.ptab.on{background:rgba(0,229,255,0.06);border-color:var(--accent);color:var(--accent)}
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:500px}
+.settings-grid .fg{margin-bottom:0}
+.save-btn{padding:10px 24px;background:linear-gradient(135deg,var(--accent),#0099cc);color:#04080a;border:none;font-family:'Inter',sans-serif;font-size:11px;cursor:pointer;border-radius:10px;font-weight:600;margin-top:12px}
+.danger-btn{padding:10px 24px;background:transparent;border:1px solid rgba(255,68,102,0.3);color:var(--red);font-family:'Inter',sans-serif;font-size:11px;cursor:pointer;border-radius:10px;margin-top:12px;margin-left:8px}
+.usage-bar-container{margin-top:16px;margin-bottom:12px}
+.usage-bar-bg{height:8px;background:var(--bg2);border-radius:4px;overflow:hidden}
+.usage-bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:4px;transition:width 0.5s}
+.usage-text{display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--muted)}
+@media(max-width:768px){.detail-main{grid-template-columns:1fr}.detail-viewer{height:280px}.profile-stats{grid-template-columns:repeat(2,1fr)}.profile-top{text-align:center;justify-content:center;flex-direction:column}.settings-grid{grid-template-columns:1fr}.nav{padding:10px 14px}.container{padding:20px 12px}.style-grid{grid-template-columns:repeat(2,1fr)}.viewer{height:260px}.gal-grid,.blog-grid,.col-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+<div class="bg-gradient"></div>
+<div class="bg-grid"></div>
+<div class="scan-line"></div>
+
+<!-- AUTH -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-box">
+    <button class="auth-close" onclick="closeAuth()">&times;</button>
+    <div class="auth-logo">PRINTFORGE</div>
+    <div class="auth-tabs"><button class="auth-tab on" id="aLT" onclick="authTab('login')">Giris Yap</button><button class="auth-tab" id="aRT" onclick="authTab('register')">Kayit Ol</button></div>
+    <div id="authMsg" class="auth-msg"></div>
+    <div id="loginForm">
+      <div class="fg"><label>E-POSTA</label><input type="email" id="lEmail" placeholder="ornek@gmail.com"></div>
+      <div class="fg"><label>SIFRE</label><input type="password" id="lPass" placeholder="Sifreniz"></div>
+      <button class="auth-btn" onclick="doLogin()">Giris Yap</button>
+      <span class="auth-link" onclick="authTab('forgot')">Sifremi unuttum</span>
+      <div class="auth-divider">veya</div>
+      <button class="google-btn" onclick="googleLogin()"><svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.07 5.07 0 01-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>Google ile Devam Et</button>
+      <div class="auth-footer">Hesabiniz yok mu? <a onclick="authTab('register')">Kayit Olun</a></div>
+    </div>
+    <div id="regForm" style="display:none">
+      <div class="fg"><label>AD SOYAD</label><input type="text" id="rName" placeholder="Adiniz Soyadiniz"></div>
+      <div class="fg"><label>E-POSTA</label><input type="email" id="rEmail" placeholder="ornek@gmail.com"></div>
+      <div class="fg"><label>SIFRE</label><input type="password" id="rPass" placeholder="En az 6 karakter"></div>
+      <button class="auth-btn" onclick="doRegister()">Kayit Ol</button>
+      <div class="auth-divider">veya</div>
+      <button class="google-btn" onclick="googleLogin()"><svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.07 5.07 0 01-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>Google ile Devam Et</button>
+      <div class="auth-footer">Hesabiniz var mi? <a onclick="authTab('login')">Giris Yapin</a></div>
+    </div>
+    <div id="forgotForm" style="display:none">
+      <p style="font-size:12px;color:var(--text);margin-bottom:16px">E-posta adresinizi girin, sifre sifirlama baglantisi gonderelim.</p>
+      <div class="fg"><label>E-POSTA</label><input type="email" id="fEmail" placeholder="ornek@gmail.com"></div>
+      <button class="auth-btn" onclick="doForgotPassword()">Sifirlama Maili Gonder</button>
+      <div class="auth-footer" style="margin-top:16px"><a onclick="authTab('login')">Girise Don</a></div>
+    </div>
+    <div id="resetForm" style="display:none">
+      <p style="font-size:12px;color:var(--text);margin-bottom:16px">Yeni sifrenizi belirleyin.</p>
+      <div class="fg"><label>YENI SIFRE</label><input type="password" id="resetPass" placeholder="En az 6 karakter"></div>
+      <div class="fg"><label>SIFRE TEKRAR</label><input type="password" id="resetPass2" placeholder="Ayni sifreyi girin"></div>
+      <button class="auth-btn" onclick="doResetPassword()">Sifreyi Degistir</button>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL -->
+<div class="detail-overlay" id="detailOverlay">
+  <div class="detail-container">
+    <button class="detail-back" onclick="closeDetail()">&#8592; Geri Don</button>
+    <div class="detail-main">
+      <div class="detail-viewer" id="detailViewer"></div>
+      <div class="detail-info">
+        <h2 class="detail-title" id="dTitle">-</h2>
+        <div class="detail-author"><div class="detail-author-avatar" id="dAvatar">U</div><span id="dAuthor">-</span></div>
+        <div class="detail-stats-row">
+          <div class="detail-stat"><div class="detail-stat-num" id="dLikes">0</div><div class="detail-stat-lbl">BEGENI</div></div>
+          <div class="detail-stat"><div class="detail-stat-num" id="dDls">0</div><div class="detail-stat-lbl">INDIRME</div></div>
+          <div class="detail-stat"><div class="detail-stat-num" id="dType">-</div><div class="detail-stat-lbl">TUR</div></div>
+        </div>
+        <div class="detail-section" id="dPromptSec"><div class="detail-section-title">KULLANILAN PROMPT</div><div class="detail-prompt" id="dPrompt">-</div></div>
+        <div class="detail-section"><div class="detail-section-title">ETIKETLER</div><div class="detail-tags" id="dTags"></div></div>
+        <div class="detail-section"><div class="detail-section-title">INDIR</div><div class="detail-dl-grid" id="dDlGrid"></div></div>
+        <button class="detail-like-btn" id="dLikeBtn" onclick="likeDetail()">&#9829; Begen</button>
+        <button class="col-add-btn" onclick="toggleColDropdown()">+ Koleksiyona Ekle</button>
+        <div class="col-dropdown" id="colDropdown"><div id="colDropdownList"></div>
+          <div class="col-new-input"><input type="text" id="newColName" placeholder="Yeni koleksiyon adi"><button onclick="createColAndAdd()">Olustur</button></div>
+        </div>
+      </div>
+    </div>
+    <!-- YORUMLAR -->
+    <div class="comments-section">
+      <div class="comments-title">Yorumlar (<span id="commentCount">0</span>)</div>
+      <div class="comment-input"><textarea id="commentText" placeholder="Yorum yazin..." rows="2"></textarea><button class="comment-send" onclick="addComment()">Gonder</button></div>
+      <div class="comment-list" id="commentList"></div>
+    </div>
+    <div class="similar-section" id="simSec"><div class="similar-title">Benzer Modeller</div><div class="similar-grid" id="simGrid"></div></div>
+  </div>
+</div>
