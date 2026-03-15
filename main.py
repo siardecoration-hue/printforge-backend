@@ -173,3 +173,18 @@ async def view_model(tid: str):
     async with httpx.AsyncClient(follow_redirects=True) as c:
         r = await c.get(url)
         return Response(content=r.content, media_type="model/gltf-binary")
+@app.get("/api/gallery/{model_id}/comments")
+async def get_comments(model_id: int):
+    conn = get_db()
+    rows = conn.execute("SELECT c.*, u.name as author_name FROM comments c JOIN users u ON c.user_id = u.id WHERE c.model_id = ? ORDER BY c.created_at DESC", (model_id,)).fetchall()
+    conn.close()
+    return {"comments": [dict(r) for r in rows]}
+
+@app.post("/api/gallery/{model_id}/comments")
+async def add_comment(model_id: int, req: dict, authorization: str = Header(None)):
+    u = await get_user(authorization)
+    if not u: raise HTTPException(401)
+    conn = get_db()
+    conn.execute("INSERT INTO comments (model_id, user_id, text) VALUES (?,?,?)", (model_id, u["id"], req["text"]))
+    conn.commit(); conn.close()
+    return {"success": True}
