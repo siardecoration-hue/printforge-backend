@@ -28,10 +28,6 @@ TRIPO_API_KEY = os.getenv("TRIPO_API_KEY", "")
 MESHY_API_KEY = os.getenv("MESHY_API_KEY", "")
 SECRET_KEY = os.getenv("SECRET_KEY", "printforge-secret-key-123")
 DB_PATH = os.getenv("DB_PATH", "printforge.db")
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-EMAIL_FROM = os.getenv("EMAIL_FROM", "onboarding@resend.dev")
 
 TRIPO_BASE = "https://api.tripo3d.ai/v2/openapi"
 MESHY_BASE = "https://api.meshy.ai/openapi/v2"
@@ -47,7 +43,7 @@ DEMO_MODELS = [
     {"name": "Duck", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/glTF-Binary/Duck.glb"},
 ]
 
-# --- DB SETUP ---
+# --- VERİTABANI İŞLEMLERİ ---
 def get_db():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -56,19 +52,16 @@ def get_db():
 def init_db():
     conn = get_db()
     conn.executescript("""
-        CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE NOT NULL, name TEXT NOT NULL, password_hash TEXT NOT NULL, salt TEXT NOT NULL, plan TEXT DEFAULT 'free', google_id TEXT, avatar_url TEXT, verified INTEGER DEFAULT 0, verify_token TEXT, reset_token TEXT, reset_expires TEXT, created_at TEXT DEFAULT (datetime('now')));
+        CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE NOT NULL, name TEXT NOT NULL, password_hash TEXT NOT NULL, salt TEXT NOT NULL, plan TEXT DEFAULT 'free', verified INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')));
         CREATE TABLE IF NOT EXISTS models (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER DEFAULT 0, task_id TEXT UNIQUE, title TEXT, prompt TEXT, gen_type TEXT, style TEXT, model_url TEXT, is_public INTEGER DEFAULT 1, likes INTEGER DEFAULT 0, downloads INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')));
         CREATE TABLE IF NOT EXISTS usage (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, month TEXT, count INTEGER DEFAULT 0, UNIQUE(user_id, month));
-        CREATE TABLE IF NOT EXISTS user_likes (user_id INTEGER, model_id INTEGER, PRIMARY KEY(user_id, model_id));
         CREATE TABLE IF NOT EXISTS comments (id INTEGER PRIMARY KEY AUTOINCREMENT, model_id INTEGER NOT NULL, user_id INTEGER NOT NULL, text TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now')));
-        CREATE TABLE IF NOT EXISTS collections (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, name TEXT NOT NULL, description TEXT DEFAULT '', is_public INTEGER DEFAULT 1, created_at TEXT DEFAULT (datetime('now')));
-        CREATE TABLE IF NOT EXISTS collection_models (collection_id INTEGER, model_id INTEGER, added_at TEXT DEFAULT (datetime('now')), PRIMARY KEY(collection_id, model_id));
     """)
     conn.commit(); conn.close()
 
 init_db()
 
-# --- HELPER FUNCTIONS ---
+# --- YARDIMCI FONKSİYONLAR (AUTH) ---
 def hash_pw(pw):
     salt = secrets.token_hex(16)
     return salt, hashlib.sha256((salt+pw).encode()).hexdigest()
@@ -85,32 +78,36 @@ def decode_token(t):
 
 async def get_user(authorization: Optional[str] = Header(None)):
     if not authorization: return None
-    t = authorization.replace("Bearer ","")
-    data = decode_token(t)
-    if not data: return None
-    conn = get_db()
-    row = conn.execute("SELECT id,email,name,plan,verified FROM users WHERE id=?", (data["user_id"],)).fetchone()
-    conn.close()
-    return dict(row) if row else None
+    try:
+        t = authorization.replace("Bearer ","")
+        data = decode_token(t)
+        if not data: return None
+        conn = get_db()
+        row = conn.execute("SELECT id,email,name,plan FROM users WHERE id=?", (data["user_id"],)).fetchone()
+        conn.close()
+        return dict(row) if row else None
+    except: return None
 
-# --- PAGES ---
+# --- SAYFA YÖNETİMİ ---
 @app.get("/", response_class=HTMLResponse)
 def serve_landing():
+    # Bu sizin o profesyonel tasarımınızın olduğu dosya
     path = os.path.join(os.path.dirname(__file__), "index.html")
     if os.path.exists(path): return FileResponse(path)
-    return HTMLResponse("PrintForge Landing Page")
+    return HTMLResponse("<h1>PrintForge Ana Sayfa</h1><p>index.html bulunamadi.</p>")
 
 @app.get("/app", response_class=HTMLResponse)
 def serve_app():
+    # Bu model üretme ve uygulama paneli
     path = os.path.join(os.path.dirname(__file__), "app.html")
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f: return HTMLResponse(f.read())
-    return HTMLResponse("app.html bulunamadi. Lutfen GitHub'a yukleyin.")
+    return HTMLResponse("app.html bulunamadi.")
 
 # --- API ENDPOINTS ---
 @app.get("/api/health")
 async def health():
-    return {"status":"online","api_ready":True,"db_ready":os.path.exists(DB_PATH)}
+    return {"status":"online","api_ready":True}
 
 @app.post("/api/auth/register")
 async def register(req: dict):
@@ -130,36 +127,47 @@ async def login(req: dict):
     conn.close()
     if row and verify_pw(req["password"], row["salt"], row["password_hash"]):
         token = create_token(row["id"], row["email"], row["name"], row["plan"])
-        return {"token":token, "user":dict(row)}
+        return {"token":token, "user": {"id":row["id"], "name":row["name"], "email":row["email"], "plan":row["plan"]}}
     raise HTTPException(401, "E-posta veya sifre hatali")
 
 @app.get("/api/auth/me")
 async def get_me(authorization: str = Header(None)):
     u = await get_user(authorization)
     if not u: raise HTTPException(401)
-    conn = get_db()
-    stats = {"models": conn.execute("SELECT COUNT(*) FROM models WHERE user_id=?", (u["id"],)).fetchone()[0], "likes":0, "downloads":0}
-    conn.close()
-    return {"user":u, "usage":{"used":0,"limit":5,"remaining":5}, "stats":stats}
+    return {"user":u, "usage":{"used":0,"limit":5,"remaining":5}}
 
 @app.get("/api/gallery")
 async def gallery():
     conn = get_db()
-    rows = conn.execute("SELECT m.*, u.name as author_name FROM models m LEFT JOIN users u ON m.user_id=u.id WHERE m.model_url != '' LIMIT 20").fetchall()
+    rows = conn.execute("SELECT m.*, u.name as author_name FROM models m LEFT JOIN users u ON m.user_id = u.id WHERE m.model_url != '' ORDER BY m.created_at DESC LIMIT 30").fetchall()
     conn.close()
     return {"models":[dict(r) for r in rows]}
+
+@app.get("/api/gallery/{model_id}")
+async def model_detail(model_id: int):
+    conn = get_db()
+    row = conn.execute("SELECT m.*, u.name as author_name FROM models m LEFT JOIN users u ON m.user_id = u.id WHERE m.id = ?", (model_id,)).fetchone()
+    conn.close()
+    if not row: raise HTTPException(404)
+    return dict(row)
 
 @app.post("/api/generate/text")
 async def gen_text(req: dict, authorization: str = Header(None)):
     u = await get_user(authorization)
+    if not u: raise HTTPException(401, "Lutfen once giris yapin.")
+    
     tid = str(uuid.uuid4())[:8]
-    # Gercek Tripo entegrasyonu veya Demo
-    tasks[tid] = {"status":"done","progress":100,"model_url":DEMO_MODELS[random.randint(0,2)]["glb"],"api":"demo"}
-    if u:
-        conn = get_db()
-        conn.execute("INSERT INTO models(user_id,task_id,title,prompt,gen_type,model_url) VALUES(?,?,?,?,?,?)", 
-                     (u["id"], tid, req["prompt"][:20], req["prompt"], "text", tasks[tid]["model_url"]))
-        conn.commit(); conn.close()
+    # Tripo3D Key varsa gercek uretim, yoksa Demo gosterir
+    if TRIPO_API_KEY:
+        # Gercek Tripo kodlari buraya gelecek (Onceki adimlarda yaptigimiz gibi)
+        tasks[tid] = {"status":"done","progress":100,"model_url": DEMO_MODELS[0]["glb"]} # Simdilik demo
+    else:
+        tasks[tid] = {"status":"done","progress":100,"model_url": DEMO_MODELS[random.randint(0,2)]["glb"]}
+    
+    conn = get_db()
+    conn.execute("INSERT INTO models(user_id, task_id, title, prompt, gen_type, model_url) VALUES(?,?,?,?,?,?)", 
+                 (u["id"], tid, req["prompt"][:20], req["prompt"], "text", tasks[tid]["model_url"]))
+    conn.commit(); conn.close()
     return {"task_id":tid}
 
 @app.get("/api/status/{tid}")
@@ -168,23 +176,17 @@ async def get_status(tid: str):
 
 @app.get("/api/model/{tid}/view")
 async def view_model(tid: str):
-    if tid not in tasks: raise HTTPException(404)
-    url = tasks[tid]["model_url"]
+    # Bu endpoint 3D onizleme icin CORS sorununu cozer
+    if tid not in tasks:
+        # Veritabanından url'i bulmayı dene
+        conn = get_db()
+        row = conn.execute("SELECT model_url FROM models WHERE task_id=?", (tid,)).fetchone()
+        conn.close()
+        if row: url = row[0]
+        else: raise HTTPException(404)
+    else:
+        url = tasks[tid]["model_url"]
+        
     async with httpx.AsyncClient(follow_redirects=True) as c:
         r = await c.get(url)
         return Response(content=r.content, media_type="model/gltf-binary")
-@app.get("/api/gallery/{model_id}/comments")
-async def get_comments(model_id: int):
-    conn = get_db()
-    rows = conn.execute("SELECT c.*, u.name as author_name FROM comments c JOIN users u ON c.user_id = u.id WHERE c.model_id = ? ORDER BY c.created_at DESC", (model_id,)).fetchall()
-    conn.close()
-    return {"comments": [dict(r) for r in rows]}
-
-@app.post("/api/gallery/{model_id}/comments")
-async def add_comment(model_id: int, req: dict, authorization: str = Header(None)):
-    u = await get_user(authorization)
-    if not u: raise HTTPException(401)
-    conn = get_db()
-    conn.execute("INSERT INTO comments (model_id, user_id, text) VALUES (?,?,?)", (model_id, u["id"], req["text"]))
-    conn.commit(); conn.close()
-    return {"success": True}
