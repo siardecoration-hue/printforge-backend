@@ -1,92 +1,1192 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <title>PrintForge - Atölye</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
-    <script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
-    <style>
-        body { background: #04080a; color: white; font-family: 'Outfit', sans-serif; display: flex; flex-direction: column; align-items: center; padding: 50px; }
-        .card { background: #060c10; padding: 30px; border-radius: 15px; border: 1px solid #0e2028; width: 100%; max-width: 500px; text-align: center; }
-        button { background: #00e5ff; color: black; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; }
-        input, textarea { width: 100%; padding: 10px; margin: 10px 0; background: #0a1018; border: 1px solid #0e2028; color: white; border-radius: 5px; }
-        #status { margin-top: 20px; color: #00ff9d; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PrintForge — AI 3D Model Generator</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',system-ui,sans-serif}
+:root{--pf:#00e5ff;--pf-dark:#00b8cc;--pf-glow:rgba(0,229,255,.15);--bg:#07080c;--surface:#0e1017;--surface2:#141620;--border:#1a1d2e;--text:#e2e8f0;--text2:#8892a8;--success:#00ff9d;--error:#ff4466;--warn:#ffaa00}
+html,body{height:100%;background:var(--bg);color:var(--text);overflow:hidden}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#2a2d3e}
+
+.pf-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:10px;font-weight:600;font-size:14px;cursor:pointer;transition:all .2s;border:none;outline:none}
+.pf-btn-primary{background:var(--pf);color:#000}.pf-btn-primary:hover{background:var(--pf-dark);transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,229,255,.3)}
+.pf-btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}.pf-btn-secondary:hover{border-color:var(--pf);color:var(--pf)}
+.pf-btn-danger{background:rgba(255,68,102,.1);color:var(--error);border:1px solid rgba(255,68,102,.2)}.pf-btn-danger:hover{background:rgba(255,68,102,.2)}
+.pf-btn-ghost{background:transparent;color:var(--text2)}.pf-btn-ghost:hover{color:var(--pf);background:var(--pf-glow)}
+.pf-btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
+.pf-input{width:100%;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;outline:none;transition:border-color .2s}
+.pf-input:focus{border-color:var(--pf);box-shadow:0 0 0 3px var(--pf-glow)}
+.pf-input::placeholder{color:var(--text2)}
+textarea.pf-input{resize:vertical;min-height:100px}
+.pf-label{display:block;font-size:13px;font-weight:500;color:var(--text2);margin-bottom:6px}
+.pf-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:all .25s}
+.pf-card:hover{border-color:rgba(0,229,255,.3);box-shadow:0 4px 24px rgba(0,0,0,.3)}
+
+.sidebar{width:240px;height:100vh;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;left:0;top:0;z-index:40;transition:transform .3s}
+.sidebar-logo{padding:20px 20px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
+.sidebar-logo span{font-size:20px;font-weight:800;letter-spacing:2px;background:linear-gradient(135deg,var(--pf),#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav-item{display:flex;align-items:center;gap:12px;padding:11px 20px;color:var(--text2);cursor:pointer;transition:all .15s;font-size:14px;font-weight:500;border-left:3px solid transparent;margin:2px 0}
+.nav-item:hover{color:var(--text);background:rgba(255,255,255,.03)}
+.nav-item.active{color:var(--pf);background:var(--pf-glow);border-left-color:var(--pf)}
+.nav-item i{width:20px;text-align:center;font-size:15px}
+.nav-section{padding:16px 20px 6px;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:1.5px}
+
+.main-content{margin-left:240px;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:60px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:var(--surface);flex-shrink:0}
+.page-content{flex:1;overflow-y:auto;padding:24px}
+
+.auth-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:100}
+.auth-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px;width:420px;max-width:95vw;max-height:90vh;overflow-y:auto}
+.auth-title{font-size:22px;font-weight:700;margin-bottom:4px}
+.auth-subtitle{font-size:14px;color:var(--text2);margin-bottom:24px}
+.auth-divider{display:flex;align-items:center;gap:12px;margin:20px 0;color:var(--text2);font-size:13px}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+
+.toast-container{position:fixed;top:20px;right:20px;z-index:200;display:flex;flex-direction:column;gap:8px}
+.toast{padding:14px 20px;border-radius:10px;font-size:14px;font-weight:500;animation:toastIn .3s;display:flex;align-items:center;gap:10px;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.toast-success{background:#0a2a1a;border:1px solid rgba(0,255,157,.2);color:var(--success)}
+.toast-error{background:#2a0a15;border:1px solid rgba(255,68,102,.2);color:var(--error)}
+.toast-info{background:#0a1a2a;border:1px solid rgba(0,229,255,.2);color:var(--pf)}
+@keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+
+.gen-container{display:grid;grid-template-columns:380px 1fr;gap:24px;height:calc(100vh - 108px)}
+.gen-panel{overflow-y:auto;padding-right:8px}
+.gen-preview{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;position:relative}
+.gen-preview model-viewer{width:100%;flex:1;min-height:300px;--poster-color:transparent}
+.gen-placeholder{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text2)}
+.gen-placeholder i{font-size:64px;margin-bottom:16px;opacity:.3}
+
+.progress-bar{height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;margin:12px 0}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--pf),#7c3aed);border-radius:3px;transition:width .5s;position:relative}
+.progress-fill::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent);animation:shimmer 1.5s infinite}
+@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+
+.style-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.style-option{padding:10px;border-radius:10px;border:2px solid var(--border);cursor:pointer;text-align:center;font-size:12px;font-weight:500;transition:all .2s;color:var(--text2)}
+.style-option:hover{border-color:rgba(0,229,255,.3);color:var(--text)}
+.style-option.active{border-color:var(--pf);background:var(--pf-glow);color:var(--pf)}
+.style-option i{display:block;font-size:20px;margin-bottom:4px}
+
+.drop-zone{border:2px dashed var(--border);border-radius:14px;padding:40px 20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2)}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--pf);background:var(--pf-glow)}
+.drop-zone img{max-width:100%;max-height:200px;border-radius:8px;margin-top:12px}
+
+.gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px}
+.model-card{cursor:pointer}
+.model-card .thumb{height:220px;background:linear-gradient(135deg,var(--surface2),var(--bg));display:flex;align-items:center;justify-content:center;position:relative}
+.model-card .thumb model-viewer{width:100%;height:100%;--poster-color:transparent}
+.model-card .thumb .card-overlay{position:absolute;inset:0;background:linear-gradient(to top,var(--surface),transparent 50%);opacity:0;transition:opacity .3s}
+.model-card:hover .card-overlay{opacity:1}
+.model-card .card-body{padding:14px}
+.model-card .card-title{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.model-card .card-meta{display:flex;align-items:center;gap:12px;margin-top:8px;font-size:12px;color:var(--text2)}
+
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;text-align:center}
+.stat-card .stat-value{font-size:28px;font-weight:800;background:linear-gradient(135deg,var(--pf),#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.stat-card .stat-label{font-size:13px;color:var(--text2);margin-top:4px}
+
+.plan-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;position:relative;transition:all .3s}
+.plan-card.popular{border-color:var(--pf);box-shadow:0 0 40px var(--pf-glow)}
+.plan-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--pf);color:#000;padding:4px 16px;border-radius:20px;font-size:12px;font-weight:700}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:80;display:flex;align-items:center;justify-content:center}
+.modal-content{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:90vw;height:85vh;max-width:1200px;display:flex;flex-direction:column;overflow:hidden}
+
+.verify-banner{background:rgba(255,170,0,.08);border-bottom:1px solid rgba(255,170,0,.2);padding:10px 24px;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--warn)}
+
+.avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--pf),#7c3aed);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:#000;flex-shrink:0}
+.avatar img{width:100%;height:100%;border-radius:50%;object-fit:cover}
+
+.tab-bar{display:flex;gap:4px;background:var(--surface2);border-radius:10px;padding:4px}
+.tab-item{padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);transition:all .2s}
+.tab-item.active{background:var(--surface);color:var(--pf);box-shadow:0 2px 8px rgba(0,0,0,.3)}
+
+.empty-state{text-align:center;padding:60px 20px;color:var(--text2)}
+.empty-state i{font-size:48px;margin-bottom:16px;opacity:.3}
+
+.skeleton{background:linear-gradient(90deg,var(--surface2) 25%,var(--border) 50%,var(--surface2) 75%);background-size:200% 100%;animation:skeleton 1.5s infinite;border-radius:8px}
+@keyframes skeleton{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+.mobile-toggle{display:none;background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;padding:8px}
+.mobile-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:35}
+
+@media(max-width:768px){
+.sidebar{transform:translateX(-100%)}
+.sidebar.open{transform:translateX(0)}
+.mobile-overlay.open{display:block}
+.main-content{margin-left:0}
+.mobile-toggle{display:block}
+.gen-container{grid-template-columns:1fr;height:auto}
+.gen-preview{min-height:400px}
+.gallery-grid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+.auth-card{padding:24px}
+}
+
+.fade-in{animation:fadeIn .3s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
 </head>
 <body>
-    <h1>PrintForge Atölye</h1>
-    <div class="card" id="authBox">
-        <h3>Giriş Yap</h3>
-        <input type="email" id="email" placeholder="E-posta">
-        <input type="password" id="pass" placeholder="Şifre">
-        <button onclick="login()">Giriş Yap</button>
-        <button style="background:none; color:#00e5ff" onclick="register()">Hesap Oluştur</button>
+
+<!-- ═══ TOAST ═══ -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ═══ AUTH OVERLAY ═══ -->
+<div class="auth-overlay" id="authOverlay" style="display:none">
+<div class="auth-card">
+  <!-- LOGIN -->
+  <div id="authLogin">
+    <div style="text-align:center;margin-bottom:24px">
+      <span style="font-size:28px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,var(--pf),#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent">PRINTFORGE</span>
+    </div>
+    <h2 class="auth-title">Hoş Geldiniz</h2>
+    <p class="auth-subtitle">Hesabınıza giriş yapın</p>
+    <button class="pf-btn pf-btn-secondary" style="width:100%;justify-content:center;padding:12px;margin-bottom:8px" onclick="googleLogin()">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285f4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34a853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#fbbc05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#ea4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Google ile Giriş Yap
+    </button>
+    <div class="auth-divider">veya</div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div><label class="pf-label">E-posta</label><input type="email" id="loginEmail" class="pf-input" placeholder="ornek@gmail.com"></div>
+      <div><label class="pf-label">Şifre</label><input type="password" id="loginPass" class="pf-input" placeholder="••••••••"></div>
+      <button class="pf-btn pf-btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="doLogin()">
+        <i class="fas fa-sign-in-alt"></i> Giriş Yap
+      </button>
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <a href="#" style="color:var(--pf);text-decoration:none" onclick="showAuth('forgot')">Şifremi Unuttum</a>
+        <a href="#" style="color:var(--pf);text-decoration:none" onclick="showAuth('register')">Hesap Oluştur</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- REGISTER -->
+  <div id="authRegister" style="display:none">
+    <div style="text-align:center;margin-bottom:24px">
+      <span style="font-size:28px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,var(--pf),#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent">PRINTFORGE</span>
+    </div>
+    <h2 class="auth-title">Hesap Oluştur</h2>
+    <p class="auth-subtitle">Ücretsiz başlayın, hemen üretin</p>
+    <button class="pf-btn pf-btn-secondary" style="width:100%;justify-content:center;padding:12px;margin-bottom:8px" onclick="googleLogin()">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285f4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34a853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#fbbc05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#ea4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Google ile Kayıt Ol
+    </button>
+    <div class="auth-divider">veya</div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div><label class="pf-label">Ad Soyad</label><input type="text" id="regName" class="pf-input" placeholder="Adınız Soyadınız"></div>
+      <div><label class="pf-label">E-posta</label><input type="email" id="regEmail" class="pf-input" placeholder="ornek@gmail.com"></div>
+      <div><label class="pf-label">Şifre (min 6 karakter)</label><input type="password" id="regPass" class="pf-input" placeholder="••••••••"></div>
+      <button class="pf-btn pf-btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="doRegister()">
+        <i class="fas fa-user-plus"></i> Kayıt Ol
+      </button>
+      <p style="text-align:center;font-size:13px;color:var(--text2)">
+        Zaten hesabınız var mı? <a href="#" style="color:var(--pf);text-decoration:none" onclick="showAuth('login')">Giriş Yap</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- FORGOT -->
+  <div id="authForgot" style="display:none">
+    <h2 class="auth-title">Şifremi Unuttum</h2>
+    <p class="auth-subtitle">E-posta adresinize sıfırlama linki göndereceğiz</p>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div><label class="pf-label">E-posta</label><input type="email" id="forgotEmail" class="pf-input" placeholder="ornek@gmail.com"></div>
+      <button class="pf-btn pf-btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="doForgot()">
+        <i class="fas fa-paper-plane"></i> Sıfırlama Linki Gönder
+      </button>
+      <p style="text-align:center;font-size:13px"><a href="#" style="color:var(--pf);text-decoration:none" onclick="showAuth('login')"><i class="fas fa-arrow-left"></i> Giriş'e Dön</a></p>
+    </div>
+  </div>
+
+  <!-- RESET -->
+  <div id="authReset" style="display:none">
+    <h2 class="auth-title">Yeni Şifre Belirle</h2>
+    <p class="auth-subtitle">Yeni şifrenizi girin</p>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div><label class="pf-label">Yeni Şifre (min 6 karakter)</label><input type="password" id="resetPass" class="pf-input" placeholder="••••••••"></div>
+      <div><label class="pf-label">Şifre Tekrar</label><input type="password" id="resetPass2" class="pf-input" placeholder="••••••••"></div>
+      <button class="pf-btn pf-btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="doReset()">
+        <i class="fas fa-check"></i> Şifreyi Güncelle
+      </button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══ MOBILE OVERLAY ═══ -->
+<div class="mobile-overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
+
+<!-- ═══ SIDEBAR ═══ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <i class="fas fa-cube" style="color:var(--pf);font-size:22px"></i>
+    <span>PRINTFORGE</span>
+  </div>
+
+  <div style="flex:1;overflow-y:auto;padding:8px 0">
+    <div class="nav-section">Oluştur</div>
+    <div class="nav-item active" onclick="navigate('generate')" data-page="generate">
+      <i class="fas fa-wand-magic-sparkles"></i> Model Üret
     </div>
 
-    <div class="card" id="genBox" style="display:none">
-        <h3 id="welcome">Atölyeye Hoş Geldin!</h3>
-        <textarea id="prompt" placeholder="Ne üretmek istersin?"></textarea>
-        <button onclick="generate()">3D Model Üret</button>
-        <div id="status"></div>
-        <div id="result" style="height:300px; margin-top:20px; display:none"></div>
+    <div class="nav-section">Keşfet</div>
+    <div class="nav-item" onclick="navigate('gallery')" data-page="gallery">
+      <i class="fas fa-images"></i> Galeri
+    </div>
+    <div class="nav-item" onclick="navigate('mymodels')" data-page="mymodels">
+      <i class="fas fa-cube"></i> Modellerim
     </div>
 
-    <script>
-        const API = window.location.origin;
-        let token = localStorage.getItem('pf_token');
+    <div class="nav-section">Hesap</div>
+    <div class="nav-item" onclick="navigate('settings')" data-page="settings">
+      <i class="fas fa-user-cog"></i> Ayarlar
+    </div>
+    <div class="nav-item" onclick="navigate('pricing')" data-page="pricing">
+      <i class="fas fa-gem"></i> Planlar
+    </div>
+  </div>
 
-        if(token) showApp();
+  <div style="padding:16px;border-top:1px solid var(--border)" id="sidebarUser">
+    <div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="navigate('settings')">
+      <div class="avatar" id="sidebarAvatar">?</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="sidebarName">Misafir</div>
+        <div style="font-size:11px;color:var(--text2)" id="sidebarPlan">Free Plan</div>
+      </div>
+      <button class="pf-btn-ghost" style="padding:4px 8px;font-size:12px;background:none;border:none;color:var(--text2);cursor:pointer" onclick="event.stopPropagation();doLogout()" title="Çıkış"><i class="fas fa-sign-out-alt"></i></button>
+    </div>
+  </div>
+</aside>
 
-        async function login() {
-            const r = await fetch(API+'/api/auth/login', {
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({email: document.getElementById('email').value, password: document.getElementById('pass').value})
-            });
-            if(r.ok) {
-                const d = await r.json();
-                localStorage.setItem('pf_token', d.token);
-                token = d.token;
-                showApp();
-            } else { alert("Giriş Başarısız!"); }
-        }
+<!-- ═══ MAIN ═══ -->
+<div class="main-content">
+  <!-- VERIFY BANNER -->
+  <div class="verify-banner" id="verifyBanner" style="display:none">
+    <i class="fas fa-exclamation-triangle"></i>
+    <span>E-posta adresiniz doğrulanmamış.</span>
+    <button class="pf-btn-ghost" style="padding:4px 12px;font-size:12px;color:var(--warn);background:none;border:1px solid rgba(255,170,0,.3);border-radius:6px;cursor:pointer" onclick="resendVerify()">Tekrar Gönder</button>
+  </div>
 
-        async function register() {
-            const r = await fetch(API+'/api/auth/register', {
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({name: "Maker", email: document.getElementById('email').value, password: document.getElementById('pass').value})
-            });
-            if(r.ok) alert("Kayıt başarılı, şimdi giriş yap!");
-        }
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="mobile-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <h1 style="font-size:16px;font-weight:700" id="pageTitle">Model Üret</h1>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="font-size:12px;color:var(--text2)" id="usageInfo"></div>
+      <div class="avatar" id="topAvatar" style="width:32px;height:32px;font-size:12px;cursor:pointer" onclick="navigate('settings')">?</div>
+    </div>
+  </div>
 
-        function showApp() {
-            document.getElementById('authBox').style.display = 'none';
-            document.getElementById('genBox').style.display = 'block';
-        }
+  <!-- ═══ GENERATE PAGE ═══ -->
+  <div class="page-content" id="page-generate">
+    <div class="gen-container">
+      <div class="gen-panel">
+        <!-- Tabs -->
+        <div class="tab-bar" style="margin-bottom:20px">
+          <div class="tab-item active" onclick="switchGenTab('text')" id="tabText"><i class="fas fa-font"></i> Metin → 3D</div>
+          <div class="tab-item" onclick="switchGenTab('image')" id="tabImage"><i class="fas fa-image"></i> Görsel → 3D</div>
+        </div>
 
-        async function generate() {
-            const st = document.getElementById('status');
-            st.textContent = "⚙️ Üretiliyor...";
-            const r = await fetch(API+'/api/generate/text', {
-                method:'POST',
-                headers:{'Content-Type':'application/json', 'Authorization': 'Bearer '+token},
-                body: JSON.stringify({prompt: document.getElementById('prompt').value})
-            });
-            const d = await r.json();
-            
-            let poll = setInterval(async () => {
-                const res = await fetch(API+'/api/status/'+d.task_id);
-                const statusData = await res.json();
-                if(statusData.status === 'done') {
-                    clearInterval(poll);
-                    st.textContent = "✅ Hazır!";
-                    const resDiv = document.getElementById('result');
-                    resDiv.style.display = 'block';
-                    resDiv.innerHTML = `<model-viewer src="${API}/api/model/${d.task_id}/view" auto-rotate camera-controls style="width:100%; height:100%"></model-viewer>`;
-                }
-            }, 3000);
-        }
-    </script>
+        <!-- TEXT TAB -->
+        <div id="genTextPanel">
+          <div style="margin-bottom:16px">
+            <label class="pf-label">Prompt (Açıklama)</label>
+            <textarea id="promptInput" class="pf-input" placeholder="Bir nesne tanımlayın... &#10;Örnek: A medieval sword with golden handle and ruby gems"></textarea>
+          </div>
+          <div style="margin-bottom:20px">
+            <label class="pf-label">Stil</label>
+            <div class="style-grid">
+              <div class="style-option active" data-style="realistic" onclick="selectStyle(this)"><i class="fas fa-eye"></i>Gerçekçi</div>
+              <div class="style-option" data-style="cartoon" onclick="selectStyle(this)"><i class="fas fa-palette"></i>Cartoon</div>
+              <div class="style-option" data-style="lowpoly" onclick="selectStyle(this)"><i class="fas fa-shapes"></i>Low Poly</div>
+              <div class="style-option" data-style="sculpture" onclick="selectStyle(this)"><i class="fas fa-monument"></i>Heykel</div>
+              <div class="style-option" data-style="mechanical" onclick="selectStyle(this)"><i class="fas fa-gears"></i>Mekanik</div>
+              <div class="style-option" data-style="miniature" onclick="selectStyle(this)"><i class="fas fa-chess-pawn"></i>Minyatür</div>
+            </div>
+          </div>
+          <button class="pf-btn pf-btn-primary" style="width:100%;justify-content:center;padding:14px;font-size:15px" id="btnGenText" onclick="generateText()">
+            <i class="fas fa-wand-magic-sparkles"></i> Model Üret
+          </button>
+        </div>
+
+        <!-- IMAGE TAB -->
+        <div id="genImagePanel" style="display:none">
+          <div style="margin-bottom:20px">
+            <label class="pf-label">Görsel Yükle</label>
+            <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+              <i class="fas fa-cloud-upload-alt" style="font-size:36px;color:var(--text2);margin-bottom:8px"></i>
+              <p style="font-size:14px;color:var(--text2)">Tıklayın veya sürükleyin</p>
+              <p style="font-size:12px;color:var(--text2);opacity:.7">PNG, JPG, WEBP (max 10MB)</p>
+              <img id="previewImg" style="display:none">
+            </div>
+            <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFile(this)">
+          </div>
+          <button class="pf-btn pf-btn-primary" style="width:100%;justify-content:center;padding:14px;font-size:15px" id="btnGenImage" onclick="generateImage()" disabled>
+            <i class="fas fa-wand-magic-sparkles"></i> Görselden Üret
+          </button>
+        </div>
+
+        <!-- PROGRESS -->
+        <div id="genProgress" style="display:none;margin-top:20px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <i class="fas fa-spinner spin" style="color:var(--pf)"></i>
+            <span style="font-size:14px;font-weight:600" id="progressStep">Başlatılıyor...</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+          <p style="font-size:12px;color:var(--text2);text-align:right" id="progressPct">0%</p>
+        </div>
+
+        <!-- DOWNLOADS -->
+        <div id="genDownloads" style="display:none;margin-top:20px">
+          <label class="pf-label">İndir</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="pf-btn pf-btn-secondary" onclick="downloadModel('glb')"><i class="fas fa-download"></i> GLB</button>
+            <button class="pf-btn pf-btn-secondary" onclick="downloadModel('stl')"><i class="fas fa-download"></i> STL</button>
+            <button class="pf-btn pf-btn-secondary" onclick="downloadModel('obj')"><i class="fas fa-download"></i> OBJ</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3D PREVIEW -->
+      <div class="gen-preview" id="genPreview">
+        <div class="gen-placeholder" id="previewPlaceholder">
+          <i class="fas fa-cube"></i>
+          <p style="font-size:16px;font-weight:600">3D Önizleme</p>
+          <p style="font-size:13px;margin-top:4px">Model üretildikten sonra burada görünür</p>
+        </div>
+        <model-viewer id="previewViewer" style="display:none;width:100%;height:100%" auto-rotate camera-controls shadow-intensity="1" exposure="1.0" environment-image="neutral" interaction-prompt="none">
+          <div slot="progress-bar"></div>
+        </model-viewer>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ GALLERY PAGE ═══ -->
+  <div class="page-content" id="page-gallery" style="display:none">
+    <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:center">
+      <div style="flex:1;min-width:200px;position:relative">
+        <i class="fas fa-search" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text2)"></i>
+        <input type="text" class="pf-input" style="padding-left:40px" placeholder="Model ara..." id="gallerySearch" oninput="debounceSearch()">
+      </div>
+      <div class="tab-bar">
+        <div class="tab-item active" onclick="sortGallery('newest',this)" data-sort="newest">Yeni</div>
+        <div class="tab-item" onclick="sortGallery('popular',this)" data-sort="popular">Popüler</div>
+        <div class="tab-item" onclick="sortGallery('downloads',this)" data-sort="downloads">İndirilen</div>
+      </div>
+    </div>
+    <div class="gallery-grid" id="galleryGrid"></div>
+    <div id="galleryEmpty" class="empty-state" style="display:none">
+      <i class="fas fa-images"></i>
+      <p style="font-size:16px;font-weight:600">Henüz model yok</p>
+      <p style="font-size:13px;margin-top:4px">İlk modeli siz oluşturun!</p>
+    </div>
+    <div style="display:flex;justify-content:center;gap:8px;margin-top:24px" id="galleryPagination"></div>
+  </div>
+
+  <!-- ═══ MY MODELS PAGE ═══ -->
+  <div class="page-content" id="page-mymodels" style="display:none">
+    <div class="gallery-grid" id="myModelsGrid"></div>
+    <div id="myModelsEmpty" class="empty-state" style="display:none">
+      <i class="fas fa-cube"></i>
+      <p style="font-size:16px;font-weight:600">Henüz modeliniz yok</p>
+      <p style="font-size:13px;margin-top:4px">Hemen ilk 3D modelinizi üretin!</p>
+      <button class="pf-btn pf-btn-primary" style="margin-top:16px" onclick="navigate('generate')"><i class="fas fa-plus"></i> Model Üret</button>
+    </div>
+  </div>
+
+  <!-- ═══ SETTINGS PAGE ═══ -->
+  <div class="page-content" id="page-settings" style="display:none">
+    <div style="max-width:700px">
+      <!-- Stats -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;margin-bottom:32px">
+        <div class="stat-card"><div class="stat-value" id="statModels">0</div><div class="stat-label">Model</div></div>
+        <div class="stat-card"><div class="stat-value" id="statLikes">0</div><div class="stat-label">Beğeni</div></div>
+        <div class="stat-card"><div class="stat-value" id="statDownloads">0</div><div class="stat-label">İndirme</div></div>
+        <div class="stat-card">
+          <div class="stat-value" id="statUsage">0/5</div><div class="stat-label">Aylık Kullanım</div>
+          <div class="progress-bar" style="margin-top:8px"><div class="progress-fill" id="usageBar" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- Profile -->
+      <div class="pf-card" style="padding:24px;margin-bottom:20px">
+        <h3 style="font-size:16px;font-weight:700;margin-bottom:16px"><i class="fas fa-user" style="color:var(--pf);margin-right:8px"></i>Profil</h3>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div><label class="pf-label">Ad Soyad</label><input type="text" id="settingsName" class="pf-input"></div>
+          <div><label class="pf-label">E-posta</label><input type="email" id="settingsEmail" class="pf-input" disabled style="opacity:.6"></div>
+          <div><label class="pf-label">Plan</label><input type="text" id="settingsPlan" class="pf-input" disabled style="opacity:.6"></div>
+          <button class="pf-btn pf-btn-primary" onclick="saveProfile()"><i class="fas fa-save"></i> Kaydet</button>
+        </div>
+      </div>
+
+      <!-- Password -->
+      <div class="pf-card" style="padding:24px;margin-bottom:20px">
+        <h3 style="font-size:16px;font-weight:700;margin-bottom:16px"><i class="fas fa-lock" style="color:var(--pf);margin-right:8px"></i>Şifre Değiştir</h3>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div><label class="pf-label">Yeni Şifre</label><input type="password" id="settingsNewPass" class="pf-input" placeholder="Min 6 karakter"></div>
+          <button class="pf-btn pf-btn-secondary" onclick="changePassword()"><i class="fas fa-key"></i> Şifreyi Güncelle</button>
+        </div>
+      </div>
+
+      <!-- Danger -->
+      <div class="pf-card" style="padding:24px">
+        <button class="pf-btn pf-btn-danger" onclick="doLogout()"><i class="fas fa-sign-out-alt"></i> Çıkış Yap</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ PRICING PAGE ═══ -->
+  <div class="page-content" id="page-pricing" style="display:none">
+    <div style="text-align:center;margin-bottom:32px">
+      <h2 style="font-size:28px;font-weight:800">Planınızı Seçin</h2>
+      <p style="color:var(--text2);margin-top:8px">İhtiyacınıza uygun planla başlayın</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;max-width:960px;margin:0 auto">
+      <!-- Free -->
+      <div class="plan-card">
+        <h3 style="font-size:20px;font-weight:700">Free</h3>
+        <div style="margin:16px 0"><span style="font-size:36px;font-weight:800">₺0</span><span style="color:var(--text2)"> /ay</span></div>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:10px;margin-bottom:24px;font-size:14px;color:var(--text2)">
+          <li><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i>Ayda 5 model</li>
+          <li><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i>GLB indirme</li>
+          <li><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i>Galeri erişimi</li>
+          <li><i class="fas fa-times" style="color:var(--error);margin-right:8px;opacity:.5"></i>STL/OBJ dönüşüm</li>
+          <li><i class="fas fa-times" style="color:var(--error);margin-right:8px;opacity:.5"></i>Öncelikli üretim</li>
+        </ul>
+        <button class="pf-btn pf-btn-secondary" style="width:100%;justify-content:center" disabled>Mevcut Plan</button>
+      </div>
+      <!-- Pro -->
+      <div class="plan-card popular">
+        <div class="plan-badge">EN POPÜLER</div>
+        <h3 style="font-size:20px;font-weight:700">Pro</h3>
+        <div style="margin:16px 0"><span style="font-size:36px;font-weight:800">₺299</span><span style="color:var(--text2)"> /ay</span></div>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:10px;margin-bottom:24px;font-size:14px;color:var(--text2)">
+          <li><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i>Ayda 100 model</li>
+          <li><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i>GLB/STL/OBJ indirme</li>
+          <li><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i>Galeri erişimi</li>
+          <li><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i>Öncelikli üretim</li>
+          <li><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i>E-posta desteği</li>
+        </ul>
+        <button class="pf-btn pf-btn-primary" style="width:100%;justify-content:center" onclick="upgradePlan()"><i class="fas fa-rocket"></i> Yükselt</button>
+      </div>
+      <!-- Business -->
+      <div class="plan-card">
+        <h3 style="font-size:20px;font-weight:700">Business</h3>
+        <div style="margin:16px 0"><span style="font-size:36px;font-weight:800">₺999</span><span style="color:var(--text2)"> /ay</span></div>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:10px;margin-bottom:24px;font-size:14px;color:var(--text2)">
+          <li><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i>Sınırsız model</li>
+          <li><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i>Tüm formatlar</li>
+          <li><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i>API erişimi</li>
+          <li><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i>Öncelikli destek</li>
+          <li><i class="fas fa-check" style="color:var(--success);margin-right:8px"></i>Ticari kullanım</li>
+        </ul>
+        <button class="pf-btn pf-btn-secondary" style="width:100%;justify-content:center">İletişim</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODEL DETAIL MODAL ═══ -->
+<div class="modal-overlay" id="modelModal" style="display:none" onclick="if(event.target===this)closeModelModal()">
+  <div class="modal-content">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)">
+      <h3 style="font-size:16px;font-weight:700" id="modalTitle">Model</h3>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="pf-btn pf-btn-secondary" style="padding:8px 14px;font-size:13px" id="modalLikeBtn" onclick="toggleModalLike()"><i class="fas fa-heart"></i> <span id="modalLikes">0</span></button>
+        <button class="pf-btn pf-btn-secondary" style="padding:8px 14px;font-size:13px" onclick="downloadModalModel('glb')"><i class="fas fa-download"></i> GLB</button>
+        <button class="pf-btn pf-btn-secondary" style="padding:8px 14px;font-size:13px" onclick="downloadModalModel('stl')"><i class="fas fa-download"></i> STL</button>
+        <button class="pf-btn pf-btn-ghost" style="padding:8px 12px;font-size:16px" onclick="closeModelModal()"><i class="fas fa-times"></i></button>
+      </div>
+    </div>
+    <div style="flex:1;position:relative;background:#07080c">
+      <model-viewer id="modalViewer" style="width:100%;height:100%" auto-rotate camera-controls shadow-intensity="1" exposure="1.0" environment-image="neutral" interaction-prompt="none">
+        <div slot="progress-bar"></div>
+      </model-viewer>
+    </div>
+    <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:16px;font-size:13px;color:var(--text2)">
+      <span><i class="fas fa-user" style="margin-right:4px"></i> <span id="modalAuthor">—</span></span>
+      <span><i class="fas fa-tag" style="margin-right:4px"></i> <span id="modalStyle">—</span></span>
+      <span><i class="fas fa-clock" style="margin-right:4px"></i> <span id="modalDate">—</span></span>
+      <span><i class="fas fa-download" style="margin-right:4px"></i> <span id="modalDownloads">0</span></span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ JAVASCRIPT ═══════════════════ -->
+<script>
+
+// ──── STATE ────
+let currentUser = null;
+let currentTask = null;
+let pollTimer = null;
+let selectedStyle = 'realistic';
+let selectedFile = null;
+let gallerySort = 'newest';
+let galleryPage = 1;
+let gallerySearchTimeout = null;
+let currentModalModel = null;
+let resetToken = null;
+
+const API = '';
+
+// ──── INIT ────
+document.addEventListener('DOMContentLoaded', () => {
+  // Check for reset token in URL
+  const params = new URLSearchParams(window.location.search);
+  resetToken = params.get('reset');
+  if (resetToken) {
+    showAuth('reset');
+    return;
+  }
+  initApp();
+  setupDragDrop();
+  setupKeyboard();
+});
+
+async function initApp() {
+  const token = localStorage.getItem('pf_token');
+  if (!token) {
+    showAuth('login');
+    return;
+  }
+  try {
+    const r = await apiFetch('/api/auth/me');
+    currentUser = r.user;
+    updateUI(r);
+    hideAuth();
+    checkHealth();
+  } catch (e) {
+    localStorage.removeItem('pf_token');
+    showAuth('login');
+  }
+}
+
+// ──── API HELPER ────
+async function apiFetch(url, options = {}) {
+  const token = localStorage.getItem('pf_token');
+  const headers = options.headers || {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (options.json) {
+    headers['Content-Type'] = 'application/json';
+    options.body = JSON.stringify(options.json);
+    delete options.json;
+  }
+  options.headers = headers;
+  const r = await fetch(API + url, options);
+  if (!r.ok) {
+    const data = await r.json().catch(() => ({}));
+    throw new Error(data.detail || `Hata: ${r.status}`);
+  }
+  return r.json();
+}
+
+// ──── TOAST ────
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  const icon = type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle';
+  el.innerHTML = `<i class="fas fa-${icon}"></i><span>${msg}</span>`;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateX(40px)'; setTimeout(() => el.remove(), 300); }, 4000);
+}
+
+// ──── AUTH UI ────
+function showAuth(tab) {
+  document.getElementById('authOverlay').style.display = 'flex';
+  ['Login', 'Register', 'Forgot', 'Reset'].forEach(t => {
+    document.getElementById('auth' + t).style.display = 'none';
+  });
+  const map = { login: 'Login', register: 'Register', forgot: 'Forgot', reset: 'Reset' };
+  document.getElementById('auth' + (map[tab] || 'Login')).style.display = 'block';
+}
+
+function hideAuth() {
+  document.getElementById('authOverlay').style.display = 'none';
+}
+
+function googleLogin() {
+  window.location.href = '/api/auth/google';
+}
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPass').value;
+  if (!email || !password) return toast('Tüm alanları doldurun', 'error');
+  try {
+    const r = await apiFetch('/api/auth/login', { method: 'POST', json: { email, password } });
+    localStorage.setItem('pf_token', r.token);
+    currentUser = r.user;
+    toast('Giriş başarılı!', 'success');
+    hideAuth();
+    initApp();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function doRegister() {
+  const name = document.getElementById('regName').value.trim();
+  const email = document.getElementById('regEmail').value.trim();
+  const password = document.getElementById('regPass').value;
+  if (!name || !email || !password) return toast('Tüm alanları doldurun', 'error');
+  if (password.length < 6) return toast('Şifre en az 6 karakter olmalı', 'error');
+  try {
+    const r = await apiFetch('/api/auth/register', { method: 'POST', json: { name, email, password } });
+    localStorage.setItem('pf_token', r.token);
+    currentUser = r.user;
+    toast(r.message || 'Kayıt başarılı!', 'success');
+    hideAuth();
+    initApp();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function doForgot() {
+  const email = document.getElementById('forgotEmail').value.trim();
+  if (!email) return toast('E-posta girin', 'error');
+  try {
+    const r = await apiFetch('/api/auth/forgot-password', { method: 'POST', json: { email } });
+    toast(r.message, 'success');
+    showAuth('login');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function doReset() {
+  const p1 = document.getElementById('resetPass').value;
+  const p2 = document.getElementById('resetPass2').value;
+  if (!p1 || p1.length < 6) return toast('Şifre en az 6 karakter olmalı', 'error');
+  if (p1 !== p2) return toast('Şifreler eşleşmiyor', 'error');
+  try {
+    const r = await apiFetch('/api/auth/reset-password', { method: 'POST', json: { token: resetToken, password: p1 } });
+    toast(r.message, 'success');
+    resetToken = null;
+    window.history.replaceState({}, '', '/app');
+    showAuth('login');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function doLogout() {
+  localStorage.removeItem('pf_token');
+  currentUser = null;
+  toast('Çıkış yapıldı', 'info');
+  showAuth('login');
+}
+
+async function resendVerify() {
+  try {
+    const r = await apiFetch('/api/auth/resend-verification', { method: 'POST' });
+    toast(r.message, 'success');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// ──── UPDATE UI ────
+function updateUI(data) {
+  const u = data.user;
+  const initials = (u.name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+
+  // Sidebar
+  document.getElementById('sidebarName').textContent = u.name || 'Kullanıcı';
+  document.getElementById('sidebarPlan').textContent = (u.plan || 'free').charAt(0).toUpperCase() + (u.plan || 'free').slice(1) + ' Plan';
+
+  const sAv = document.getElementById('sidebarAvatar');
+  const tAv = document.getElementById('topAvatar');
+  if (u.avatar_url) {
+    sAv.innerHTML = `<img src="${u.avatar_url}" alt="">`;
+    tAv.innerHTML = `<img src="${u.avatar_url}" alt="">`;
+  } else {
+    sAv.textContent = initials;
+    tAv.textContent = initials;
+  }
+
+  // Usage
+  if (data.usage) {
+    document.getElementById('usageInfo').textContent = `${data.usage.used}/${data.usage.limit} model`;
+  }
+
+  // Verify banner
+  document.getElementById('verifyBanner').style.display = u.verified === 0 ? 'flex' : 'none';
+
+  // Settings
+  document.getElementById('settingsName').value = u.name || '';
+  document.getElementById('settingsEmail').value = u.email || '';
+  document.getElementById('settingsPlan').value = (u.plan || 'free').toUpperCase();
+
+  // Stats
+  if (data.stats) {
+    document.getElementById('statModels').textContent = data.stats.models || 0;
+    document.getElementById('statLikes').textContent = data.stats.likes || 0;
+    document.getElementById('statDownloads').textContent = data.stats.downloads || 0;
+  }
+  if (data.usage) {
+    document.getElementById('statUsage').textContent = `${data.usage.used}/${data.usage.limit}`;
+    const pct = data.usage.limit > 0 ? Math.min(100, (data.usage.used / data.usage.limit) * 100) : 0;
+    document.getElementById('usageBar').style.width = pct + '%';
+  }
+}
+
+async function checkHealth() {
+  try {
+    const h = await apiFetch('/api/health');
+    if (h.is_demo) {
+      toast('Demo modunda çalışıyor — Örnek modeller gösterilecek', 'info');
+    }
+  } catch (e) {}
+}
+
+// ──── NAVIGATION ────
+function navigate(page) {
+  const pages = ['generate', 'gallery', 'mymodels', 'settings', 'pricing'];
+  pages.forEach(p => {
+    document.getElementById('page-' + p).style.display = p === page ? 'block' : 'none';
+  });
+
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.page === page);
+  });
+
+  const titles = { generate: 'Model Üret', gallery: 'Galeri', mymodels: 'Modellerim', settings: 'Ayarlar', pricing: 'Planlar' };
+  document.getElementById('pageTitle').textContent = titles[page] || '';
+
+  // Load data
+  if (page === 'gallery') loadGallery();
+  if (page === 'mymodels') loadMyModels();
+  if (page === 'settings') refreshProfile();
+
+  // Close mobile sidebar
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('mobileOverlay').classList.remove('open');
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('mobileOverlay').classList.toggle('open');
+}
+
+// ──── GENERATE ────
+function switchGenTab(tab) {
+  document.getElementById('genTextPanel').style.display = tab === 'text' ? 'block' : 'none';
+  document.getElementById('genImagePanel').style.display = tab === 'image' ? 'block' : 'none';
+  document.getElementById('tabText').classList.toggle('active', tab === 'text');
+  document.getElementById('tabImage').classList.toggle('active', tab === 'image');
+}
+
+function selectStyle(el) {
+  document.querySelectorAll('.style-option').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  selectedStyle = el.dataset.style;
+}
+
+async function generateText() {
+  const prompt = document.getElementById('promptInput').value.trim();
+  if (!prompt) return toast('Bir prompt girin', 'error');
+  if (prompt.length < 3) return toast('Prompt çok kısa', 'error');
+
+  setGenerating(true);
+  try {
+    const r = await apiFetch('/api/generate/text', { method: 'POST', json: { prompt, style: selectedStyle } });
+    currentTask = r.task_id;
+    startPolling();
+  } catch (e) {
+    toast(e.message, 'error');
+    setGenerating(false);
+  }
+}
+
+async function generateImage() {
+  if (!selectedFile) return toast('Bir görsel seçin', 'error');
+
+  setGenerating(true);
+  try {
+    const form = new FormData();
+    form.append('file', selectedFile);
+    const token = localStorage.getItem('pf_token');
+    const r = await fetch(API + '/api/generate/image', {
+      method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      body: form
+    });
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      throw new Error(d.detail || 'Hata');
+    }
+    const data = await r.json();
+    currentTask = data.task_id;
+    startPolling();
+  } catch (e) {
+    toast(e.message, 'error');
+    setGenerating(false);
+  }
+}
+
+function setGenerating(on) {
+  document.getElementById('btnGenText').disabled = on;
+  document.getElementById('btnGenImage').disabled = on;
+  document.getElementById('genProgress').style.display = on ? 'block' : 'none';
+  document.getElementById('genDownloads').style.display = 'none';
+  if (on) {
+    document.getElementById('progressFill').style.width = '0%';
+    document.getElementById('progressPct').textContent = '0%';
+    document.getElementById('progressStep').textContent = 'Başlatılıyor...';
+    document.getElementById('previewPlaceholder').style.display = 'flex';
+    document.getElementById('previewViewer').style.display = 'none';
+  }
+}
+
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(pollStatus, 2000);
+  pollStatus();
+}
+
+async function pollStatus() {
+  if (!currentTask) return;
+  try {
+    const r = await apiFetch(`/api/status/${currentTask}`);
+    document.getElementById('progressFill').style.width = r.progress + '%';
+    document.getElementById('progressPct').textContent = r.progress + '%';
+    document.getElementById('progressStep').textContent = r.step || 'İşleniyor...';
+
+    if (r.status === 'done') {
+      clearInterval(pollTimer);
+      pollTimer = null;
+      showModel(currentTask);
+      document.getElementById('genDownloads').style.display = 'block';
+      document.getElementById('genProgress').style.display = 'none';
+      document.getElementById('btnGenText').disabled = false;
+      document.getElementById('btnGenImage').disabled = false;
+      toast('Model başarıyla üretildi!', 'success');
+      refreshProfile();
+    } else if (r.status === 'failed') {
+      clearInterval(pollTimer);
+      pollTimer = null;
+      setGenerating(false);
+      toast(r.error || 'Model üretilemedi', 'error');
+    }
+  } catch (e) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+    setGenerating(false);
+    toast('Durum sorgulanamadı', 'error');
+  }
+}
+
+function showModel(taskId) {
+  const viewer = document.getElementById('previewViewer');
+  viewer.src = `${API}/api/model/${taskId}/view`;
+  viewer.style.display = 'block';
+  document.getElementById('previewPlaceholder').style.display = 'none';
+}
+
+function downloadModel(format) {
+  if (!currentTask) return;
+  window.open(`${API}/api/model/${currentTask}/${format}`, '_blank');
+}
+
+// ──── FILE UPLOAD ────
+function setupDragDrop() {
+  const dz = document.getElementById('dropZone');
+  if (!dz) return;
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+      handleFileObj(e.dataTransfer.files[0]);
+    }
+  });
+}
+
+function handleFile(input) {
+  if (input.files.length) handleFileObj(input.files[0]);
+}
+
+function handleFileObj(file) {
+  if (!file.type.startsWith('image/')) return toast('Sadece görsel dosyaları yükleyin', 'error');
+  if (file.size > 10 * 1024 * 1024) return toast('Dosya çok büyük (max 10MB)', 'error');
+  selectedFile = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById('previewImg');
+    img.src = e.target.result;
+    img.style.display = 'block';
+    document.getElementById('btnGenImage').disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ──── GALLERY ────
+async function loadGallery() {
+  const grid = document.getElementById('galleryGrid');
+  const search = document.getElementById('gallerySearch').value.trim();
+  grid.innerHTML = '<div class="skeleton" style="height:280px"></div>'.repeat(6);
+
+  try {
+    const r = await apiFetch(`/api/gallery?page=${galleryPage}&sort=${gallerySort}&search=${encodeURIComponent(search)}`);
+    if (!r.models || r.models.length === 0) {
+      grid.innerHTML = '';
+      document.getElementById('galleryEmpty').style.display = 'block';
+      document.getElementById('galleryPagination').innerHTML = '';
+      return;
+    }
+    document.getElementById('galleryEmpty').style.display = 'none';
+    grid.innerHTML = r.models.map(m => renderModelCard(m)).join('');
+    renderPagination(r.page, r.pages);
+  } catch (e) {
+    grid.innerHTML = '';
+    toast('Galeri yüklenemedi', 'error');
+  }
+}
+
+function renderModelCard(m) {
+  const viewerSrc = m.task_id ? `${API}/api/model/${m.task_id}/view` : '';
+  const date = m.created_at ? new Date(m.created_at).toLocaleDateString('tr-TR') : '';
+  return `
+    <div class="pf-card model-card fade-in" onclick="openModelModal(${m.id}, '${m.task_id || ''}')">
+      <div class="thumb">
+        ${viewerSrc ? `<model-viewer src="${viewerSrc}" auto-rotate camera-controls interaction-prompt="none" style="pointer-events:none" loading="lazy"><div slot="progress-bar"></div></model-viewer>` :
+        `<i class="fas fa-cube" style="font-size:48px;color:var(--border)"></i>`}
+        <div class="card-overlay"></div>
+      </div>
+      <div class="card-body">
+        <div class="card-title">${escHtml(m.title || m.prompt || 'Model')}</div>
+        <div class="card-meta">
+          <span><i class="fas fa-user"></i> ${escHtml(m.author_name || 'Anonim')}</span>
+          <span><i class="fas fa-heart"></i> ${m.likes || 0}</span>
+          <span><i class="fas fa-download"></i> ${m.downloads || 0}</span>
+          <span style="margin-left:auto">${date}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderPagination(current, total) {
+  if (total <= 1) { document.getElementById('galleryPagination').innerHTML = ''; return; }
+  let html = '';
+  for (let i = 1; i <= total; i++) {
+    html += `<button class="pf-btn ${i === current ? 'pf-btn-primary' : 'pf-btn-secondary'}" style="padding:6px 14px;font-size:13px" onclick="galleryPage=${i};loadGallery()">${i}</button>`;
+  }
+  document.getElementById('galleryPagination').innerHTML = html;
+}
+
+function sortGallery(sort, el) {
+  gallerySort = sort;
+  galleryPage = 1;
+  el.parentElement.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  loadGallery();
+}
+
+function debounceSearch() {
+  clearTimeout(gallerySearchTimeout);
+  gallerySearchTimeout = setTimeout(() => { galleryPage = 1; loadGallery(); }, 400);
+}
+
+// ──── MODEL MODAL ────
+async function openModelModal(modelId, taskId) {
+  currentModalModel = { id: modelId, task_id: taskId };
+  document.getElementById('modelModal').style.display = 'flex';
+
+  try {
+    const m = await apiFetch(`/api/gallery/${modelId}`);
+    document.getElementById('modalTitle').textContent = m.title || m.prompt || 'Model';
+    document.getElementById('modalAuthor').textContent = m.author_name || 'Anonim';
+    document.getElementById('modalStyle').textContent = m.style || m.gen_type || '—';
+    document.getElementById('modalDate').textContent = m.created_at ? new Date(m.created_at).toLocaleDateString('tr-TR') : '—';
+    document.getElementById('modalLikes').textContent = m.likes || 0;
+    document.getElementById('modalDownloads').textContent = m.downloads || 0;
+
+    if (m.task_id) {
+      document.getElementById('modalViewer').src = `${API}/api/model/${m.task_id}/view`;
+      currentModalModel.task_id = m.task_id;
+    }
+  } catch (e) {
+    toast('Model detayı yüklenemedi', 'error');
+  }
+}
+
+function closeModelModal() {
+  document.getElementById('modelModal').style.display = 'none';
+  document.getElementById('modalViewer').src = '';
+  currentModalModel = null;
+}
+
+async function toggleModalLike() {
+  if (!currentUser) return toast('Beğenmek için giriş yapın', 'error');
+  if (!currentModalModel) return;
+  try {
+    const r = await apiFetch(`/api/gallery/${currentModalModel.id}/like`, { method: 'POST' });
+    const likesEl = document.getElementById('modalLikes');
+    let count = parseInt(likesEl.textContent) || 0;
+    likesEl.textContent = r.liked ? count + 1 : Math.max(0, count - 1);
+    const btn = document.getElementById('modalLikeBtn');
+    btn.style.color = r.liked ? 'var(--error)' : '';
+    toast(r.liked ? 'Beğenildi!' : 'Beğeni kaldırıldı', 'info');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function downloadModalModel(format) {
+  if (!currentModalModel || !currentModalModel.task_id) return toast('Model indirilemedi', 'error');
+  window.open(`${API}/api/model/${currentModalModel.task_id}/${format}`, '_blank');
+}
+
+// ──── MY MODELS ────
+async function loadMyModels() {
+  const grid = document.getElementById('myModelsGrid');
+  grid.innerHTML = '<div class="skeleton" style="height:280px"></div>'.repeat(4);
+
+  try {
+    const r = await apiFetch('/api/my-models');
+    if (!r.models || r.models.length === 0) {
+      grid.innerHTML = '';
+      document.getElementById('myModelsEmpty').style.display = 'block';
+      return;
+    }
+    document.getElementById('myModelsEmpty').style.display = 'none';
+    grid.innerHTML = r.models.map(m => renderMyModelCard(m)).join('');
+  } catch (e) {
+    grid.innerHTML = '';
+    toast('Modeller yüklenemedi', 'error');
+  }
+}
+
+function renderMyModelCard(m) {
+  const viewerSrc = m.task_id ? `${API}/api/model/${m.task_id}/view` : '';
+  const date = m.created_at ? new Date(m.created_at).toLocaleDateString('tr-TR') : '';
+  return `
+    <div class="pf-card fade-in">
+      <div class="thumb" style="height:200px;cursor:pointer" onclick="if('${m.task_id}')openModelFromTask('${m.task_id}','${escAttr(m.title || m.prompt || 'Model')}')">
+        ${viewerSrc ? `<model-viewer src="${viewerSrc}" auto-rotate camera-controls interaction-prompt="none" style="pointer-events:none" loading="lazy"><div slot="progress-bar"></div></model-viewer>` :
+        `<i class="fas fa-cube" style="font-size:40px;color:var(--border)"></i>`}
+      </div>
+      <div class="card-body">
+        <div class="card-title">${escHtml(m.title || m.prompt || 'Model')}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">
+          <div class="card-meta">
+            <span><i class="fas fa-heart"></i> ${m.likes || 0}</span>
+            <span><i class="fas fa-download"></i> ${m.downloads || 0}</span>
+            <span>${date}</span>
+          </div>
+          <div style="display:flex;gap:6px">
+            ${m.task_id ? `<button class="pf-btn pf-btn-secondary" style="padding:6px 10px;font-size:11px" onclick="event.stopPropagation();window.open('${API}/api/model/${m.task_id}/glb','_blank')"><i class="fas fa-download"></i></button>` : ''}
+            <button class="pf-btn pf-btn-danger" style="padding:6px 10px;font-size:11px" onclick="event.stopPropagation();deleteModel(${m.id})"><i class="fas fa-trash"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function openModelFromTask(taskId, title) {
+  currentModalModel = { id: null, task_id: taskId };
+  document.getElementById('modelModal').style.display = 'flex';
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalViewer').src = `${API}/api/model/${taskId}/view`;
+}
+
+async function deleteModel(id) {
+  if (!confirm('Bu modeli silmek istediğinize emin misiniz?')) return;
+  try {
+    await apiFetch(`/api/my-models/${id}`, { method: 'DELETE' });
+    toast('Model silindi', 'success');
+    loadMyModels();
+    refreshProfile();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// ──── SETTINGS ────
+async function refreshProfile() {
+  try {
+    const r = await apiFetch('/api/auth/me');
+    currentUser = r.user;
+    updateUI(r);
+  } catch (e) {}
+}
+
+async function saveProfile() {
+  const name = document.getElementById('settingsName').value.trim();
+  if (!name || name.length < 2) return toast('Geçerli bir isim girin', 'error');
+  try {
+    await apiFetch('/api/auth/update-profile', { method: 'POST', json: { name } });
+    toast('Profil güncellendi', 'success');
+    refreshProfile();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function changePassword() {
+  const pw = document.getElementById('settingsNewPass').value;
+  if (!pw || pw.length < 6) return toast('Şifre en az 6 karakter olmalı', 'error');
+  try {
+    await apiFetch('/api/auth/update-profile', { method: 'POST', json: { password: pw } });
+    toast('Şifre güncellendi', 'success');
+    document.getElementById('settingsNewPass').value = '';
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function upgradePlan() {
+  try {
+    await apiFetch('/api/payment/upgrade', { method: 'POST' });
+    toast('Plan yükseltildi! 🎉', 'success');
+    refreshProfile();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// ──── KEYBOARD ────
+function setupKeyboard() {
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (document.getElementById('modelModal').style.display === 'flex') closeModelModal();
+    }
+    if (e.key === 'Enter' && document.getElementById('authOverlay').style.display === 'flex') {
+      const login = document.getElementById('authLogin');
+      const reg = document.getElementById('authRegister');
+      if (login.style.display !== 'none') doLogin();
+      else if (reg.style.display !== 'none') doRegister();
+    }
+  });
+}
+
+// ──── HELPERS ────
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+function escAttr(s) {
+  return (s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+</script>
 </body>
 </html>
