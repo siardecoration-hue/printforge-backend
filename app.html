@@ -9,11 +9,12 @@
 <script type="importmap">
 {
   "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
   }
 }
 </script>
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
 <style>
 :root{
   --bg:#0a0a1a;--bg2:#0f0f24;--bg3:#14142e;
@@ -329,6 +330,7 @@ a{text-decoration:none;color:inherit}
 <body>
 <div class="toast-container" id="toastContainer"></div>
 <div class="mobile-overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
+
 <!-- ===== AUTH ===== -->
 <div class="auth-overlay" id="authOverlay">
   <div class="auth-bg">
@@ -390,6 +392,7 @@ a{text-decoration:none;color:inherit}
     </div>
   </div>
 </div>
+
 <!-- ===== APP ===== -->
 <div class="app-layout" id="appLayout" style="display:none">
   <aside class="sidebar" id="sidebar">
@@ -424,6 +427,7 @@ a{text-decoration:none;color:inherit}
       </div>
     </div>
   </aside>
+
   <div class="main-content">
     <div class="main-header">
       <button class="mobile-toggle" onclick="toggleSidebar()">☰</button>
@@ -434,6 +438,7 @@ a{text-decoration:none;color:inherit}
       ⚠️ E-posta adresinizi doğrulayın.
       <button onclick="resendVerification()">Tekrar Gönder</button>
     </div>
+
     <!-- PAGE: GENERATE -->
     <div class="main-body" id="page-generate" style="padding:0;overflow:hidden">
       <div class="gen-layout" style="height:100%">
@@ -480,6 +485,7 @@ a{text-decoration:none;color:inherit}
             <div class="progress-text"><span class="progress-step" id="progressStep">Başlatılıyor...</span><span id="progressPercent">0%</span></div>
           </div>
         </div>
+
         <!-- 3D Viewer + Editor -->
         <div class="gen-viewer">
           <div class="viewer-container" id="viewerContainer">
@@ -606,6 +612,7 @@ a{text-decoration:none;color:inherit}
         </div>
       </div>
     </div>
+
     <!-- PAGE: GALLERY -->
     <div class="main-body" id="page-gallery" style="display:none">
       <div class="gallery-toolbar">
@@ -618,10 +625,12 @@ a{text-decoration:none;color:inherit}
       </div>
       <div class="models-grid" id="galleryGrid"></div>
     </div>
+
     <!-- PAGE: MY MODELS -->
     <div class="main-body" id="page-mymodels" style="display:none">
       <div class="models-grid" id="myModelsGrid"></div>
     </div>
+
     <!-- PAGE: SETTINGS -->
     <div class="main-body" id="page-settings" style="display:none">
       <div class="settings-grid">
@@ -661,6 +670,7 @@ a{text-decoration:none;color:inherit}
         </div>
       </div>
     </div>
+
     <!-- PAGE: PLANS -->
     <div class="main-body" id="page-plans" style="display:none">
       <div style="text-align:center;margin-bottom:36px">
@@ -675,11 +685,13 @@ a{text-decoration:none;color:inherit}
     </div>
   </div>
 </div>
+
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+
 // ===== CONFIG =====
 const API = window.location.origin;
 let currentUser = null;
@@ -688,11 +700,13 @@ let currentTaskId = null;
 let currentStyle = 'realistic';
 let gallerySort = 'newest';
 let pollInterval = null;
+
 // ===== IMAGE SLOTS =====
 const MAX_SLOTS = 6;
 const imageSlots = Array(MAX_SLOTS).fill(null);
 let primarySlot = 0;
 const slotLabels = ['Ön', 'Sağ Yan', 'Arka', 'Sol Yan', 'Üst', 'Detay'];
+
 // ===== THREE.JS STATE =====
 let scene, camera, renderer, controls, raycaster, mouse;
 let loadedMeshes = [];
@@ -704,6 +718,7 @@ let undoStack = [], redoStack = [];
 let paintColor = '#6c5ce7';
 let autoRotate = false;
 let showWireframe = false;
+
 // ===== TOAST =====
 window.toast = function(msg, type = 'info') {
     const c = document.getElementById('toastContainer');
@@ -714,6 +729,7 @@ window.toast = function(msg, type = 'info') {
     c.appendChild(t);
     setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 4000);
 };
+
 // ===== AUTH =====
 window.switchAuth = function(tab) {
     document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
@@ -729,6 +745,7 @@ function showAuthMsg(msg, type = 'error') {
     const el = document.getElementById('authMsg');
     el.textContent = msg; el.className = 'msg-box msg-' + type; el.style.display = 'block';
 }
+
 window.doLogin = async function() {
     const email = document.getElementById('loginEmail').value.trim();
     const password = document.getElementById('loginPass').value;
@@ -746,6 +763,7 @@ window.doLogin = async function() {
     } catch (err) { showAuthMsg(err.message); }
     finally { btn.disabled = false; btn.textContent = 'Giriş Yap →'; }
 };
+
 window.doRegister = async function() {
     const name = document.getElementById('regName').value.trim();
     const email = document.getElementById('regEmail').value.trim();
@@ -765,6 +783,7 @@ window.doRegister = async function() {
     } catch (err) { showAuthMsg(err.message); }
     finally { btn.disabled = false; btn.textContent = 'Hesap Oluştur →'; }
 };
+
 window.doForgotPassword = async function() {
     const email = document.getElementById('forgotEmail').value.trim();
     if (!email) { showAuthMsg('E-posta girin'); return; }
@@ -774,6 +793,7 @@ window.doForgotPassword = async function() {
         showAuthMsg(data.message || 'Sıfırlama linki gönderildi', 'success');
     } catch { showAuthMsg('Hata oluştu'); }
 };
+
 window.doResetPassword = async function() {
     const pass = document.getElementById('resetPass').value;
     const confirm = document.getElementById('resetPassConfirm').value;
@@ -789,7 +809,9 @@ window.doResetPassword = async function() {
         setTimeout(() => switchAuth('login'), 1500);
     } catch (err) { showAuthMsg(err.message); }
 };
+
 window.doGoogleLogin = () => { window.location.href = API + '/api/auth/google'; };
+
 window.doLogout = function() {
     if (!confirm('Çıkış yapmak istiyor musunuz?')) return;
     currentUser = null; currentToken = '';
@@ -798,6 +820,7 @@ window.doLogout = function() {
     document.getElementById('appLayout').style.display = 'none';
     switchAuth('login'); toast('Çıkış yapıldı', 'info');
 };
+
 // ===== APP ENTRY =====
 function enterApp() {
     document.getElementById('authOverlay').classList.add('hidden');
@@ -805,20 +828,24 @@ function enterApp() {
     updateSidebar(); checkVerification(); loadUserData();
     initThreeJS(); renderImageSlots();
 }
+
 function updateSidebar() {
     if (!currentUser) return;
     document.getElementById('sidebarName').textContent = currentUser.name || 'Kullanıcı';
     document.getElementById('sidebarAvatar').textContent = (currentUser.name || 'U')[0].toUpperCase();
     document.getElementById('sidebarPlan').textContent = (currentUser.plan || 'free').toUpperCase();
 }
+
 function checkVerification() {
     const b = document.getElementById('verifyBanner');
     b.classList.toggle('hidden', !currentUser || currentUser.verified !== 0);
 }
+
 window.resendVerification = async function() {
     try { await fetch(API + '/api/auth/resend-verification', { method: 'POST', headers: { 'Authorization': 'Bearer ' + currentToken } }); toast('Doğrulama maili gönderildi', 'success'); }
     catch { toast('Hata oluştu', 'error'); }
 };
+
 async function loadUserData() {
     try {
         const res = await fetch(API + '/api/auth/me', { headers: { 'Authorization': 'Bearer ' + currentToken } });
@@ -843,6 +870,7 @@ async function loadUserData() {
         updateSidebar(); checkVerification();
     } catch (e) { console.log('User data error:', e); }
 }
+
 // ===== NAVIGATION =====
 window.navigateTo = function(page) {
     document.querySelectorAll('.main-body').forEach(p => p.style.display = 'none');
@@ -858,10 +886,12 @@ window.navigateTo = function(page) {
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('mobileOverlay').classList.remove('active');
 };
+
 window.toggleSidebar = function() {
     document.getElementById('sidebar').classList.toggle('open');
     document.getElementById('mobileOverlay').classList.toggle('active');
 };
+
 // ===== GENERATE TABS =====
 window.switchGenTab = function(tab, btn) {
     document.getElementById('genText').style.display = tab === 'text' ? 'block' : 'none';
@@ -875,6 +905,7 @@ window.selectStyle = function(el, style) {
     el.classList.add('active');
 };
 window.updateCharCount = function() { document.getElementById('charCount').textContent = document.getElementById('promptInput').value.length; };
+
 // ===== IMAGE UPLOAD =====
 function renderImageSlots() {
     const grid = document.getElementById('imageGrid');
@@ -914,6 +945,7 @@ window.handleMultiDrop = function(e) {
     e.target.value = '';
 };
 renderImageSlots();
+
 // ===== THREE.JS EDITOR =====
 function initThreeJS() {
     const container = document.getElementById('viewerContainer');
@@ -948,6 +980,7 @@ function initThreeJS() {
     window.addEventListener('resize', onResizeViewer);
     animate();
 }
+
 function animate() {
     requestAnimationFrame(animate);
     if (controls) controls.update();
@@ -962,6 +995,7 @@ function animate() {
     });
     if (renderer && scene && camera) renderer.render(scene, camera);
 }
+
 function onResizeViewer() {
     const container = document.getElementById('viewerContainer');
     if (!container || !renderer) return;
@@ -971,6 +1005,7 @@ function onResizeViewer() {
     camera.updateProjectionMatrix();
     renderer.setSize(w, h);
 }
+
 function onViewerClick(event) {
     if (!loadedMeshes.length) return;
     const rect = renderer.domElement.getBoundingClientRect();
@@ -992,6 +1027,7 @@ function onViewerClick(event) {
         }
     }
 }
+
 function selectMeshPart(mesh) {
     selectedMesh = mesh;
     const info = document.getElementById('selectionInfo');
@@ -1011,6 +1047,7 @@ function selectMeshPart(mesh) {
         el.classList.toggle('selected', el.dataset.name === mesh.uuid);
     });
 }
+
 function loadModelIntoScene(url) {
     const loader = new GLTFLoader();
     // Clear old
@@ -1018,6 +1055,7 @@ function loadModelIntoScene(url) {
     loadedMeshes = [];
     selectedMesh = null;
     scene.rotation.y = 0;
+
     loader.load(url, (gltf) => {
         const model = gltf.scene;
         // Calculate bounds for centering
@@ -1028,6 +1066,7 @@ function loadModelIntoScene(url) {
         const scale = 2 / maxDim;
         model.scale.setScalar(scale);
         model.position.sub(center.multiplyScalar(scale));
+
         model.traverse((child) => {
             if (child.isMesh) {
                 child.castShadow = true;
@@ -1063,6 +1102,7 @@ function loadModelIntoScene(url) {
         toast('Model yüklenemedi', 'error');
     });
 }
+
 function updateMeshList() {
     const list = document.getElementById('meshList');
     list.innerHTML = loadedMeshes.map((m, i) => {
@@ -1072,6 +1112,7 @@ function updateMeshList() {
     }).join('');
 }
 window._selectMeshByIndex = function(i) { if(loadedMeshes[i]) selectMeshPart(loadedMeshes[i]); };
+
 // ===== EDITOR TOOLS =====
 window.setEditorMode = function(mode) {
     editorMode = mode;
@@ -1080,6 +1121,7 @@ window.setEditorMode = function(mode) {
     document.getElementById('modeIndicator').classList.toggle('active', mode==='paint');
     renderer.domElement.style.cursor = mode === 'paint' ? 'crosshair' : 'grab';
 };
+
 window.setMeshColor = function(color, swatch) {
     paintColor = color;
     if (selectedMesh && editorMode === 'select') {
@@ -1090,6 +1132,7 @@ window.setMeshColor = function(color, swatch) {
     }
     if (swatch) { document.querySelectorAll('#meshColorRow .color-sw').forEach(s=>s.classList.remove('active')); swatch.classList.add('active'); }
 };
+
 window.setMeshMaterial = function(prop, val) {
     val = parseFloat(val);
     document.getElementById('val' + prop.charAt(0).toUpperCase() + prop.slice(1)).textContent = val.toFixed(2);
@@ -1099,6 +1142,7 @@ window.setMeshMaterial = function(prop, val) {
     selectedMesh.material[prop] = val;
     if (prop === 'opacity') selectedMesh.material.transparent = val < 1;
 };
+
 window.applyPreset = function(preset) {
     if (!selectedMesh) { toast('Önce bir parça seçin', 'info'); return; }
     saveUndo(selectedMesh);
@@ -1131,6 +1175,7 @@ window.applyPreset = function(preset) {
     updateMeshList();
     toast(preset + ' uygulandı', 'success');
 };
+
 // Light controls
 window.setLight = function(prop, val) {
     val = parseFloat(val);
@@ -1142,12 +1187,14 @@ window.setLightPos = function(axis, val) {
     directionalLight.position[axis] = val;
     document.getElementById('valL' + axis.toUpperCase()).textContent = val;
 };
+
 // Background
 window.setBgColor = function(color, swatch) {
     if (scene) scene.background = new THREE.Color(color);
     document.getElementById('viewerContainer').style.background = color;
     if (swatch) { document.querySelectorAll('#panelBg .color-sw').forEach(s=>s.classList.remove('active')); swatch.classList.add('active'); }
 };
+
 // Toggle tools
 window.toggleAutoRotate = function() {
     autoRotate = !autoRotate;
@@ -1190,6 +1237,7 @@ window.takeScreenshot = function() {
     link.click();
     toast('Ekran görüntüsü indirildi', 'success');
 };
+
 // ===== UNDO/REDO =====
 function saveUndo(mesh) {
     if (!mesh || !mesh.material) return;
@@ -1230,6 +1278,7 @@ window.editorRedo = function() {
     mesh.material.opacity = state.opacity;
     updateMeshList();
 };
+
 // ===== EXPORT EDITED GLB =====
 window.exportEditedGLB = function() {
     if (!loadedMeshes.length) { toast('İndirilecek model yok', 'error'); return; }
@@ -1249,6 +1298,7 @@ window.exportEditedGLB = function() {
         toast('Düzenlenmiş model indirildi!', 'success');
     }, (err) => { toast('Dışa aktarma hatası', 'error'); console.error(err); }, { binary: true });
 };
+
 // ===== GENERATE TEXT =====
 window.generateText = async function() {
     const prompt = document.getElementById('promptInput').value.trim();
@@ -1263,6 +1313,7 @@ window.generateText = async function() {
         toast('Model üretimi başlatıldı!', 'success');
     } catch (err) { toast(err.message, 'error'); resetGenBtn(); }
 };
+
 window.generateImage = async function() {
     const primary = imageSlots[primarySlot];
     if (!primary) { toast('En az 1 görsel yükleyin', 'error'); return; }
@@ -1277,6 +1328,7 @@ window.generateImage = async function() {
         toast('Model üretimi başlatıldı!', 'success');
     } catch (err) { toast(err.message, 'error'); resetGenBtn(); }
 };
+
 function showProgress() { document.getElementById('genProgress').classList.add('active'); }
 function hideProgress() { document.getElementById('genProgress').classList.remove('active'); }
 function resetGenBtn() {
@@ -1306,12 +1358,14 @@ function startPolling() {
         } catch (e) { console.log('Poll error:', e); }
     }, 2000);
 }
+
 // ===== DOWNLOAD =====
 window.downloadModel = function(format) {
     if (!currentTaskId) { toast('Model yok', 'error'); return; }
     window.open(API + '/api/model/' + currentTaskId + '/' + format, '_blank');
     toast(format.toUpperCase() + ' indiriliyor...', 'info');
 };
+
 // ===== GALLERY =====
 window.setGallerySort = function(sort, btn) {
     gallerySort = sort;
@@ -1335,6 +1389,7 @@ window._likeModel = async function(id, btn) {
     try { const res = await fetch(API + '/api/gallery/' + id + '/like', { method: 'POST', headers: { 'Authorization': 'Bearer ' + currentToken } }); const d = await res.json(); btn.textContent = d.liked ? '❤' : '♡'; btn.classList.toggle('liked', d.liked); }
     catch { toast('Giriş yapın', 'error'); }
 };
+
 // ===== MY MODELS =====
 async function loadMyModels() {
     const grid = document.getElementById('myModelsGrid');
@@ -1351,6 +1406,7 @@ window._deleteModel = async function(id, btn) {
     try { await fetch(API + '/api/my-models/' + id, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + currentToken } }); btn.closest('.model-card').remove(); toast('Model silindi', 'success'); loadUserData(); }
     catch { toast('Silme başarısız', 'error'); }
 };
+
 // ===== SETTINGS =====
 window.switchSettingsTab = function(tab, btn) {
     ['Profile','Usage','Billing'].forEach(t => { const el = document.getElementById('settings'+t); if(el) el.style.display = t.toLowerCase()===tab ? 'block' : 'none'; });
@@ -1372,6 +1428,7 @@ window.saveProfile = async function() {
         document.getElementById('settingsPass').value = '';
     } catch { toast('Kaydetme başarısız', 'error'); }
 };
+
 // ===== PLANS =====
 window.upgradePlan = async function(plan) {
     if (!confirm(`${plan.toUpperCase()} planına geçmek istiyor musunuz?`)) return;
@@ -1381,6 +1438,7 @@ window.upgradePlan = async function(plan) {
         if (d.success) { currentUser.plan = d.plan; localStorage.setItem('pf_user', JSON.stringify(currentUser)); updateSidebar(); loadUserData(); toast('Plan yükseltildi!', 'success'); }
     } catch { toast('Yükseltme başarısız', 'error'); }
 };
+
 // ===== INIT =====
 async function init() {
     if (new URLSearchParams(window.location.search).get('reset')) { switchAuth('reset'); return; }
