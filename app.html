@@ -6,14 +6,6 @@
 <title>PrintForge — AI 3D Model Üretici</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-  }
-}
-</script>
 <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
 <style>
 :root{
@@ -38,205 +30,183 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text)}
 ::-webkit-scrollbar-thumb{background:var(--primary);border-radius:3px}
 input,select,textarea,button{outline:none;font-family:inherit}
 a{text-decoration:none;color:inherit}
-/* ===== LAYOUT ===== */
 .app-layout{display:flex;height:100vh;width:100vw}
-/* ===== SIDEBAR ===== */
+/* SIDEBAR */
 .sidebar{width:var(--sidebar-w);background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;transition:transform .3s}
 .sb-logo{padding:20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);cursor:pointer}
 .sb-logo-icon{width:36px;height:36px;border-radius:10px;background:var(--grad1);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;color:#fff}
 .sb-logo-text{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:700;background:var(--grad1);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .sb-section{padding:16px 12px 8px}
 .sb-label{font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--text3);margin-bottom:8px;padding:0 8px;text-transform:uppercase}
-.sb-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);cursor:pointer;transition:all .15s;font-size:13px;font-weight:500;color:var(--text2);margin-bottom:2px}
-.sb-item:hover{background:rgba(108,92,231,.08);color:var(--text)}
-.sb-item.active{background:rgba(108,92,231,.12);color:var(--primary2)}
+.sb-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);cursor:pointer;transition:all .15s;font-size:13px;color:var(--text2);margin-bottom:2px;border:1px solid transparent}
+.sb-item:hover{background:rgba(108,92,231,.06);color:var(--text)}
+.sb-item.active{background:rgba(108,92,231,.1);color:var(--primary2);border-color:var(--border2)}
 .sb-item .icon{font-size:16px;width:22px;text-align:center;flex-shrink:0}
-.sb-item .badge{margin-left:auto;background:var(--grad1);color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
-.sb-usage{margin:auto 12px 0;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px}
-.sb-usage-title{font-size:11px;font-weight:600;color:var(--text3);margin-bottom:10px;display:flex;justify-content:space-between}
-.sb-usage-bar{height:4px;background:rgba(108,92,231,.15);border-radius:2px;overflow:hidden;margin-bottom:8px}
+.sb-item .badge{margin-left:auto;background:rgba(108,92,231,.15);color:var(--primary2);padding:2px 8px;border-radius:10px;font-size:10px}
+.sb-usage{margin:auto 14px 0;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;backdrop-filter:blur(10px)}
+.sb-usage-title{font-size:10px;font-weight:600;color:var(--text3);margin-bottom:10px;display:flex;justify-content:space-between}
+.sb-usage-bar{height:4px;background:var(--bg);border-radius:2px;overflow:hidden;margin-bottom:8px}
 .sb-usage-fill{height:100%;background:var(--grad1);border-radius:2px;transition:width .5s}
 .sb-usage-text{font-size:10px;color:var(--text3)}
-.sb-user{padding:14px 12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .15s}
+.sb-user{padding:14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .15s}
 .sb-user:hover{background:rgba(108,92,231,.05)}
-.sb-avatar{width:34px;height:34px;border-radius:50%;background:var(--grad1);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0}
+.sb-avatar{width:34px;height:34px;border-radius:50%;background:var(--grad1);display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:#fff;flex-shrink:0}
 .sb-user-info{flex:1;min-width:0}
-.sb-user-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sb-user-plan{font-size:10px;color:var(--cyan);font-weight:600;letter-spacing:.05em}
-/* ===== MAIN ===== */
+.sb-user-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-user-plan{font-size:10px;color:var(--primary2);font-weight:500}
+/* MAIN */
 .main-content{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
-.main-header{padding:14px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;background:var(--bg);flex-shrink:0}
+.main-header{padding:16px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;background:var(--bg);flex-shrink:0}
 .main-header h2{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;flex:1}
-.header-badge{font-size:10px;font-weight:600;color:var(--cyan);background:rgba(0,206,201,.1);border:1px solid rgba(0,206,201,.2);padding:4px 12px;border-radius:20px}
-.main-body{flex:1;overflow-y:auto;padding:24px}
+.header-badge{font-size:10px;font-weight:600;color:var(--primary2);background:rgba(108,92,231,.1);border:1px solid var(--border2);padding:4px 14px;border-radius:20px}
+.main-body{flex:1;overflow-y:auto;padding:28px}
 .mobile-toggle{display:none;background:none;border:none;color:var(--primary2);font-size:22px;cursor:pointer}
-.mobile-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:999;backdrop-filter:blur(4px)}
+.mobile-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999}
 .mobile-overlay.active{display:block}
-/* ===== AUTH ===== */
-.auth-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
+/* AUTH */
+.auth-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
 .auth-overlay.hidden{display:none}
-.auth-bg{position:absolute;inset:0;overflow:hidden}
-.auth-bg .blob{position:absolute;border-radius:50%;filter:blur(80px);animation:blobFloat 20s ease-in-out infinite}
-.blob-1{width:400px;height:400px;background:rgba(108,92,231,.15);top:-100px;left:-100px;animation-delay:0s}
-.blob-2{width:350px;height:350px;background:rgba(0,206,201,.1);bottom:-50px;right:-80px;animation-delay:-7s}
-.blob-3{width:250px;height:250px;background:rgba(253,121,168,.08);top:40%;right:20%;animation-delay:-14s}
-@keyframes blobFloat{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(30px,-40px) scale(1.05)}66%{transform:translate(-20px,30px) scale(.95)}}
-.auth-card{position:relative;z-index:1;width:100%;max-width:440px;background:var(--surface);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:20px;padding:40px 36px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
-.auth-card-logo{display:flex;align-items:center;gap:12px;justify-content:center;margin-bottom:32px}
-.auth-tabs{display:flex;background:rgba(108,92,231,.08);border-radius:var(--radius);padding:4px;margin-bottom:24px;gap:4px}
-.auth-tab{flex:1;padding:10px;text-align:center;background:transparent;border:none;border-radius:var(--radius-sm);color:var(--text3);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;letter-spacing:.05em;cursor:pointer;transition:all .2s}
-.auth-tab.active{background:var(--primary);color:#fff;box-shadow:0 4px 12px rgba(108,92,231,.3)}
-.auth-title{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;text-align:center;margin-bottom:6px}
+.auth-bg-glow{position:absolute;inset:0;background:radial-gradient(ellipse 600px 500px at 40% 40%,rgba(108,92,231,.08),transparent),radial-gradient(ellipse 400px 400px at 70% 70%,rgba(0,206,201,.05),transparent)}
+.auth-card{position:relative;z-index:1;width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);padding:40px 36px;border-radius:var(--radius);backdrop-filter:blur(20px)}
+.auth-card-logo{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:28px}
+.auth-tabs{display:flex;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:24px;overflow:hidden}
+.auth-tab{flex:1;padding:11px;background:transparent;border:none;color:var(--text3);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+.auth-tab.active{background:rgba(108,92,231,.12);color:var(--primary2)}
+.auth-title{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;text-align:center;margin-bottom:6px}
 .auth-sub{font-size:13px;color:var(--text3);text-align:center;margin-bottom:24px}
 .form-group{margin-bottom:14px}
-.form-label{font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;display:block}
-.form-input{width:100%;background:rgba(20,20,46,.8);border:1px solid var(--border);color:var(--text);padding:12px 14px;font-size:13px;border-radius:var(--radius-sm);transition:all .2s}
-.form-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(108,92,231,.15)}
+.form-label{font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px;display:block}
+.form-input{width:100%;background:rgba(15,15,36,.8);border:1px solid var(--border);color:var(--text);padding:12px 14px;font-size:13px;border-radius:var(--radius-sm);transition:border-color .2s}
+.form-input:focus{border-color:var(--primary)}
 .form-input::placeholder{color:var(--text3)}
-.btn-primary{width:100%;padding:13px;background:var(--grad1);color:#fff;border:none;font-size:13px;font-weight:600;border-radius:var(--radius-sm);cursor:pointer;transition:all .2s;margin-top:6px}
-.btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(108,92,231,.3)}
+.btn-primary{width:100%;padding:13px;background:var(--grad1);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);transition:all .2s;margin-top:6px}
+.btn-primary:hover{opacity:.9;transform:translateY(-1px)}
 .btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
-.auth-divider{display:flex;align-items:center;gap:14px;margin:18px 0;color:var(--text3);font-size:11px}
+.auth-divider{display:flex;align-items:center;gap:14px;margin:20px 0;color:var(--text3);font-size:11px}
 .auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border)}
-.btn-google{width:100%;padding:12px;background:transparent;color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:all .2s}
+.btn-google{width:100%;padding:12px;background:transparent;color:var(--text);border:1px solid var(--border);font-size:12px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:all .2s;border-radius:var(--radius-sm)}
 .btn-google:hover{border-color:var(--primary);background:rgba(108,92,231,.05)}
-.auth-footer{text-align:center;margin-top:18px;font-size:12px;color:var(--text3)}
-.auth-footer a{color:var(--primary2);cursor:pointer;font-weight:500}
+.auth-footer{text-align:center;margin-top:20px;font-size:12px;color:var(--text3)}
+.auth-footer a{color:var(--primary2);cursor:pointer;font-weight:600}
 .auth-link{color:var(--primary2);cursor:pointer;font-size:11px;font-weight:500}
-.msg-box{padding:10px 14px;font-size:12px;margin-bottom:14px;display:none;border-radius:var(--radius-sm);line-height:1.6}
-.msg-error{background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.2);color:var(--red)}
-.msg-success{background:rgba(0,184,148,.1);border:1px solid rgba(0,184,148,.2);color:var(--green)}
-/* ===== VERIFY BANNER ===== */
-.verify-banner{background:rgba(225,112,85,.1);border-bottom:1px solid rgba(225,112,85,.2);padding:10px 24px;display:flex;align-items:center;gap:12px;font-size:12px;color:var(--orange)}
+.msg-box{padding:10px 14px;font-size:12px;margin-bottom:14px;display:none;border-radius:var(--radius-xs);line-height:1.6}
+.msg-error{background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.25);color:var(--red)}
+.msg-success{background:rgba(0,184,148,.1);border:1px solid rgba(0,184,148,.25);color:var(--green)}
+/* VERIFY BANNER */
+.verify-banner{background:rgba(225,112,85,.08);border-bottom:1px solid rgba(225,112,85,.2);padding:10px 28px;display:flex;align-items:center;gap:12px;font-size:12px;color:var(--orange)}
 .verify-banner.hidden{display:none}
-.verify-banner button{background:rgba(225,112,85,.15);border:1px solid rgba(225,112,85,.3);color:var(--orange);padding:4px 14px;font-size:10px;cursor:pointer;border-radius:var(--radius-xs);margin-left:auto;font-weight:600}
-/* ===== GENERATE PAGE ===== */
+.verify-banner button{background:rgba(225,112,85,.15);border:1px solid rgba(225,112,85,.3);color:var(--orange);padding:4px 14px;font-size:11px;cursor:pointer;border-radius:var(--radius-xs);margin-left:auto}
+/* GENERATE */
 .gen-layout{display:grid;grid-template-columns:380px 1fr;gap:0;height:100%;min-height:0}
-.gen-panel{background:var(--bg2);border-right:1px solid var(--border);padding:20px;overflow-y:auto}
+.gen-panel{background:var(--bg2);border-right:1px solid var(--border);padding:24px;overflow-y:auto}
 .gen-viewer{display:flex;flex-direction:column;background:var(--bg);min-height:0;position:relative}
-.gen-tabs{display:flex;background:rgba(108,92,231,.06);border-radius:var(--radius);padding:4px;margin-bottom:18px;gap:4px}
-.gen-tab{flex:1;padding:10px;text-align:center;font-size:12px;font-weight:600;cursor:pointer;background:transparent;border:none;color:var(--text3);border-radius:var(--radius-sm);transition:all .15s}
-.gen-tab.active{background:var(--primary);color:#fff;box-shadow:0 4px 12px rgba(108,92,231,.3)}
-.gen-section{margin-bottom:18px}
-.gen-section-title{font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--primary2);margin-bottom:10px;text-transform:uppercase}
-.gen-textarea{width:100%;background:rgba(20,20,46,.8);border:1px solid var(--border);color:var(--text);padding:14px;font-size:13px;border-radius:var(--radius-sm);resize:vertical;min-height:90px;transition:border-color .2s;line-height:1.6;font-family:'Inter',sans-serif}
-.gen-textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(108,92,231,.1)}
+.gen-tabs{display:flex;gap:0;margin-bottom:20px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
+.gen-tab{flex:1;padding:10px;text-align:center;font-size:12px;font-weight:600;cursor:pointer;background:transparent;border:none;color:var(--text3);transition:all .15s}
+.gen-tab.active{background:rgba(108,92,231,.1);color:var(--primary2)}
+.gen-section{margin-bottom:20px}
+.gen-section-title{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--primary2);margin-bottom:10px;text-transform:uppercase}
+.gen-textarea{width:100%;background:rgba(15,15,36,.6);border:1px solid var(--border);color:var(--text);padding:14px;font-size:13px;border-radius:var(--radius-sm);resize:vertical;min-height:100px;transition:border-color .2s;line-height:1.7;font-family:'Inter',sans-serif}
+.gen-textarea:focus{border-color:var(--primary)}
 .gen-textarea::placeholder{color:var(--text3)}
 .char-count{font-size:10px;color:var(--text3);text-align:right;margin-top:4px}
 .style-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.style-card{padding:12px 8px;border:1px solid var(--border);background:var(--surface);text-align:center;cursor:pointer;transition:all .15s;font-size:10px;font-weight:500;color:var(--text3);border-radius:var(--radius-sm)}
+.style-card{padding:14px 8px;border:1px solid var(--border);background:var(--surface);text-align:center;cursor:pointer;transition:all .15s;font-size:11px;font-weight:500;color:var(--text3);border-radius:var(--radius-xs)}
 .style-card:hover{border-color:var(--border2);color:var(--text)}
-.style-card.active{border-color:var(--primary);color:var(--primary2);background:rgba(108,92,231,.08);box-shadow:0 0 0 3px rgba(108,92,231,.1)}
+.style-card.active{border-color:var(--primary);color:var(--primary2);background:rgba(108,92,231,.08)}
 .style-card .style-icon{font-size:20px;margin-bottom:6px}
-.gen-btn{width:100%;padding:14px;background:var(--grad1);color:#fff;border:none;font-size:13px;font-weight:700;border-radius:var(--radius-sm);cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
-.gen-btn:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(108,92,231,.3)}
+.gen-btn{width:100%;padding:14px;background:var(--grad1);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;border-radius:var(--radius-sm);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.gen-btn:hover{opacity:.9;transform:translateY(-1px)}
 .gen-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
-.gen-btn.generating{background:var(--surface);color:var(--primary2);border:1px solid var(--primary);animation:genPulse 2s infinite}
-@keyframes genPulse{0%,100%{box-shadow:0 0 0 0 rgba(108,92,231,.2)}50%{box-shadow:0 0 20px 4px rgba(108,92,231,.1)}}
-/* ===== IMAGE GRID ===== */
-.image-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.image-slot{position:relative;aspect-ratio:1;border:1px dashed var(--border);background:var(--surface);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;overflow:hidden;border-radius:var(--radius-sm);flex-direction:column;gap:4px}
+.gen-btn.generating{background:var(--bg3);color:var(--primary2);border:1px solid var(--primary);animation:genPulse 2s infinite}
+@keyframes genPulse{0%,100%{box-shadow:0 0 0 0 rgba(108,92,231,.2)}50%{box-shadow:0 0 20px 4px rgba(108,92,231,.15)}}
+/* IMAGE UPLOAD */
+.image-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.image-slot{position:relative;aspect-ratio:1;border:2px dashed var(--border);background:var(--surface);display:flex;align-items:center;justify-content:center;flex-direction:column;cursor:pointer;transition:all .2s;overflow:hidden;border-radius:var(--radius-sm)}
 .image-slot:hover{border-color:var(--primary)}
-.image-slot.has-image{border-style:solid;border-color:rgba(0,206,201,.3)}
-.image-slot.primary{border-color:var(--primary);box-shadow:0 0 12px rgba(108,92,231,.2)}
-.image-slot img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
-.image-slot .slot-placeholder{color:var(--text3);font-size:20px;opacity:.4}
-.image-slot .slot-label{font-size:7px;font-weight:600;letter-spacing:.08em;color:var(--text3);text-transform:uppercase;position:relative;z-index:1}
-.image-slot.has-image .slot-label{position:absolute;bottom:0;left:0;right:0;padding:3px;background:rgba(10,10,26,.85);text-align:center;color:var(--text2)}
-.image-slot.primary .slot-label{color:var(--primary2);background:rgba(108,92,231,.2)}
-.image-slot .slot-remove{position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:rgba(255,107,107,.85);color:#fff;border:none;font-size:10px;cursor:pointer;display:none;align-items:center;justify-content:center;z-index:2}
+.image-slot.has-image{border-style:solid;border-color:var(--border2)}
+.image-slot.primary{border-color:var(--primary);box-shadow:0 0 16px rgba(108,92,231,.2)}
+.image-slot img{width:100%;height:100%;object-fit:cover;border-radius:var(--radius-xs)}
+.slot-placeholder{font-size:24px;opacity:.3;color:var(--text3)}
+.slot-label{position:absolute;bottom:0;left:0;right:0;padding:4px;background:rgba(10,10,26,.85);font-size:9px;font-weight:600;color:var(--text3);text-align:center;letter-spacing:.05em}
+.image-slot.primary .slot-label{color:var(--primary2);background:rgba(108,92,231,.15)}
+.slot-remove{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:rgba(255,107,107,.85);color:#fff;border:none;font-size:10px;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1}
 .image-slot.has-image .slot-remove{display:flex}
-.image-slot .slot-primary-btn{position:absolute;top:3px;left:3px;padding:2px 5px;background:rgba(108,92,231,.3);border:1px solid rgba(108,92,231,.4);color:var(--primary2);font-size:7px;cursor:pointer;display:none;border-radius:3px;z-index:2}
+.slot-primary-btn{position:absolute;top:4px;left:4px;padding:2px 6px;background:rgba(108,92,231,.3);border:1px solid rgba(108,92,231,.4);color:var(--primary2);font-size:9px;cursor:pointer;display:none;border-radius:3px;font-weight:600}
 .image-slot.has-image:not(.primary) .slot-primary-btn{display:block}
 .image-count-info{font-size:10px;color:var(--text3);margin-top:8px;text-align:center}
 .image-count-info span{color:var(--primary2);font-weight:600}
-.multi-upload-area{border:1px dashed var(--border);padding:12px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface);position:relative;border-radius:var(--radius-sm);margin-top:8px}
-.multi-upload-area:hover{border-color:var(--primary)}
-.multi-upload-area input{position:absolute;inset:0;opacity:0;cursor:pointer}
-.multi-upload-area .upload-text{font-size:10px;color:var(--text3)}
-.multi-upload-area .upload-text span{color:var(--primary2)}
-/* ===== PROGRESS ===== */
+.multi-drop-zone{border:2px dashed var(--border);padding:14px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface);border-radius:var(--radius-sm);margin-top:10px;position:relative}
+.multi-drop-zone:hover,.multi-drop-zone.dragover{border-color:var(--primary);background:rgba(108,92,231,.04)}
+.multi-drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.multi-drop-zone .drop-text{font-size:11px;color:var(--text3)}
+.multi-drop-zone .drop-text span{color:var(--primary2);font-weight:600}
+/* PROGRESS */
 .gen-progress{display:none;margin-top:16px}
 .gen-progress.active{display:block}
-.progress-bar-bg{height:6px;background:rgba(108,92,231,.1);border-radius:3px;overflow:hidden;margin-bottom:10px}
+.progress-bar-bg{height:6px;background:var(--bg);border-radius:3px;overflow:hidden;margin-bottom:10px}
 .progress-bar-fill{height:100%;background:var(--grad1);border-radius:3px;transition:width .5s;width:0%}
 .progress-text{font-size:11px;color:var(--text3);display:flex;justify-content:space-between}
 .progress-step{color:var(--primary2);font-weight:500}
-/* ===== 3D VIEWER ===== */
-.viewer-container{flex:1;position:relative;background:var(--bg);min-height:300px;cursor:grab;overflow:hidden}
-.viewer-container:active{cursor:grabbing}
-.viewer-container canvas{display:block;width:100%!important;height:100%!important}
-.viewer-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--text3);pointer-events:none;z-index:1}
+/* 3D VIEWER */
+.viewer-container{flex:1;display:flex;align-items:center;justify-content:center;position:relative;background:var(--bg);min-height:300px}
+.viewer-container model-viewer{width:100%;height:100%;min-height:400px;background:transparent;--poster-color:transparent}
+.viewer-empty{text-align:center;color:var(--text3)}
 .viewer-empty .ve-icon{font-size:64px;opacity:.15;margin-bottom:16px}
 .viewer-empty .ve-title{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px}
 .viewer-empty .ve-sub{font-size:12px;line-height:1.8}
-/* ===== EDITOR TOOLBAR ===== */
-.viewer-toolbar{border-top:1px solid var(--border);background:var(--bg2);display:none;flex-direction:column;flex-shrink:0}
+.viewer-loading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,10,26,.85);z-index:10}
+.viewer-loading.hidden{display:none}
+.loading-spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.viewer-loading-text{font-size:12px;color:var(--text3);font-weight:500}
+.viewer-error{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,10,26,.85);z-index:10;gap:12px}
+.viewer-error.hidden{display:none}
+.viewer-error button{padding:8px 20px;background:var(--grad1);color:#fff;border:none;border-radius:var(--radius-xs);cursor:pointer;font-size:12px;font-weight:600}
+/* VIEWER TOOLBAR */
+.viewer-toolbar{border-top:1px solid var(--border);background:var(--bg2);display:none;flex-direction:column}
 .viewer-toolbar.active{display:flex}
-.toolbar-main{padding:8px 16px;display:flex;gap:4px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--border)}
-.vt-btn{padding:7px 12px;background:var(--surface);border:1px solid var(--border);color:var(--text2);font-size:10px;font-weight:500;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px;border-radius:var(--radius-xs)}
+.toolbar-row{padding:10px 16px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--border)}
+.toolbar-row:last-child{border-bottom:none}
+.vt-btn{padding:7px 12px;background:var(--surface);border:1px solid var(--border);color:var(--text2);font-size:11px;font-weight:500;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px;border-radius:var(--radius-xs)}
 .vt-btn:hover{border-color:var(--primary);color:var(--primary2)}
 .vt-btn.active{background:rgba(108,92,231,.12);border-color:var(--primary);color:var(--primary2)}
-.vt-btn.accent{background:var(--grad1);color:#fff;border:none}
-.vt-btn.accent:hover{box-shadow:0 4px 12px rgba(108,92,231,.3)}
-.vt-sep{width:1px;height:24px;background:var(--border);margin:0 4px}
-.vt-info{margin-left:auto;font-size:10px;color:var(--text3)}
-/* Editor Panels */
-.editor-panel{display:none;border-bottom:1px solid var(--border);background:var(--bg3);max-height:200px;overflow-y:auto}
-.editor-panel.active{display:block}
-.ep-inner{padding:12px 16px;display:flex;gap:16px;flex-wrap:wrap}
-.ep-group{min-width:140px}
-.ep-group-title{font-size:9px;font-weight:700;letter-spacing:.1em;color:var(--primary2);margin-bottom:8px;text-transform:uppercase}
-.ep-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.ep-label{font-size:10px;color:var(--text3);min-width:50px;font-weight:500}
-.ep-slider{-webkit-appearance:none;appearance:none;height:4px;background:rgba(108,92,231,.15);border-radius:2px;outline:none;cursor:pointer;flex:1;min-width:70px}
-.ep-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--primary);cursor:pointer;border:2px solid var(--bg)}
-.ep-val{font-size:10px;color:var(--text2);min-width:30px;text-align:right;font-weight:500}
-.color-row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
-.color-sw{width:22px;height:22px;border:2px solid transparent;border-radius:6px;cursor:pointer;transition:all .15s}
+.vt-btn.primary-btn{background:var(--grad1);color:#fff;border-color:transparent}
+.vt-btn.primary-btn:hover{opacity:.9}
+.vt-sep{width:1px;height:24px;background:var(--border);margin:0 2px}
+.vt-info{margin-left:auto;font-size:10px;color:var(--text3);font-weight:500}
+/* EDIT PANEL */
+.edit-panel{display:none;padding:14px 16px;border-bottom:1px solid var(--border);background:rgba(15,15,36,.5);flex-wrap:wrap;gap:20px}
+.edit-panel.active{display:flex}
+.edit-group{display:flex;flex-direction:column;gap:6px;min-width:130px}
+.edit-group-title{font-size:9px;font-weight:700;letter-spacing:.1em;color:var(--primary2);text-transform:uppercase}
+.edit-row{display:flex;align-items:center;gap:8px}
+.edit-label{font-size:10px;color:var(--text3);min-width:55px;font-weight:500}
+.edit-slider{-webkit-appearance:none;appearance:none;height:4px;background:var(--border);border-radius:2px;cursor:pointer;flex:1;min-width:80px}
+.edit-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--primary);cursor:pointer;border:2px solid var(--bg)}
+.edit-value{font-size:10px;color:var(--text);min-width:35px;text-align:right;font-weight:500}
+.color-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.color-sw{width:22px;height:22px;border:2px solid transparent;border-radius:4px;cursor:pointer;transition:all .15s}
 .color-sw:hover{transform:scale(1.15)}
 .color-sw.active{border-color:var(--primary);box-shadow:0 0 8px rgba(108,92,231,.4)}
-.color-sw input[type="color"]{position:absolute;opacity:0;width:0;height:0}
-/* Material Presets */
-.mat-presets{display:flex;gap:4px;flex-wrap:wrap}
-.mat-preset{padding:5px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:9px;font-weight:600;color:var(--text3);cursor:pointer;transition:all .15s}
-.mat-preset:hover{border-color:var(--primary);color:var(--primary2)}
-.mat-preset.active{background:rgba(108,92,231,.12);border-color:var(--primary);color:var(--primary2)}
-/* Mesh List */
-.mesh-list{max-height:120px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--surface)}
-.mesh-item{padding:6px 10px;font-size:10px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .1s;border-bottom:1px solid rgba(108,92,231,.06)}
-.mesh-item:hover{background:rgba(108,92,231,.06)}
-.mesh-item.selected{background:rgba(108,92,231,.12);color:var(--primary2)}
-.mesh-item .mesh-color{width:12px;height:12px;border-radius:3px;border:1px solid rgba(255,255,255,.2);flex-shrink:0}
-.mesh-item .mesh-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* Download bar */
-.download-bar{padding:8px 16px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;background:var(--bg2)}
-/* Selection indicator */
-.selection-info{position:absolute;top:12px;left:12px;background:rgba(10,10,26,.85);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 14px;font-size:11px;color:var(--primary2);display:none;z-index:10;font-weight:500}
-.selection-info.active{display:flex;align-items:center;gap:8px}
-/* Mode indicator */
-.mode-indicator{position:absolute;top:12px;right:12px;background:rgba(253,121,168,.15);border:1px solid rgba(253,121,168,.3);border-radius:20px;padding:6px 14px;font-size:10px;color:var(--pink);display:none;z-index:10;font-weight:600}
-.mode-indicator.active{display:block}
-/* ===== GALLERY PAGE ===== */
+/* GALLERY / MODELS */
 .gallery-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)}
-.search-box{display:flex;align-items:center;gap:8px;border:1px solid var(--border);background:var(--surface);padding:9px 14px;flex:1;max-width:320px;border-radius:var(--radius-sm);transition:border-color .2s}
+.search-box{display:flex;align-items:center;gap:8px;border:1px solid var(--border);background:var(--surface);padding:9px 14px;flex:1;max-width:320px;border-radius:var(--radius-sm)}
 .search-box:focus-within{border-color:var(--primary)}
 .search-box input{background:transparent;border:none;color:var(--text);font-size:12px;width:100%}
 .search-box input::placeholder{color:var(--text3)}
-.filter-chips{display:flex;gap:6px;flex-wrap:wrap}
 .filter-chip{padding:6px 14px;border:1px solid var(--border);background:transparent;color:var(--text3);font-size:11px;font-weight:500;cursor:pointer;transition:all .15s;border-radius:20px}
 .filter-chip:hover,.filter-chip.active{border-color:var(--primary);color:var(--primary2);background:rgba(108,92,231,.08)}
 .models-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
-.model-card{background:var(--surface);border:1px solid var(--border);transition:all .25s;cursor:pointer;overflow:hidden;border-radius:var(--radius)}
-.model-card:hover{border-color:var(--border2);transform:translateY(-3px);box-shadow:0 12px 32px rgba(0,0,0,.25)}
-.model-thumb{height:180px;background:var(--bg2);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
-.model-thumb .thumb-placeholder{font-size:48px;opacity:.1}
-.model-thumb .thumb-overlay{position:absolute;inset:0;background:rgba(0,0,0,0);transition:background .2s;display:flex;align-items:center;justify-content:center;gap:8px;opacity:0}
+.model-card{background:var(--surface);border:1px solid var(--border);transition:all .25s;cursor:pointer;overflow:hidden;border-radius:var(--radius);backdrop-filter:blur(10px)}
+.model-card:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow:0 12px 32px rgba(0,0,0,.3)}
+.model-thumb{height:180px;background:var(--bg2);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0}
+.model-thumb .thumb-placeholder{font-size:48px;opacity:.1;color:var(--primary2)}
+.thumb-overlay{position:absolute;inset:0;background:rgba(0,0,0,0);transition:background .2s;display:flex;align-items:center;justify-content:center;gap:8px;opacity:0}
 .model-card:hover .thumb-overlay{opacity:1;background:rgba(0,0,0,.4)}
-.thumb-overlay button{background:var(--grad1);color:#fff;border:none;padding:8px 16px;font-size:10px;font-weight:600;border-radius:var(--radius-sm);cursor:pointer}
-.model-style-tag{position:absolute;top:8px;left:8px;background:rgba(10,10,26,.85);border:1px solid var(--border);padding:3px 10px;font-size:9px;font-weight:600;color:var(--primary2);border-radius:4px}
+.thumb-overlay button{background:var(--grad1);color:#fff;border:none;padding:8px 16px;font-size:11px;font-weight:600;cursor:pointer;border-radius:var(--radius-xs)}
+.model-style-tag{position:absolute;top:8px;left:8px;background:rgba(10,10,26,.8);border:1px solid var(--border);padding:3px 10px;font-size:9px;font-weight:600;color:var(--primary2);border-radius:4px}
 .model-body{padding:14px}
-.model-title{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.model-title{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .model-meta{display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:10px}
 .model-stats{display:flex;gap:14px;margin-bottom:10px}
 .model-stat{font-size:10px;color:var(--text3)}
@@ -244,76 +214,77 @@ a{text-decoration:none;color:inherit}
 .model-actions{display:flex;gap:6px}
 .model-action-btn{flex:1;padding:7px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:10px;font-weight:500;cursor:pointer;transition:all .15s;border-radius:var(--radius-xs)}
 .model-action-btn:hover{border-color:var(--primary);color:var(--primary2)}
-.model-action-btn.download{background:var(--grad1);color:#fff;border:none}
+.model-action-btn.download{background:var(--grad1);color:#fff;border-color:transparent}
 .model-action-btn.liked{color:var(--pink);border-color:rgba(253,121,168,.4)}
 .model-action-btn.delete{color:var(--red);border-color:rgba(255,107,107,.3)}
-/* ===== SETTINGS ===== */
+/* SETTINGS */
 .settings-grid{display:grid;grid-template-columns:200px 1fr;gap:0;min-height:400px}
 .settings-nav{border-right:1px solid var(--border);padding:8px 0}
 .settings-nav-item{padding:10px 20px;font-size:12px;font-weight:500;color:var(--text3);cursor:pointer;transition:all .15s;border-left:2px solid transparent}
 .settings-nav-item:hover{color:var(--text);background:rgba(108,92,231,.04)}
 .settings-nav-item.active{color:var(--primary2);border-left-color:var(--primary);background:rgba(108,92,231,.06)}
-.settings-body{padding:0 24px}
+.settings-body{padding:0 28px}
 .settings-section{max-width:500px}
 .settings-title{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;margin-bottom:8px}
 .settings-desc{font-size:12px;color:var(--text3);margin-bottom:24px;line-height:1.8}
-.settings-form-row{margin-bottom:14px}
-.btn-save{padding:10px 28px;background:var(--grad1);color:#fff;border:none;font-size:12px;font-weight:600;border-radius:var(--radius-sm);cursor:pointer;transition:all .2s}
-.btn-save:hover{box-shadow:0 4px 16px rgba(108,92,231,.3)}
-.btn-danger{padding:10px 28px;background:transparent;border:1px solid rgba(255,107,107,.3);color:var(--red);font-size:12px;font-weight:600;border-radius:var(--radius-sm);cursor:pointer;transition:all .2s}
+.btn-save{padding:10px 28px;background:var(--grad1);color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-xs);transition:all .2s}
+.btn-save:hover{opacity:.9}
+.btn-danger{padding:10px 28px;background:transparent;border:1px solid rgba(255,107,107,.3);color:var(--red);font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-xs)}
 .btn-danger:hover{background:rgba(255,107,107,.08)}
+.plan-card{padding:20px;border:1px solid var(--border);background:var(--surface);margin-bottom:16px;display:flex;align-items:center;gap:16px;border-radius:var(--radius)}
+.plan-card .plan-name{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700}
+.plan-card .plan-detail{font-size:11px;color:var(--text3);margin-top:4px}
+.plan-card .plan-badge-tag{margin-left:auto;padding:4px 14px;border:1px solid var(--border2);color:var(--primary2);font-size:10px;font-weight:600;border-radius:20px}
 .usage-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
 .usage-stat-card{padding:18px;border:1px solid var(--border);background:var(--surface);text-align:center;border-radius:var(--radius)}
 .usage-stat-num{font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:800;background:var(--grad1);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.usage-stat-label{font-size:10px;color:var(--text3);font-weight:600;margin-top:4px}
-.plan-card{padding:20px;border:1px solid var(--border);background:var(--surface);margin-bottom:16px;display:flex;align-items:center;gap:16px;border-radius:var(--radius)}
-.plan-card .plan-name{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700}
-.plan-card .plan-detail{font-size:11px;color:var(--text3);margin-top:4px}
-.plan-card .plan-badge-tag{margin-left:auto;padding:4px 14px;background:rgba(108,92,231,.1);border:1px solid var(--border2);color:var(--primary2);font-size:10px;font-weight:600;border-radius:20px}
-/* ===== PLANS ===== */
+.usage-stat-label{font-size:10px;color:var(--text3);font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:.05em}
+/* PLANS */
 .plans-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-.plan-box{background:var(--surface);border:1px solid var(--border);padding:36px 28px;border-radius:20px;position:relative;transition:all .3s}
-.plan-box:hover{border-color:var(--border2);transform:translateY(-4px)}
-.plan-box.popular{border-color:var(--primary);background:rgba(108,92,231,.06);box-shadow:0 0 40px rgba(108,92,231,.1)}
-.popular-tag{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--grad1);color:#fff;padding:5px 20px;font-size:10px;font-weight:700;border-radius:20px;white-space:nowrap}
-.plan-box .plan-tier{font-size:11px;font-weight:700;color:var(--text3);margin-bottom:16px;letter-spacing:.1em}
-.plan-box .plan-price{font-family:'Space Grotesk',sans-serif;font-size:42px;font-weight:800;margin-bottom:6px}
+.plan-box{background:var(--surface);border:1px solid var(--border);padding:36px 28px;position:relative;transition:all .3s;border-radius:var(--radius);backdrop-filter:blur(10px)}
+.plan-box:hover{border-color:var(--border2);transform:translateY(-2px)}
+.plan-box.popular{border-color:var(--primary);box-shadow:0 0 40px rgba(108,92,231,.1)}
+.popular-tag{position:absolute;top:16px;right:16px;background:var(--grad1);color:#fff;padding:4px 12px;font-size:9px;font-weight:700;border-radius:20px}
+.plan-box .plan-tier{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--text3);margin-bottom:16px;text-transform:uppercase}
+.plan-box .plan-price{font-family:'Space Grotesk',sans-serif;font-size:44px;font-weight:800;line-height:1;margin-bottom:6px}
 .plan-box .plan-price span{font-size:14px;font-weight:400;color:var(--text3)}
 .plan-box .plan-period{font-size:11px;color:var(--text3);margin-bottom:24px}
 .plan-features{list-style:none;margin-bottom:28px}
 .plan-features li{font-size:12px;padding:8px 0;border-bottom:1px solid rgba(108,92,231,.08);display:flex;align-items:center;gap:8px;font-weight:500}
-.plan-features li::before{content:'✓';font-size:12px;color:var(--green);font-weight:700}
+.plan-features li::before{content:'✓';font-size:11px;color:var(--green);font-weight:700}
 .plan-features li.off{color:var(--text3)}
 .plan-features li.off::before{content:'—';color:var(--text3)}
-.plan-btn{width:100%;padding:12px;font-size:11px;font-weight:600;cursor:pointer;transition:all .2s;border:1px solid var(--border);background:transparent;color:var(--text);border-radius:var(--radius-sm)}
+.plan-btn{width:100%;padding:12px;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;border:1px solid var(--border);background:transparent;color:var(--text);border-radius:var(--radius-sm)}
 .plan-btn:hover{border-color:var(--primary);color:var(--primary2)}
-.plan-btn.highlight{background:var(--grad1);color:#fff;border:none}
-.plan-btn.highlight:hover{box-shadow:0 8px 24px rgba(108,92,231,.3)}
-/* ===== TOAST ===== */
+.plan-btn.highlight{background:var(--grad1);color:#fff;border-color:transparent}
+.plan-btn.highlight:hover{opacity:.9}
+/* TOAST */
 .toast-container{position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px}
-.toast{padding:12px 18px;font-size:12px;border-radius:var(--radius-sm);animation:toastIn .3s ease;max-width:360px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 32px rgba(0,0,0,.4);backdrop-filter:blur(10px);font-weight:500}
+.toast{padding:12px 18px;font-size:12px;border-radius:var(--radius-sm);animation:toastIn .3s ease;max-width:360px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 32px rgba(0,0,0,.4);backdrop-filter:blur(12px);font-weight:500}
 .toast.success{background:rgba(0,184,148,.15);border:1px solid rgba(0,184,148,.3);color:var(--green)}
 .toast.error{background:rgba(255,107,107,.15);border:1px solid rgba(255,107,107,.3);color:var(--red)}
 .toast.info{background:rgba(108,92,231,.15);border:1px solid rgba(108,92,231,.3);color:var(--primary2)}
 @keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
-/* ===== EMPTY STATE ===== */
+/* EMPTY STATE */
 .empty-state{text-align:center;padding:60px 20px;color:var(--text3)}
 .empty-state .empty-icon{font-size:48px;opacity:.15;margin-bottom:16px}
-.empty-state .empty-title{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px}
-.empty-state .empty-desc{font-size:12px;line-height:1.8;max-width:360px;margin:0 auto 20px}
-.empty-state button{padding:10px 24px;background:var(--grad1);color:#fff;border:none;font-size:11px;font-weight:600;border-radius:var(--radius-sm);cursor:pointer}
-/* ===== RESPONSIVE ===== */
+.empty-state .empty-title{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:700;color:var(--text);margin-bottom:8px}
+.empty-state .empty-desc{font-size:12px;line-height:1.8;margin-bottom:20px}
+.empty-state button{padding:10px 24px;background:var(--grad1);color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-xs)}
+.skeleton{background:linear-gradient(90deg,var(--bg2) 25%,var(--bg3) 50%,var(--bg2) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:var(--radius)}
+@keyframes shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+/* RESPONSIVE */
 @media(max-width:900px){
   .gen-layout{grid-template-columns:1fr}
-  .gen-viewer{min-height:350px}
+  .gen-panel{max-height:50vh;border-right:none;border-bottom:1px solid var(--border)}
   .settings-grid{grid-template-columns:1fr}
   .settings-nav{display:flex;overflow-x:auto;border-right:none;border-bottom:1px solid var(--border)}
-  .settings-nav-item{border-left:none;border-bottom:2px solid transparent;white-space:nowrap}
+  .settings-nav-item{border-left:none;border-bottom:2px solid transparent;white-space:nowrap;padding:10px 16px}
   .settings-nav-item.active{border-bottom-color:var(--primary);border-left-color:transparent}
   .settings-body{padding:20px 0}
   .plans-grid{grid-template-columns:1fr}
   .usage-stat-grid{grid-template-columns:1fr}
-  .image-grid{grid-template-columns:repeat(3,1fr)}
+  .edit-panel.active{flex-direction:column}
 }
 @media(max-width:768px){
   .sidebar{position:fixed;left:0;top:0;bottom:0;z-index:1000;transform:translateX(-100%)}
@@ -321,27 +292,21 @@ a{text-decoration:none;color:inherit}
   .mobile-toggle{display:block}
   .main-body{padding:16px}
   .models-grid{grid-template-columns:1fr}
-  .ep-inner{flex-direction:column;gap:12px}
-  .toolbar-main{overflow-x:auto;flex-wrap:nowrap}
   .image-grid{grid-template-columns:repeat(2,1fr)}
+  .toolbar-row{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
 }
 </style>
 </head>
 <body>
 <div class="toast-container" id="toastContainer"></div>
 <div class="mobile-overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
-
-<!-- ===== AUTH ===== -->
+<!-- AUTH -->
 <div class="auth-overlay" id="authOverlay">
-  <div class="auth-bg">
-    <div class="blob blob-1"></div>
-    <div class="blob blob-2"></div>
-    <div class="blob blob-3"></div>
-  </div>
+  <div class="auth-bg-glow"></div>
   <div class="auth-card">
     <div class="auth-card-logo">
-      <div class="sb-logo-icon">P</div>
-      <span style="font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;background:var(--grad1);-webkit-background-clip:text;-webkit-text-fill-color:transparent">PrintForge</span>
+      <div style="width:36px;height:36px;border-radius:10px;background:var(--grad1);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;color:#fff">P</div>
+      <span style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;background:var(--grad1);-webkit-background-clip:text;-webkit-text-fill-color:transparent">PRINTFORGE</span>
     </div>
     <div class="auth-tabs">
       <button class="auth-tab active" onclick="switchAuth('login')">Giriş Yap</button>
@@ -350,14 +315,14 @@ a{text-decoration:none;color:inherit}
     <div id="authMsg" class="msg-box"></div>
     <div id="loginForm">
       <h3 class="auth-title">Tekrar Hoş Geldin</h3>
-      <p class="auth-sub">Hesabına giriş yap ve model üretmeye başla</p>
-      <div class="form-group"><label class="form-label">E-posta</label><input class="form-input" type="email" id="loginEmail" placeholder="ornek@mail.com" onkeydown="if(event.key==='Enter')doLogin()"></div>
-      <div class="form-group"><label class="form-label">Şifre</label><input class="form-input" type="password" id="loginPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <p class="auth-sub">Hesabına giriş yap</p>
+      <div class="form-group"><label class="form-label">E-POSTA</label><input class="form-input" type="email" id="loginEmail" placeholder="ornek@mail.com" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <div class="form-group"><label class="form-label">ŞİFRE</label><input class="form-input" type="password" id="loginPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <div style="text-align:right;margin-bottom:12px"><a class="auth-link" onclick="switchAuth('forgot')">Şifremi Unuttum</a></div>
       <button class="btn-primary" id="loginBtn" onclick="doLogin()">Giriş Yap →</button>
       <div class="auth-divider">veya</div>
       <button class="btn-google" onclick="doGoogleLogin()">
-        <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.07 5.07 0 01-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A11.96 11.96 0 001 12c0 1.78.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.07 5.07 0 01-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
         Google ile Devam Et
       </button>
       <div class="auth-footer">Hesabın yok mu? <a onclick="switchAuth('register')">Kayıt ol</a></div>
@@ -365,13 +330,13 @@ a{text-decoration:none;color:inherit}
     <div id="registerForm" style="display:none">
       <h3 class="auth-title">Hesap Oluştur</h3>
       <p class="auth-sub">Ücretsiz başla, hemen model üret</p>
-      <div class="form-group"><label class="form-label">Ad Soyad</label><input class="form-input" type="text" id="regName" placeholder="Adın Soyadın" onkeydown="if(event.key==='Enter')doRegister()"></div>
-      <div class="form-group"><label class="form-label">E-posta</label><input class="form-input" type="email" id="regEmail" placeholder="ornek@mail.com" onkeydown="if(event.key==='Enter')doRegister()"></div>
-      <div class="form-group"><label class="form-label">Şifre</label><input class="form-input" type="password" id="regPass" placeholder="En az 6 karakter" onkeydown="if(event.key==='Enter')doRegister()"></div>
+      <div class="form-group"><label class="form-label">AD SOYAD</label><input class="form-input" type="text" id="regName" placeholder="Adın Soyadın" onkeydown="if(event.key==='Enter')doRegister()"></div>
+      <div class="form-group"><label class="form-label">E-POSTA</label><input class="form-input" type="email" id="regEmail" placeholder="ornek@mail.com" onkeydown="if(event.key==='Enter')doRegister()"></div>
+      <div class="form-group"><label class="form-label">ŞİFRE</label><input class="form-input" type="password" id="regPass" placeholder="En az 6 karakter" onkeydown="if(event.key==='Enter')doRegister()"></div>
       <button class="btn-primary" id="regBtn" onclick="doRegister()">Hesap Oluştur →</button>
       <div class="auth-divider">veya</div>
       <button class="btn-google" onclick="doGoogleLogin()">
-        <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.07 5.07 0 01-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A11.96 11.96 0 001 12c0 1.78.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.07 5.07 0 01-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
         Google ile Devam Et
       </button>
       <div class="auth-footer">Zaten hesabın var mı? <a onclick="switchAuth('login')">Giriş yap</a></div>
@@ -379,26 +344,25 @@ a{text-decoration:none;color:inherit}
     <div id="forgotForm" style="display:none">
       <h3 class="auth-title">Şifremi Unuttum</h3>
       <p class="auth-sub">E-posta adresine sıfırlama linki göndereceğiz</p>
-      <div class="form-group"><label class="form-label">E-posta</label><input class="form-input" type="email" id="forgotEmail" placeholder="ornek@mail.com" onkeydown="if(event.key==='Enter')doForgotPassword()"></div>
+      <div class="form-group"><label class="form-label">E-POSTA</label><input class="form-input" type="email" id="forgotEmail" placeholder="ornek@mail.com" onkeydown="if(event.key==='Enter')doForgotPassword()"></div>
       <button class="btn-primary" onclick="doForgotPassword()">Sıfırlama Linki Gönder</button>
       <div class="auth-footer" style="margin-top:16px"><a onclick="switchAuth('login')">← Giriş'e dön</a></div>
     </div>
     <div id="resetForm" style="display:none">
-      <h3 class="auth-title">Yeni Şifre</h3>
-      <p class="auth-sub">Yeni şifrenizi belirleyin</p>
-      <div class="form-group"><label class="form-label">Yeni Şifre</label><input class="form-input" type="password" id="resetPass" placeholder="En az 6 karakter"></div>
-      <div class="form-group"><label class="form-label">Şifre Tekrar</label><input class="form-input" type="password" id="resetPassConfirm" placeholder="Şifreyi tekrar girin"></div>
+      <h3 class="auth-title">Yeni Şifre Belirle</h3>
+      <p class="auth-sub">Yeni şifrenizi girin</p>
+      <div class="form-group"><label class="form-label">YENİ ŞİFRE</label><input class="form-input" type="password" id="resetPass" placeholder="En az 6 karakter"></div>
+      <div class="form-group"><label class="form-label">ŞİFRE TEKRAR</label><input class="form-input" type="password" id="resetPassConfirm" placeholder="Tekrar girin"></div>
       <button class="btn-primary" onclick="doResetPassword()">Şifreyi Değiştir</button>
     </div>
   </div>
 </div>
-
-<!-- ===== APP ===== -->
+<!-- APP LAYOUT -->
 <div class="app-layout" id="appLayout" style="display:none">
   <aside class="sidebar" id="sidebar">
     <div class="sb-logo" onclick="window.location.href='/'">
       <div class="sb-logo-icon">P</div>
-      <span class="sb-logo-text">PrintForge</span>
+      <span class="sb-logo-text">PRINTFORGE</span>
     </div>
     <div class="sb-section">
       <div class="sb-label">Oluştur</div>
@@ -414,8 +378,8 @@ a{text-decoration:none;color:inherit}
       <div class="sb-item" onclick="navigateTo('settings')" data-page="settings"><span class="icon">⚙</span> Ayarlar</div>
       <div class="sb-item" onclick="navigateTo('plans')" data-page="plans"><span class="icon">◆</span> Planlar</div>
     </div>
-    <div class="sb-usage" id="usageBox">
-      <div class="sb-usage-title"><span>Kullanım</span><span id="usageText">0 / 5</span></div>
+    <div class="sb-usage">
+      <div class="sb-usage-title"><span>KULLANIM</span><span id="usageText">0 / 5</span></div>
       <div class="sb-usage-bar"><div class="sb-usage-fill" id="usageFill" style="width:0%"></div></div>
       <div class="sb-usage-text" id="usageRemain">5 model kaldı</div>
     </div>
@@ -427,18 +391,16 @@ a{text-decoration:none;color:inherit}
       </div>
     </div>
   </aside>
-
   <div class="main-content">
     <div class="main-header">
       <button class="mobile-toggle" onclick="toggleSidebar()">☰</button>
       <h2 id="pageTitle">Model Üret</h2>
-      <span class="header-badge" id="headerBadge">AI Powered</span>
+      <span class="header-badge" id="headerBadge">AI POWERED</span>
     </div>
     <div class="verify-banner hidden" id="verifyBanner">
       ⚠️ E-posta adresinizi doğrulayın.
       <button onclick="resendVerification()">Tekrar Gönder</button>
     </div>
-
     <!-- PAGE: GENERATE -->
     <div class="main-body" id="page-generate" style="padding:0;overflow:hidden">
       <div class="gen-layout" style="height:100%">
@@ -447,11 +409,10 @@ a{text-decoration:none;color:inherit}
             <button class="gen-tab active" onclick="switchGenTab('text',this)">✍ Metin</button>
             <button class="gen-tab" onclick="switchGenTab('image',this)">🖼 Görsel</button>
           </div>
-          <!-- Text to 3D -->
           <div id="genText">
             <div class="gen-section">
               <div class="gen-section-title">Prompt</div>
-              <textarea class="gen-textarea" id="promptInput" placeholder="Modelinizi tanımlayın...&#10;Örnek: A detailed medieval castle" oninput="updateCharCount()"></textarea>
+              <textarea class="gen-textarea" id="promptInput" placeholder="Modelinizi tanımlayın...&#10;&#10;Örnek: A medieval castle with towers" oninput="updateCharCount()"></textarea>
               <div class="char-count"><span id="charCount">0</span> / 500</div>
             </div>
             <div class="gen-section">
@@ -467,15 +428,14 @@ a{text-decoration:none;color:inherit}
             </div>
             <button class="gen-btn" id="genTextBtn" onclick="generateText()">✦ Model Üret</button>
           </div>
-          <!-- Image to 3D -->
           <div id="genImage" style="display:none">
             <div class="gen-section">
-              <div class="gen-section-title">Görseller (1-6 adet)</div>
+              <div class="gen-section-title">Görseller Yükle (1-6 adet)</div>
               <div class="image-grid" id="imageGrid"></div>
               <div class="image-count-info" id="imageCountInfo"><span>0</span> / 6 görsel · ★ Ana görsel kullanılır</div>
-              <div class="multi-upload-area" id="multiDropZone">
+              <div class="multi-drop-zone" id="multiDropZone">
                 <input type="file" accept="image/*" multiple onchange="handleMultiDrop(event)">
-                <div class="upload-text">Sürükle-bırak ile <span>toplu yükle</span></div>
+                <div class="drop-text">Sürükle-bırak ile <span>toplu yükle</span> · JPG, PNG, WEBP · Max 10MB</div>
               </div>
             </div>
             <button class="gen-btn" id="genImageBtn" onclick="generateImage()">✦ Görselden Model Üret</button>
@@ -485,139 +445,72 @@ a{text-decoration:none;color:inherit}
             <div class="progress-text"><span class="progress-step" id="progressStep">Başlatılıyor...</span><span id="progressPercent">0%</span></div>
           </div>
         </div>
-
-        <!-- 3D Viewer + Editor -->
         <div class="gen-viewer">
           <div class="viewer-container" id="viewerContainer">
             <div class="viewer-empty" id="viewerEmpty">
-              <div><div class="ve-icon">✦</div>
-              <div class="ve-title">3D Editör</div>
-              <div class="ve-sub">Model üretin, ardından renkleri ve materyalleri düzenleyin</div></div>
+              <div class="ve-icon">✦</div>
+              <div class="ve-title">3D Görüntüleyici</div>
+              <div class="ve-sub">Sol panelden metin girin veya<br>görsel yükleyerek model üretin</div>
             </div>
-            <div class="selection-info" id="selectionInfo">
-              <span id="selMeshName">—</span>
-              <span style="font-size:9px;color:var(--text3)">Tıklayarak seçin</span>
+            <div class="viewer-loading hidden" id="viewerLoading">
+              <div class="loading-spinner"></div>
+              <div class="viewer-loading-text">Model yükleniyor...</div>
             </div>
-            <div class="mode-indicator" id="modeIndicator">🖌 Boya Modu</div>
+            <div class="viewer-error hidden" id="viewerError">
+              <div style="font-size:36px;opacity:.3">⚠</div>
+              <div style="font-size:13px;color:var(--red);font-weight:600">Model yüklenemedi</div>
+              <div style="font-size:11px;color:var(--text3)" id="viewerErrorMsg"></div>
+              <button onclick="retryLoadModel()">Tekrar Dene</button>
+            </div>
           </div>
           <div class="viewer-toolbar" id="viewerToolbar">
-            <div class="toolbar-main">
-              <button class="vt-btn active" id="btnSelect" onclick="setEditorMode('select')" title="Seç">🔍 Seç</button>
-              <button class="vt-btn" id="btnPaint" onclick="setEditorMode('paint')" title="Boya">🖌 Boya</button>
+            <div class="toolbar-row">
+              <button class="vt-btn active" id="btnAutoRotate" onclick="toggleAutoRotate()">↻ Döndür</button>
+              <button class="vt-btn" id="btnShadow" onclick="toggleShadow()">◐ Gölge</button>
               <div class="vt-sep"></div>
-              <button class="vt-btn" id="btnAutoRotate" onclick="toggleAutoRotate()">↻ Döndür</button>
-              <button class="vt-btn" id="btnGrid" onclick="toggleGrid()">▦ Grid</button>
-              <button class="vt-btn" id="btnWireframe" onclick="toggleWireframe()">◇ Wire</button>
-              <div class="vt-sep"></div>
-              <button class="vt-btn" id="btnEditorPanel" onclick="toggleEditorPanel('material')">🎨 Materyal</button>
-              <button class="vt-btn" id="btnLightPanel" onclick="toggleEditorPanel('light')">☀ Işık</button>
-              <button class="vt-btn" id="btnBgPanel" onclick="toggleEditorPanel('bg')">◧ Arkaplan</button>
-              <div class="vt-sep"></div>
-              <button class="vt-btn" onclick="editorUndo()" title="Geri Al">↩</button>
-              <button class="vt-btn" onclick="editorRedo()" title="İleri Al">↪</button>
+              <button class="vt-btn" id="btnEditPanel" onclick="toggleEditPanel()">⚙ Düzenle</button>
               <button class="vt-btn" onclick="resetCamera()">⊞ Sıfırla</button>
               <button class="vt-btn" onclick="takeScreenshot()">📷</button>
               <button class="vt-btn" onclick="toggleFullscreen()">⛶</button>
               <span class="vt-info" id="viewerInfo"></span>
             </div>
-            <!-- Material Editor Panel -->
-            <div class="editor-panel" id="panelMaterial">
-              <div class="ep-inner">
-                <div class="ep-group">
-                  <div class="ep-group-title">Seçili Parça</div>
-                  <div class="mesh-list" id="meshList"></div>
-                </div>
-                <div class="ep-group">
-                  <div class="ep-group-title">Renk</div>
-                  <div class="color-row" id="meshColorRow">
-                    <div class="color-sw active" style="background:#ff6b6b" onclick="setMeshColor('#ff6b6b',this)"></div>
-                    <div class="color-sw" style="background:#ffeaa7" onclick="setMeshColor('#ffeaa7',this)"></div>
-                    <div class="color-sw" style="background:#00b894" onclick="setMeshColor('#00b894',this)"></div>
-                    <div class="color-sw" style="background:#00cec9" onclick="setMeshColor('#00cec9',this)"></div>
-                    <div class="color-sw" style="background:#6c5ce7" onclick="setMeshColor('#6c5ce7',this)"></div>
-                    <div class="color-sw" style="background:#fd79a8" onclick="setMeshColor('#fd79a8',this)"></div>
-                    <div class="color-sw" style="background:#ffffff" onclick="setMeshColor('#ffffff',this)"></div>
-                    <div class="color-sw" style="background:#2d3436" onclick="setMeshColor('#2d3436',this)"></div>
-                    <div class="color-sw" style="background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red);position:relative">
-                      <input type="color" value="#6c5ce7" onchange="setMeshColor(this.value)" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
-                    </div>
-                  </div>
-                </div>
-                <div class="ep-group">
-                  <div class="ep-group-title">Materyal</div>
-                  <div class="ep-row"><span class="ep-label">Metalik</span><input type="range" class="ep-slider" id="slMetalness" min="0" max="1" step="0.05" value="0" oninput="setMeshMaterial('metalness',this.value)"><span class="ep-val" id="valMetalness">0</span></div>
-                  <div class="ep-row"><span class="ep-label">Pürüzlülük</span><input type="range" class="ep-slider" id="slRoughness" min="0" max="1" step="0.05" value="0.5" oninput="setMeshMaterial('roughness',this.value)"><span class="ep-val" id="valRoughness">0.5</span></div>
-                  <div class="ep-row"><span class="ep-label">Opaklık</span><input type="range" class="ep-slider" id="slOpacity" min="0" max="1" step="0.05" value="1" oninput="setMeshMaterial('opacity',this.value)"><span class="ep-val" id="valOpacity">1</span></div>
-                </div>
-                <div class="ep-group">
-                  <div class="ep-group-title">Preset</div>
-                  <div class="mat-presets">
-                    <div class="mat-preset" onclick="applyPreset('gold')">🥇 Altın</div>
-                    <div class="mat-preset" onclick="applyPreset('chrome')">🪞 Krom</div>
-                    <div class="mat-preset" onclick="applyPreset('plastic')">🧊 Plastik</div>
-                    <div class="mat-preset" onclick="applyPreset('wood')">🪵 Ahşap</div>
-                    <div class="mat-preset" onclick="applyPreset('glass')">💎 Cam</div>
-                    <div class="mat-preset" onclick="applyPreset('neon')">💡 Neon</div>
-                    <div class="mat-preset" onclick="applyPreset('rubber')">⚫ Kauçuk</div>
-                    <div class="mat-preset" onclick="applyPreset('ceramic')">🏺 Seramik</div>
-                  </div>
+            <div class="edit-panel" id="editPanel">
+              <div class="edit-group">
+                <div class="edit-group-title">Aydınlatma</div>
+                <div class="edit-row"><span class="edit-label">Pozlama</span><input type="range" class="edit-slider" id="slExposure" min="0" max="3" step="0.1" value="1" oninput="setViewerAttr('exposure',this.value);document.getElementById('valExposure').textContent=parseFloat(this.value).toFixed(1)"><span class="edit-value" id="valExposure">1.0</span></div>
+                <div class="edit-row"><span class="edit-label">Gölge</span><input type="range" class="edit-slider" id="slShadow" min="0" max="2" step="0.1" value="0" oninput="setViewerAttr('shadow-intensity',this.value);document.getElementById('valShadow').textContent=parseFloat(this.value).toFixed(1)"><span class="edit-value" id="valShadow">0.0</span></div>
+              </div>
+              <div class="edit-group">
+                <div class="edit-group-title">Döndürme</div>
+                <div class="edit-row"><span class="edit-label">Hız</span><input type="range" class="edit-slider" id="slRotSpeed" min="0" max="120" step="5" value="30" oninput="setRotSpeed(this.value);document.getElementById('valRotSpeed').textContent=this.value+'°'"><span class="edit-value" id="valRotSpeed">30°</span></div>
+              </div>
+              <div class="edit-group">
+                <div class="edit-group-title">Arka Plan</div>
+                <div class="color-row">
+                  <div class="color-sw active" style="background:#0a0a1a" onclick="setBgColor('#0a0a1a',this)"></div>
+                  <div class="color-sw" style="background:#1a1a2e" onclick="setBgColor('#1a1a2e',this)"></div>
+                  <div class="color-sw" style="background:#16213e" onclick="setBgColor('#16213e',this)"></div>
+                  <div class="color-sw" style="background:#0f3460" onclick="setBgColor('#0f3460',this)"></div>
+                  <div class="color-sw" style="background:#2d1b69" onclick="setBgColor('#2d1b69',this)"></div>
+                  <div class="color-sw" style="background:#ffffff" onclick="setBgColor('#ffffff',this)"></div>
                 </div>
               </div>
             </div>
-            <!-- Light Panel -->
-            <div class="editor-panel" id="panelLight">
-              <div class="ep-inner">
-                <div class="ep-group">
-                  <div class="ep-group-title">Aydınlatma</div>
-                  <div class="ep-row"><span class="ep-label">Yoğunluk</span><input type="range" class="ep-slider" id="slLightIntensity" min="0" max="5" step="0.1" value="1.5" oninput="setLight('intensity',this.value)"><span class="ep-val" id="valLightInt">1.5</span></div>
-                  <div class="ep-row"><span class="ep-label">Ambient</span><input type="range" class="ep-slider" id="slAmbient" min="0" max="3" step="0.1" value="0.6" oninput="setLight('ambient',this.value)"><span class="ep-val" id="valAmbient">0.6</span></div>
-                </div>
-                <div class="ep-group">
-                  <div class="ep-group-title">Işık Pozisyonu</div>
-                  <div class="ep-row"><span class="ep-label">X</span><input type="range" class="ep-slider" id="slLX" min="-10" max="10" step="0.5" value="5" oninput="setLightPos('x',this.value)"><span class="ep-val" id="valLX">5</span></div>
-                  <div class="ep-row"><span class="ep-label">Y</span><input type="range" class="ep-slider" id="slLY" min="-10" max="10" step="0.5" value="5" oninput="setLightPos('y',this.value)"><span class="ep-val" id="valLY">5</span></div>
-                  <div class="ep-row"><span class="ep-label">Z</span><input type="range" class="ep-slider" id="slLZ" min="-10" max="10" step="0.5" value="5" oninput="setLightPos('z',this.value)"><span class="ep-val" id="valLZ">5</span></div>
-                </div>
-              </div>
-            </div>
-            <!-- Background Panel -->
-            <div class="editor-panel" id="panelBg">
-              <div class="ep-inner">
-                <div class="ep-group">
-                  <div class="ep-group-title">Arka Plan Rengi</div>
-                  <div class="color-row">
-                    <div class="color-sw active" style="background:#0a0a1a" onclick="setBgColor('#0a0a1a',this)"></div>
-                    <div class="color-sw" style="background:#1a1a2e" onclick="setBgColor('#1a1a2e',this)"></div>
-                    <div class="color-sw" style="background:#16213e" onclick="setBgColor('#16213e',this)"></div>
-                    <div class="color-sw" style="background:#0f3460" onclick="setBgColor('#0f3460',this)"></div>
-                    <div class="color-sw" style="background:#1b1b2f" onclick="setBgColor('#1b1b2f',this)"></div>
-                    <div class="color-sw" style="background:#2c2c54" onclick="setBgColor('#2c2c54',this)"></div>
-                    <div class="color-sw" style="background:#4a4a6a" onclick="setBgColor('#4a4a6a',this)"></div>
-                    <div class="color-sw" style="background:#e0e0e0" onclick="setBgColor('#e0e0e0',this)"></div>
-                    <div class="color-sw" style="background:#ffffff" onclick="setBgColor('#ffffff',this)"></div>
-                    <div class="color-sw" style="background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red);position:relative">
-                      <input type="color" value="#0a0a1a" onchange="setBgColor(this.value,this.parentElement)" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="download-bar">
-              <button class="vt-btn accent" onclick="downloadModel('glb')">↓ GLB İndir</button>
+            <div class="toolbar-row">
+              <button class="vt-btn primary-btn" onclick="downloadModel('glb')">↓ GLB İndir</button>
               <button class="vt-btn" onclick="downloadModel('stl')">↓ STL</button>
               <button class="vt-btn" onclick="downloadModel('obj')">↓ OBJ</button>
-              <button class="vt-btn" onclick="exportEditedGLB()" title="Düzenlenmiş modeli kaydet" style="margin-left:auto">💾 Düzenlenmiş Kaydet</button>
+              <span class="vt-info" id="downloadInfo"></span>
             </div>
           </div>
         </div>
       </div>
     </div>
-
     <!-- PAGE: GALLERY -->
     <div class="main-body" id="page-gallery" style="display:none">
       <div class="gallery-toolbar">
         <div class="search-box"><span style="color:var(--text3)">🔍</span><input type="text" placeholder="Model ara..." id="gallerySearch" oninput="loadGallery()"></div>
-        <div class="filter-chips">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="filter-chip active" onclick="setGallerySort('newest',this)">Yeni</button>
           <button class="filter-chip" onclick="setGallerySort('popular',this)">Popüler</button>
           <button class="filter-chip" onclick="setGallerySort('downloads',this)">İndirilen</button>
@@ -625,12 +518,10 @@ a{text-decoration:none;color:inherit}
       </div>
       <div class="models-grid" id="galleryGrid"></div>
     </div>
-
     <!-- PAGE: MY MODELS -->
     <div class="main-body" id="page-mymodels" style="display:none">
       <div class="models-grid" id="myModelsGrid"></div>
     </div>
-
     <!-- PAGE: SETTINGS -->
     <div class="main-body" id="page-settings" style="display:none">
       <div class="settings-grid">
@@ -643,17 +534,17 @@ a{text-decoration:none;color:inherit}
           <div id="settingsProfile" class="settings-section">
             <div class="settings-title">Profil Bilgileri</div>
             <div class="settings-desc">Hesap bilgilerinizi güncelleyin</div>
-            <div class="settings-form-row"><div class="form-group"><label class="form-label">Ad Soyad</label><input class="form-input" type="text" id="settingsName"></div></div>
-            <div class="settings-form-row"><div class="form-group"><label class="form-label">E-posta</label><input class="form-input" type="email" id="settingsEmail" disabled style="opacity:.6"></div></div>
-            <div class="settings-form-row"><div class="form-group"><label class="form-label">Yeni Şifre</label><input class="form-input" type="password" id="settingsPass" placeholder="Değiştirmek için doldurun"></div></div>
-            <div style="display:flex;gap:10px;margin-top:8px">
+            <div class="form-group"><label class="form-label">AD SOYAD</label><input class="form-input" type="text" id="settingsName"></div>
+            <div class="form-group"><label class="form-label">E-POSTA</label><input class="form-input" type="email" id="settingsEmail" disabled style="opacity:.6"></div>
+            <div class="form-group"><label class="form-label">YENİ ŞİFRE</label><input class="form-input" type="password" id="settingsPass" placeholder="Değiştirmek için doldurun"></div>
+            <div style="display:flex;gap:10px;margin-top:12px">
               <button class="btn-save" onclick="saveProfile()">Kaydet</button>
               <button class="btn-danger" onclick="doLogout()">Çıkış Yap</button>
             </div>
           </div>
           <div id="settingsUsage" class="settings-section" style="display:none">
-            <div class="settings-title">Kullanım</div>
-            <div class="settings-desc">Bu ayki istatistikleriniz</div>
+            <div class="settings-title">Kullanım İstatistikleri</div>
+            <div class="settings-desc">Bu ayki kullanımınız</div>
             <div class="usage-stat-grid">
               <div class="usage-stat-card"><div class="usage-stat-num" id="statModels">0</div><div class="usage-stat-label">Model</div></div>
               <div class="usage-stat-card"><div class="usage-stat-num" id="statLikes">0</div><div class="usage-stat-label">Beğeni</div></div>
@@ -670,791 +561,737 @@ a{text-decoration:none;color:inherit}
         </div>
       </div>
     </div>
-
     <!-- PAGE: PLANS -->
     <div class="main-body" id="page-plans" style="display:none">
-      <div style="text-align:center;margin-bottom:36px">
+      <div style="text-align:center;margin-bottom:32px">
         <h2 style="font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:800;margin-bottom:8px">Sana Uygun <span style="background:var(--grad1);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Plan</span></h2>
         <p style="font-size:13px;color:var(--text3)">Ücretsiz başla, ihtiyacına göre büyüt</p>
       </div>
       <div class="plans-grid">
-        <div class="plan-box"><div class="plan-tier">BAŞLANGIÇ</div><div class="plan-price">₺0<span>/ay</span></div><div class="plan-period">Kredi kartı gerekmez</div><ul class="plan-features"><li>5 model/ay</li><li>GLB indirme</li><li>Galeri</li><li class="off">STL & OBJ</li><li class="off">Öncelik</li></ul><button class="plan-btn">Mevcut Plan</button></div>
-        <div class="plan-box popular"><div class="popular-tag">En Popüler</div><div class="plan-tier">PRO</div><div class="plan-price">₺299<span>/ay</span></div><div class="plan-period">Yıllık %20 indirim</div><ul class="plan-features"><li>100 model/ay</li><li>GLB, STL & OBJ</li><li>Galeri</li><li>Öncelikli işleme</li><li class="off">API erişimi</li></ul><button class="plan-btn highlight" onclick="upgradePlan('pro')">Pro'ya Geç →</button></div>
-        <div class="plan-box"><div class="plan-tier">İŞLETME</div><div class="plan-price">₺899<span>/ay</span></div><div class="plan-period">Tüm özellikler</div><ul class="plan-features"><li>Sınırsız model</li><li>GLB, STL & OBJ</li><li>Galeri</li><li>Öncelikli işleme</li><li>API erişimi</li></ul><button class="plan-btn" onclick="upgradePlan('business')">İşletme'ye Geç</button></div>
+        <div class="plan-box">
+          <div class="plan-tier">Başlangıç</div>
+          <div class="plan-price">₺0<span>/ay</span></div>
+          <div class="plan-period">Kredi kartı gerekmez</div>
+          <ul class="plan-features"><li>5 model/ay</li><li>GLB indirme</li><li>Galeri erişimi</li><li class="off">STL & OBJ indirme</li><li class="off">Öncelikli işleme</li></ul>
+          <button class="plan-btn">Mevcut Plan</button>
+        </div>
+        <div class="plan-box popular">
+          <div class="popular-tag">EN POPÜLER</div>
+          <div class="plan-tier">Pro</div>
+          <div class="plan-price">₺299<span>/ay</span></div>
+          <div class="plan-period">Yıllık ödemede %20 indirim</div>
+          <ul class="plan-features"><li>100 model/ay</li><li>GLB, STL & OBJ indirme</li><li>Galeri erişimi</li><li>Öncelikli işleme</li><li class="off">API erişimi</li></ul>
+          <button class="plan-btn highlight" onclick="upgradePlan('pro')">Pro'ya Geç →</button>
+        </div>
+        <div class="plan-box">
+          <div class="plan-tier">İşletme</div>
+          <div class="plan-price">₺899<span>/ay</span></div>
+          <div class="plan-period">Tüm özellikler dahil</div>
+          <ul class="plan-features"><li>Sınırsız model</li><li>GLB, STL & OBJ indirme</li><li>Galeri erişimi</li><li>Öncelikli işleme</li><li>API erişimi</li></ul>
+          <button class="plan-btn" onclick="upgradePlan('business')">İşletme'ye Geç</button>
+        </div>
       </div>
     </div>
   </div>
 </div>
-
-<script type="module">
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
-
-// ===== CONFIG =====
+<!-- NORMAL SCRIPT - Three.js YOK, her zaman çalışır -->
+<script>
 const API = window.location.origin;
 let currentUser = null;
 let currentToken = localStorage.getItem('pf_token') || '';
 let currentTaskId = null;
+let lastModelUrl = null;
 let currentStyle = 'realistic';
 let gallerySort = 'newest';
 let pollInterval = null;
-
-// ===== IMAGE SLOTS =====
+// Image upload state
 const MAX_SLOTS = 6;
 const imageSlots = Array(MAX_SLOTS).fill(null);
 let primarySlot = 0;
 const slotLabels = ['Ön', 'Sağ Yan', 'Arka', 'Sol Yan', 'Üst', 'Detay'];
-
-// ===== THREE.JS STATE =====
-let scene, camera, renderer, controls, raycaster, mouse;
-let loadedMeshes = [];
-let selectedMesh = null;
-let editorMode = 'select'; // 'select' | 'paint'
-let gridHelper = null;
-let directionalLight, ambientLight;
-let undoStack = [], redoStack = [];
-let paintColor = '#6c5ce7';
-let autoRotate = false;
-let showWireframe = false;
-
 // ===== TOAST =====
-window.toast = function(msg, type = 'info') {
+function toast(msg, type = 'info') {
     const c = document.getElementById('toastContainer');
     const t = document.createElement('div');
     t.className = 'toast ' + type;
     const icons = { success: '✓', error: '✕', info: 'ℹ' };
-    t.innerHTML = `<span>${icons[type]||'ℹ'}</span> ${msg}`;
+    t.innerHTML = '<span>' + (icons[type]||'ℹ') + '</span> ' + msg;
     c.appendChild(t);
-    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 4000);
-};
-
+    setTimeout(function(){ t.style.opacity = '0'; setTimeout(function(){ t.remove(); }, 300); }, 4000);
+}
 // ===== AUTH =====
-window.switchAuth = function(tab) {
+function switchAuth(tab) {
     document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
     document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
     document.getElementById('forgotForm').style.display = tab === 'forgot' ? 'block' : 'none';
     document.getElementById('resetForm').style.display = tab === 'reset' ? 'block' : 'none';
-    const tabs = document.querySelectorAll('.auth-tab');
+    var tabs = document.querySelectorAll('.auth-tab');
     tabs[0].classList.toggle('active', tab === 'login' || tab === 'forgot');
     tabs[1].classList.toggle('active', tab === 'register');
     document.getElementById('authMsg').style.display = 'none';
-};
-function showAuthMsg(msg, type = 'error') {
-    const el = document.getElementById('authMsg');
-    el.textContent = msg; el.className = 'msg-box msg-' + type; el.style.display = 'block';
 }
-
-window.doLogin = async function() {
-    const email = document.getElementById('loginEmail').value.trim();
-    const password = document.getElementById('loginPass').value;
+function showAuthMsg(msg, type) {
+    var el = document.getElementById('authMsg');
+    el.textContent = msg;
+    el.className = 'msg-box msg-' + (type || 'error');
+    el.style.display = 'block';
+}
+function doLogin() {
+    var email = document.getElementById('loginEmail').value.trim();
+    var password = document.getElementById('loginPass').value;
     if (!email || !password) { showAuthMsg('Tüm alanları doldurun'); return; }
-    const btn = document.getElementById('loginBtn');
+    var btn = document.getElementById('loginBtn');
     btn.disabled = true; btn.textContent = 'Giriş yapılıyor...';
-    try {
-        const res = await fetch(API + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Giriş başarısız');
-        currentToken = data.token; currentUser = data.user;
-        localStorage.setItem('pf_token', data.token); localStorage.setItem('pf_user', JSON.stringify(data.user));
+    fetch(API + '/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, password: password })
+    })
+    .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
+    .then(function(result) {
+        if (!result.ok) throw new Error(result.data.detail || 'Giriş başarısız');
+        currentToken = result.data.token;
+        currentUser = result.data.user;
+        localStorage.setItem('pf_token', result.data.token);
+        localStorage.setItem('pf_user', JSON.stringify(result.data.user));
         showAuthMsg('Giriş başarılı!', 'success');
-        setTimeout(() => enterApp(), 500);
-    } catch (err) { showAuthMsg(err.message); }
-    finally { btn.disabled = false; btn.textContent = 'Giriş Yap →'; }
-};
-
-window.doRegister = async function() {
-    const name = document.getElementById('regName').value.trim();
-    const email = document.getElementById('regEmail').value.trim();
-    const password = document.getElementById('regPass').value;
+        setTimeout(enterApp, 500);
+    })
+    .catch(function(err) { showAuthMsg(err.message); })
+    .finally(function() { btn.disabled = false; btn.textContent = 'Giriş Yap →'; });
+}
+function doRegister() {
+    var name = document.getElementById('regName').value.trim();
+    var email = document.getElementById('regEmail').value.trim();
+    var password = document.getElementById('regPass').value;
     if (!name || !email || !password) { showAuthMsg('Tüm alanları doldurun'); return; }
     if (password.length < 6) { showAuthMsg('Şifre en az 6 karakter olmalı'); return; }
-    const btn = document.getElementById('regBtn');
+    var btn = document.getElementById('regBtn');
     btn.disabled = true; btn.textContent = 'Oluşturuluyor...';
-    try {
-        const res = await fetch(API + '/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, password }) });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Kayıt başarısız');
-        currentToken = data.token; currentUser = data.user;
-        localStorage.setItem('pf_token', data.token); localStorage.setItem('pf_user', JSON.stringify(data.user));
-        showAuthMsg(data.message || 'Hesap oluşturuldu!', 'success');
-        setTimeout(() => enterApp(), 800);
-    } catch (err) { showAuthMsg(err.message); }
-    finally { btn.disabled = false; btn.textContent = 'Hesap Oluştur →'; }
-};
-
-window.doForgotPassword = async function() {
-    const email = document.getElementById('forgotEmail').value.trim();
+    fetch(API + '/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, email: email, password: password })
+    })
+    .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
+    .then(function(result) {
+        if (!result.ok) throw new Error(result.data.detail || 'Kayıt başarısız');
+        currentToken = result.data.token;
+        currentUser = result.data.user;
+        localStorage.setItem('pf_token', result.data.token);
+        localStorage.setItem('pf_user', JSON.stringify(result.data.user));
+        showAuthMsg(result.data.message || 'Hesap oluşturuldu!', 'success');
+        setTimeout(enterApp, 800);
+    })
+    .catch(function(err) { showAuthMsg(err.message); })
+    .finally(function() { btn.disabled = false; btn.textContent = 'Hesap Oluştur →'; });
+}
+function doForgotPassword() {
+    var email = document.getElementById('forgotEmail').value.trim();
     if (!email) { showAuthMsg('E-posta girin'); return; }
-    try {
-        const res = await fetch(API + '/api/auth/forgot-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
-        const data = await res.json();
-        showAuthMsg(data.message || 'Sıfırlama linki gönderildi', 'success');
-    } catch { showAuthMsg('Hata oluştu'); }
-};
-
-window.doResetPassword = async function() {
-    const pass = document.getElementById('resetPass').value;
-    const confirm = document.getElementById('resetPassConfirm').value;
+    fetch(API + '/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) { showAuthMsg(data.message || 'Sıfırlama linki gönderildi', 'success'); })
+    .catch(function() { showAuthMsg('Bir hata oluştu'); });
+}
+function doResetPassword() {
+    var pass = document.getElementById('resetPass').value;
+    var conf = document.getElementById('resetPassConfirm').value;
     if (!pass || pass.length < 6) { showAuthMsg('Şifre en az 6 karakter'); return; }
-    if (pass !== confirm) { showAuthMsg('Şifreler eşleşmiyor'); return; }
-    const token = new URLSearchParams(window.location.search).get('reset');
+    if (pass !== conf) { showAuthMsg('Şifreler eşleşmiyor'); return; }
+    var token = new URLSearchParams(window.location.search).get('reset');
     if (!token) { showAuthMsg('Geçersiz link'); return; }
-    try {
-        const res = await fetch(API + '/api/auth/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, password: pass }) });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail);
+    fetch(API + '/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token, password: pass })
+    })
+    .then(function(res) { return res.json().then(function(d){ return {ok:res.ok,data:d}; }); })
+    .then(function(r) {
+        if (!r.ok) throw new Error(r.data.detail);
         showAuthMsg('Şifre değiştirildi!', 'success');
-        setTimeout(() => switchAuth('login'), 1500);
-    } catch (err) { showAuthMsg(err.message); }
-};
-
-window.doGoogleLogin = () => { window.location.href = API + '/api/auth/google'; };
-
-window.doLogout = function() {
+        setTimeout(function(){ switchAuth('login'); }, 1500);
+    })
+    .catch(function(err) { showAuthMsg(err.message); });
+}
+function doGoogleLogin() { window.location.href = API + '/api/auth/google'; }
+function doLogout() {
     if (!confirm('Çıkış yapmak istiyor musunuz?')) return;
     currentUser = null; currentToken = '';
     localStorage.removeItem('pf_token'); localStorage.removeItem('pf_user');
     document.getElementById('authOverlay').classList.remove('hidden');
     document.getElementById('appLayout').style.display = 'none';
-    switchAuth('login'); toast('Çıkış yapıldı', 'info');
-};
-
+    switchAuth('login');
+    toast('Çıkış yapıldı', 'info');
+}
 // ===== APP ENTRY =====
 function enterApp() {
     document.getElementById('authOverlay').classList.add('hidden');
     document.getElementById('appLayout').style.display = 'flex';
-    updateSidebar(); checkVerification(); loadUserData();
-    initThreeJS(); renderImageSlots();
+    updateSidebar();
+    checkVerification();
+    loadUserData();
+    renderImageSlots();
 }
-
 function updateSidebar() {
     if (!currentUser) return;
     document.getElementById('sidebarName').textContent = currentUser.name || 'Kullanıcı';
     document.getElementById('sidebarAvatar').textContent = (currentUser.name || 'U')[0].toUpperCase();
     document.getElementById('sidebarPlan').textContent = (currentUser.plan || 'free').toUpperCase();
 }
-
 function checkVerification() {
-    const b = document.getElementById('verifyBanner');
-    b.classList.toggle('hidden', !currentUser || currentUser.verified !== 0);
+    var b = document.getElementById('verifyBanner');
+    if (currentUser && currentUser.verified === 0) b.classList.remove('hidden');
+    else b.classList.add('hidden');
 }
-
-window.resendVerification = async function() {
-    try { await fetch(API + '/api/auth/resend-verification', { method: 'POST', headers: { 'Authorization': 'Bearer ' + currentToken } }); toast('Doğrulama maili gönderildi', 'success'); }
-    catch { toast('Hata oluştu', 'error'); }
-};
-
-async function loadUserData() {
-    try {
-        const res = await fetch(API + '/api/auth/me', { headers: { 'Authorization': 'Bearer ' + currentToken } });
-        if (!res.ok) return;
-        const data = await res.json();
-        currentUser = data.user; localStorage.setItem('pf_user', JSON.stringify(data.user));
-        const u = data.usage || {}, s = data.stats || {};
-        document.getElementById('usageText').textContent = `${u.used||0} / ${u.limit||5}`;
+function resendVerification() {
+    fetch(API + '/api/auth/resend-verification', {
+        method: 'POST', headers: { 'Authorization': 'Bearer ' + currentToken }
+    }).then(function() { toast('Doğrulama maili gönderildi', 'success'); })
+    .catch(function() { toast('Hata oluştu', 'error'); });
+}
+function loadUserData() {
+    fetch(API + '/api/auth/me', { headers: { 'Authorization': 'Bearer ' + currentToken } })
+    .then(function(res) { if (!res.ok) throw new Error(); return res.json(); })
+    .then(function(data) {
+        currentUser = data.user;
+        localStorage.setItem('pf_user', JSON.stringify(data.user));
+        var u = data.usage || {}, s = data.stats || {};
+        document.getElementById('usageText').textContent = (u.used||0) + ' / ' + (u.limit||5);
         document.getElementById('usageFill').style.width = Math.min(100, ((u.used||0) / (u.limit||5)) * 100) + '%';
-        document.getElementById('usageRemain').textContent = `${u.remaining||5} model kaldı`;
+        document.getElementById('usageRemain').textContent = (u.remaining||5) + ' model kaldı';
         document.getElementById('statModels').textContent = s.models || 0;
         document.getElementById('statLikes').textContent = s.likes || 0;
         document.getElementById('statDownloads').textContent = s.downloads || 0;
         document.getElementById('myModelCount').textContent = s.models || 0;
         document.getElementById('settingsName').value = currentUser.name || '';
         document.getElementById('settingsEmail').value = currentUser.email || '';
-        const pn = { free: 'Free', pro: 'Pro', business: 'Business' };
-        const pl = { free: '5 model/ay', pro: '100 model/ay', business: 'Sınırsız' };
-        ['usagePlanName','billingPlan'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent = pn[currentUser.plan] || 'Free'; });
-        document.getElementById('usagePlanDetail').textContent = pl[currentUser.plan] || '5 model/ay';
-        ['usagePlanBadge','billingBadge'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent = (currentUser.plan||'free').toUpperCase(); });
-        updateSidebar(); checkVerification();
-    } catch (e) { console.log('User data error:', e); }
+        var pn = { free:'Free', pro:'Pro', business:'Business' };
+        var pl = { free:'5 model/ay', pro:'100 model/ay', business:'Sınırsız' };
+        var plan = currentUser.plan || 'free';
+        document.getElementById('usagePlanName').textContent = pn[plan] || 'Free';
+        document.getElementById('usagePlanDetail').textContent = pl[plan] || '5 model/ay';
+        document.getElementById('usagePlanBadge').textContent = plan.toUpperCase();
+        document.getElementById('billingPlan').textContent = pn[plan] || 'Free';
+        document.getElementById('billingBadge').textContent = plan.toUpperCase();
+        updateSidebar();
+        checkVerification();
+    }).catch(function(e) { console.log('User data error:', e); });
 }
-
 // ===== NAVIGATION =====
-window.navigateTo = function(page) {
-    document.querySelectorAll('.main-body').forEach(p => p.style.display = 'none');
+function navigateTo(page) {
+    var pages = document.querySelectorAll('.main-body');
+    for (var i = 0; i < pages.length; i++) pages[i].style.display = 'none';
     document.getElementById('page-' + page).style.display = page === 'generate' ? '' : 'block';
-    document.querySelectorAll('.sb-item').forEach(i => i.classList.remove('active'));
-    const item = document.querySelector(`.sb-item[data-page="${page}"]`);
+    var items = document.querySelectorAll('.sb-item');
+    for (var j = 0; j < items.length; j++) items[j].classList.remove('active');
+    var item = document.querySelector('.sb-item[data-page="' + page + '"]');
     if (item) item.classList.add('active');
-    const titles = { generate: 'Model Üret', gallery: 'Galeri', mymodels: 'Modellerim', settings: 'Ayarlar', plans: 'Planlar' };
+    var titles = { generate:'Model Üret', gallery:'Galeri', mymodels:'Modellerim', settings:'Ayarlar', plans:'Planlar' };
     document.getElementById('pageTitle').textContent = titles[page] || '';
     if (page === 'gallery') loadGallery();
     if (page === 'mymodels') loadMyModels();
-    if (page === 'generate') onResizeViewer();
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('mobileOverlay').classList.remove('active');
-};
-
-window.toggleSidebar = function() {
+}
+function toggleSidebar() {
     document.getElementById('sidebar').classList.toggle('open');
     document.getElementById('mobileOverlay').classList.toggle('active');
-};
-
+}
 // ===== GENERATE TABS =====
-window.switchGenTab = function(tab, btn) {
+function switchGenTab(tab, btn) {
     document.getElementById('genText').style.display = tab === 'text' ? 'block' : 'none';
     document.getElementById('genImage').style.display = tab === 'image' ? 'block' : 'none';
-    document.querySelectorAll('.gen-tab').forEach(t => t.classList.remove('active'));
+    var tabs = document.querySelectorAll('.gen-tab');
+    for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
     if (btn) btn.classList.add('active');
-};
-window.selectStyle = function(el, style) {
+}
+function selectStyle(el, style) {
     currentStyle = style;
-    document.querySelectorAll('.style-card').forEach(s => s.classList.remove('active'));
+    var cards = document.querySelectorAll('.style-card');
+    for (var i = 0; i < cards.length; i++) cards[i].classList.remove('active');
     el.classList.add('active');
-};
-window.updateCharCount = function() { document.getElementById('charCount').textContent = document.getElementById('promptInput').value.length; };
-
+}
+function updateCharCount() {
+    document.getElementById('charCount').textContent = document.getElementById('promptInput').value.length;
+}
 // ===== IMAGE UPLOAD =====
 function renderImageSlots() {
-    const grid = document.getElementById('imageGrid');
+    var grid = document.getElementById('imageGrid');
     if (!grid) return;
     grid.innerHTML = '';
-    for (let i = 0; i < MAX_SLOTS; i++) {
-        const data = imageSlots[i];
-        const slot = document.createElement('div');
+    for (var i = 0; i < MAX_SLOTS; i++) {
+        var data = imageSlots[i];
+        var slot = document.createElement('div');
         slot.className = 'image-slot' + (data ? ' has-image' : '') + (data && primarySlot === i ? ' primary' : '');
         if (data) {
-            slot.innerHTML = `<img src="${data.dataUrl}"><div class="slot-label">${primarySlot===i?'★ Ana':slotLabels[i]}</div><button class="slot-remove" onclick="event.stopPropagation();removeSlot(${i})">✕</button>${primarySlot!==i?`<button class="slot-primary-btn" onclick="event.stopPropagation();setPrimary(${i})">★</button>`:''}`;
+            slot.innerHTML = '<img src="' + data.dataUrl + '"><div class="slot-label">' + (primarySlot===i ? '★ Ana' : slotLabels[i]) + '</div><button class="slot-remove" onclick="event.stopPropagation();removeSlot(' + i + ')">✕</button>' + (primarySlot!==i ? '<button class="slot-primary-btn" onclick="event.stopPropagation();setPrimary(' + i + ')">★</button>' : '');
         } else {
-            slot.innerHTML = `<span class="slot-placeholder">+</span><div class="slot-label">${slotLabels[i]}</div>`;
-            slot.onclick = () => { const inp = document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.onchange = e => addImage(i, e.target.files[0]); inp.click(); };
+            slot.innerHTML = '<span class="slot-placeholder">+</span><div class="slot-label">' + slotLabels[i] + '</div>';
+            (function(idx) {
+                slot.onclick = function() {
+                    var inp = document.createElement('input');
+                    inp.type = 'file'; inp.accept = 'image/*';
+                    inp.onchange = function(e) { addImage(idx, e.target.files[0]); };
+                    inp.click();
+                };
+            })(i);
         }
         grid.appendChild(slot);
     }
-    const count = imageSlots.filter(s=>s).length;
-    document.getElementById('imageCountInfo').innerHTML = `<span>${count}</span> / ${MAX_SLOTS} görsel · ★ Ana görsel kullanılır`;
+    var count = imageSlots.filter(function(s){ return s !== null; }).length;
+    document.getElementById('imageCountInfo').innerHTML = '<span>' + count + '</span> / ' + MAX_SLOTS + ' görsel · ★ Ana görsel kullanılır';
 }
 function addImage(idx, file) {
-    if (!file || file.size > 10*1024*1024) { toast('Max 10MB','error'); return; }
-    const reader = new FileReader();
-    reader.onload = e => { imageSlots[idx] = { file, dataUrl: e.target.result }; if(imageSlots.filter(s=>s).length===1) primarySlot=idx; renderImageSlots(); };
+    if (!file || file.size > 10*1024*1024) { toast('Max 10MB', 'error'); return; }
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        imageSlots[idx] = { file: file, dataUrl: e.target.result };
+        var filled = imageSlots.filter(function(s){ return s !== null; });
+        if (filled.length === 1) primarySlot = idx;
+        renderImageSlots();
+    };
     reader.readAsDataURL(file);
 }
-window.removeSlot = function(i) { imageSlots[i]=null; if(primarySlot===i){ const n=imageSlots.findIndex(s=>s); primarySlot=n>=0?n:0; } renderImageSlots(); };
-window.setPrimary = function(i) { primarySlot=i; renderImageSlots(); toast('Ana görsel değiştirildi','info'); };
-window.handleMultiDrop = function(e) {
-    const files = Array.from(e.target.files||[]);
-    let added = 0;
-    for (const f of files) {
+function removeSlot(i) {
+    imageSlots[i] = null;
+    if (primarySlot === i) {
+        var n = imageSlots.findIndex(function(s){ return s !== null; });
+        primarySlot = n >= 0 ? n : 0;
+    }
+    renderImageSlots();
+}
+function setPrimary(i) {
+    primarySlot = i;
+    renderImageSlots();
+    toast('Ana görsel değiştirildi', 'info');
+}
+function handleMultiDrop(e) {
+    var files = Array.from(e.target.files || []);
+    var added = 0;
+    for (var f = 0; f < files.length; f++) {
         if (added >= MAX_SLOTS) break;
-        const idx = imageSlots.findIndex(s=>!s); if(idx===-1) break;
-        addImage(idx, f); added++;
+        var idx = imageSlots.findIndex(function(s){ return s === null; });
+        if (idx === -1) break;
+        addImage(idx, files[f]);
+        added++;
     }
     e.target.value = '';
-};
-renderImageSlots();
-
-// ===== THREE.JS EDITOR =====
-function initThreeJS() {
-    const container = document.getElementById('viewerContainer');
-    const w = container.clientWidth || 800, h = container.clientHeight || 600;
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color('#0a0a1a');
-    camera = new THREE.PerspectiveCamera(50, w / h, 0.01, 100);
-    camera.position.set(2, 1.5, 2);
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-    renderer.setSize(w, h);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
-    renderer.shadowMap.enabled = true;
-    container.appendChild(renderer.domElement);
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true; controls.dampingFactor = 0.08;
-    controls.minDistance = 0.5; controls.maxDistance = 20;
-    ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambientLight);
-    directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
-    directionalLight.position.set(5, 5, 5);
-    directionalLight.castShadow = true;
-    scene.add(directionalLight);
-    const fillLight = new THREE.DirectionalLight(0x8888ff, 0.3);
-    fillLight.position.set(-3, 2, -3);
-    scene.add(fillLight);
-    raycaster = new THREE.Raycaster();
-    mouse = new THREE.Vector2();
-    renderer.domElement.addEventListener('click', onViewerClick);
-    window.addEventListener('resize', onResizeViewer);
-    animate();
 }
-
-function animate() {
-    requestAnimationFrame(animate);
-    if (controls) controls.update();
-    if (autoRotate && loadedMeshes.length > 0) {
-        scene.rotation.y += 0.005;
-    }
-    // Highlight selected mesh
-    loadedMeshes.forEach(m => {
-        if (m.userData._outline) {
-            m.userData._outline.visible = (m === selectedMesh);
+// Drag & drop
+var dz = document.getElementById('multiDropZone');
+if (dz) {
+    dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', function() { dz.classList.remove('dragover'); });
+    dz.addEventListener('drop', function(e) {
+        e.preventDefault(); dz.classList.remove('dragover');
+        if (e.dataTransfer.files.length) handleMultiDrop({ target: { files: e.dataTransfer.files } });
+    });
+}
+// ===== MODEL VIEWER (model-viewer component - always works) =====
+var modelRetryCount = 0;
+function showModel(taskId, isDemo) {
+    currentTaskId = taskId;
+    lastModelUrl = API + '/api/model/' + taskId + '/view';
+    var container = document.getElementById('viewerContainer');
+    var empty = document.getElementById('viewerEmpty');
+    var toolbar = document.getElementById('viewerToolbar');
+    var loading = document.getElementById('viewerLoading');
+    var error = document.getElementById('viewerError');
+    // Show loading
+    if (empty) empty.style.display = 'none';
+    error.classList.add('hidden');
+    loading.classList.remove('hidden');
+    toolbar.classList.add('active');
+    modelRetryCount = 0;
+    // Remove old model-viewer
+    var old = container.querySelector('model-viewer');
+    if (old) old.remove();
+    // Create model-viewer element
+    var mv = document.createElement('model-viewer');
+    mv.setAttribute('src', lastModelUrl);
+    mv.setAttribute('camera-controls', '');
+    mv.setAttribute('touch-action', 'pan-y');
+    mv.setAttribute('auto-rotate', '');
+    mv.setAttribute('auto-rotate-delay', '0');
+    mv.setAttribute('rotation-per-second', '30deg');
+    mv.setAttribute('exposure', '1');
+    mv.setAttribute('shadow-intensity', '0');
+    mv.setAttribute('environment-image', 'neutral');
+    mv.setAttribute('camera-orbit', '45deg 55deg auto');
+    mv.style.cssText = 'width:100%;height:100%;min-height:400px;background:transparent;';
+    // Success
+    mv.addEventListener('load', function() {
+        loading.classList.add('hidden');
+        error.classList.add('hidden');
+        document.getElementById('viewerInfo').textContent = isDemo ? 'DEMO MODEL' : 'Task: ' + taskId;
+        document.getElementById('downloadInfo').textContent = taskId;
+        toast('Model yüklendi!', 'success');
+    });
+    // Error with retry
+    mv.addEventListener('error', function(e) {
+        console.error('Model viewer error:', e);
+        if (modelRetryCount < 3) {
+            modelRetryCount++;
+            loading.querySelector('.viewer-loading-text').textContent = 'Tekrar deneniyor... (' + modelRetryCount + '/3)';
+            setTimeout(function() {
+                mv.setAttribute('src', lastModelUrl + '?retry=' + modelRetryCount);
+            }, 2000 * modelRetryCount);
+        } else {
+            loading.classList.add('hidden');
+            error.classList.remove('hidden');
+            document.getElementById('viewerErrorMsg').textContent = 'Model sunucudan yüklenemedi. İnternet bağlantınızı kontrol edin.';
         }
     });
-    if (renderer && scene && camera) renderer.render(scene, camera);
+    container.insertBefore(mv, loading);
 }
-
-function onResizeViewer() {
-    const container = document.getElementById('viewerContainer');
-    if (!container || !renderer) return;
-    const w = container.clientWidth, h = container.clientHeight;
-    if (w < 10 || h < 10) return;
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-    renderer.setSize(w, h);
-}
-
-function onViewerClick(event) {
-    if (!loadedMeshes.length) return;
-    const rect = renderer.domElement.getBoundingClientRect();
-    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(loadedMeshes, false);
-    if (intersects.length > 0) {
-        const mesh = intersects[0].object;
-        if (editorMode === 'select') {
-            selectMeshPart(mesh);
-        } else if (editorMode === 'paint') {
-            saveUndo(mesh);
-            if (mesh.material) {
-                mesh.material = mesh.material.clone();
-                mesh.material.color.set(paintColor);
-            }
-            toast('Renk uygulandı', 'success');
-        }
+function retryLoadModel() {
+    if (currentTaskId) {
+        showModel(currentTaskId, false);
     }
 }
-
-function selectMeshPart(mesh) {
-    selectedMesh = mesh;
-    const info = document.getElementById('selectionInfo');
-    document.getElementById('selMeshName').textContent = mesh.name || 'Parça';
-    info.classList.add('active');
-    // Update sliders
-    if (mesh.material) {
-        document.getElementById('slMetalness').value = mesh.material.metalness || 0;
-        document.getElementById('valMetalness').textContent = (mesh.material.metalness || 0).toFixed(2);
-        document.getElementById('slRoughness').value = mesh.material.roughness || 0.5;
-        document.getElementById('valRoughness').textContent = (mesh.material.roughness || 0.5).toFixed(2);
-        document.getElementById('slOpacity').value = mesh.material.opacity ?? 1;
-        document.getElementById('valOpacity').textContent = (mesh.material.opacity ?? 1).toFixed(2);
+function getModelViewer() {
+    return document.querySelector('#viewerContainer model-viewer');
+}
+// ===== VIEWER CONTROLS =====
+function toggleAutoRotate() {
+    var mv = getModelViewer();
+    var btn = document.getElementById('btnAutoRotate');
+    if (!mv) return;
+    if (mv.hasAttribute('auto-rotate')) {
+        mv.removeAttribute('auto-rotate');
+        btn.classList.remove('active');
+    } else {
+        mv.setAttribute('auto-rotate', '');
+        btn.classList.add('active');
     }
-    // Highlight in mesh list
-    document.querySelectorAll('.mesh-item').forEach(el => {
-        el.classList.toggle('selected', el.dataset.name === mesh.uuid);
-    });
 }
-
-function loadModelIntoScene(url) {
-    const loader = new GLTFLoader();
-    // Clear old
-    loadedMeshes.forEach(m => { if(m.userData._outline) scene.remove(m.userData._outline); scene.remove(m); });
-    loadedMeshes = [];
-    selectedMesh = null;
-    scene.rotation.y = 0;
-
-    loader.load(url, (gltf) => {
-        const model = gltf.scene;
-        // Calculate bounds for centering
-        const box = new THREE.Box3().setFromObject(model);
-        const center = box.getCenter(new THREE.Vector3());
-        const size = box.getSize(new THREE.Vector3());
-        const maxDim = Math.max(size.x, size.y, size.z);
-        const scale = 2 / maxDim;
-        model.scale.setScalar(scale);
-        model.position.sub(center.multiplyScalar(scale));
-
-        model.traverse((child) => {
-            if (child.isMesh) {
-                child.castShadow = true;
-                child.receiveShadow = true;
-                child.material = child.material.clone();
-                if (!child.material.metalness) child.material.metalness = 0;
-                if (!child.material.roughness) child.material.roughness = 0.5;
-                // Create outline for selection
-                const outlineGeo = child.geometry.clone();
-                const outlineMat = new THREE.MeshBasicMaterial({ color: 0x6c5ce7, side: THREE.BackSide, transparent: true, opacity: 0.3 });
-                const outline = new THREE.Mesh(outlineGeo, outlineMat);
-                outline.scale.setScalar(1.03);
-                outline.visible = false;
-                child.add(outline);
-                child.userData._outline = outline;
-                loadedMeshes.push(child);
-            }
-        });
-        scene.add(model);
-        // Fit camera
-        camera.position.set(2, 1.5, 2);
-        controls.target.set(0, 0, 0);
-        controls.update();
-        // Update mesh list
-        updateMeshList();
-        document.getElementById('viewerEmpty').style.display = 'none';
-        document.getElementById('viewerToolbar').classList.add('active');
-        document.getElementById('viewerInfo').textContent = `${loadedMeshes.length} parça`;
-        onResizeViewer();
-        toast(`Model yüklendi (${loadedMeshes.length} parça)`, 'success');
-    }, undefined, (err) => {
-        console.error('GLB load error:', err);
-        toast('Model yüklenemedi', 'error');
-    });
-}
-
-function updateMeshList() {
-    const list = document.getElementById('meshList');
-    list.innerHTML = loadedMeshes.map((m, i) => {
-        const c = m.material?.color ? '#' + m.material.color.getHexString() : '#888';
-        const name = m.name || `Parça ${i + 1}`;
-        return `<div class="mesh-item" data-name="${m.uuid}" onclick="window._selectMeshByIndex(${i})"><div class="mesh-color" style="background:${c}"></div><span class="mesh-name">${name}</span></div>`;
-    }).join('');
-}
-window._selectMeshByIndex = function(i) { if(loadedMeshes[i]) selectMeshPart(loadedMeshes[i]); };
-
-// ===== EDITOR TOOLS =====
-window.setEditorMode = function(mode) {
-    editorMode = mode;
-    document.getElementById('btnSelect').classList.toggle('active', mode==='select');
-    document.getElementById('btnPaint').classList.toggle('active', mode==='paint');
-    document.getElementById('modeIndicator').classList.toggle('active', mode==='paint');
-    renderer.domElement.style.cursor = mode === 'paint' ? 'crosshair' : 'grab';
-};
-
-window.setMeshColor = function(color, swatch) {
-    paintColor = color;
-    if (selectedMesh && editorMode === 'select') {
-        saveUndo(selectedMesh);
-        selectedMesh.material = selectedMesh.material.clone();
-        selectedMesh.material.color.set(color);
-        updateMeshList();
+function toggleShadow() {
+    var mv = getModelViewer();
+    var btn = document.getElementById('btnShadow');
+    if (!mv) return;
+    var current = parseFloat(mv.getAttribute('shadow-intensity') || '0');
+    if (current > 0) {
+        mv.setAttribute('shadow-intensity', '0');
+        btn.classList.remove('active');
+        document.getElementById('slShadow').value = 0;
+        document.getElementById('valShadow').textContent = '0.0';
+    } else {
+        mv.setAttribute('shadow-intensity', '1');
+        btn.classList.add('active');
+        document.getElementById('slShadow').value = 1;
+        document.getElementById('valShadow').textContent = '1.0';
     }
-    if (swatch) { document.querySelectorAll('#meshColorRow .color-sw').forEach(s=>s.classList.remove('active')); swatch.classList.add('active'); }
-};
-
-window.setMeshMaterial = function(prop, val) {
-    val = parseFloat(val);
-    document.getElementById('val' + prop.charAt(0).toUpperCase() + prop.slice(1)).textContent = val.toFixed(2);
-    if (!selectedMesh) return;
-    saveUndo(selectedMesh);
-    selectedMesh.material = selectedMesh.material.clone();
-    selectedMesh.material[prop] = val;
-    if (prop === 'opacity') selectedMesh.material.transparent = val < 1;
-};
-
-window.applyPreset = function(preset) {
-    if (!selectedMesh) { toast('Önce bir parça seçin', 'info'); return; }
-    saveUndo(selectedMesh);
-    selectedMesh.material = selectedMesh.material.clone();
-    const m = selectedMesh.material;
-    const presets = {
-        gold:    { color: '#FFD700', metalness: 1, roughness: 0.3 },
-        chrome:  { color: '#C0C0C0', metalness: 1, roughness: 0.1 },
-        plastic: { color: '#e0e0e0', metalness: 0, roughness: 0.4 },
-        wood:    { color: '#8B4513', metalness: 0, roughness: 0.8 },
-        glass:   { color: '#88ccff', metalness: 0.1, roughness: 0.05, opacity: 0.4 },
-        neon:    { color: '#00ff88', metalness: 0.2, roughness: 0.3, emissive: '#00ff88' },
-        rubber:  { color: '#2d2d2d', metalness: 0, roughness: 0.95 },
-        ceramic: { color: '#f5f0e8', metalness: 0.05, roughness: 0.2 }
-    };
-    const p = presets[preset];
-    if (!p) return;
-    m.color.set(p.color);
-    m.metalness = p.metalness;
-    m.roughness = p.roughness;
-    if (p.opacity !== undefined) { m.opacity = p.opacity; m.transparent = true; }
-    if (p.emissive) { m.emissive = new THREE.Color(p.emissive); m.emissiveIntensity = 0.5; }
-    // Update sliders
-    document.getElementById('slMetalness').value = m.metalness;
-    document.getElementById('valMetalness').textContent = m.metalness.toFixed(2);
-    document.getElementById('slRoughness').value = m.roughness;
-    document.getElementById('valRoughness').textContent = m.roughness.toFixed(2);
-    document.getElementById('slOpacity').value = m.opacity;
-    document.getElementById('valOpacity').textContent = m.opacity.toFixed(2);
-    updateMeshList();
-    toast(preset + ' uygulandı', 'success');
-};
-
-// Light controls
-window.setLight = function(prop, val) {
-    val = parseFloat(val);
-    if (prop === 'intensity') { directionalLight.intensity = val; document.getElementById('valLightInt').textContent = val.toFixed(1); }
-    if (prop === 'ambient') { ambientLight.intensity = val; document.getElementById('valAmbient').textContent = val.toFixed(1); }
-};
-window.setLightPos = function(axis, val) {
-    val = parseFloat(val);
-    directionalLight.position[axis] = val;
-    document.getElementById('valL' + axis.toUpperCase()).textContent = val;
-};
-
-// Background
-window.setBgColor = function(color, swatch) {
-    if (scene) scene.background = new THREE.Color(color);
+}
+function setViewerAttr(attr, val) {
+    var mv = getModelViewer();
+    if (mv) mv.setAttribute(attr, val);
+}
+function setRotSpeed(val) {
+    var mv = getModelViewer();
+    if (mv) mv.setAttribute('rotation-per-second', val + 'deg');
+}
+function toggleEditPanel() {
+    var panel = document.getElementById('editPanel');
+    var btn = document.getElementById('btnEditPanel');
+    panel.classList.toggle('active');
+    btn.classList.toggle('active');
+}
+function setBgColor(color, swatch) {
     document.getElementById('viewerContainer').style.background = color;
-    if (swatch) { document.querySelectorAll('#panelBg .color-sw').forEach(s=>s.classList.remove('active')); swatch.classList.add('active'); }
-};
-
-// Toggle tools
-window.toggleAutoRotate = function() {
-    autoRotate = !autoRotate;
-    document.getElementById('btnAutoRotate').classList.toggle('active', autoRotate);
-};
-window.toggleGrid = function() {
-    const btn = document.getElementById('btnGrid');
-    if (gridHelper) { scene.remove(gridHelper); gridHelper = null; btn.classList.remove('active'); }
-    else { gridHelper = new THREE.GridHelper(4, 20, 0x6c5ce7, 0x2a2a4a); scene.add(gridHelper); btn.classList.add('active'); }
-};
-window.toggleWireframe = function() {
-    showWireframe = !showWireframe;
-    document.getElementById('btnWireframe').classList.toggle('active', showWireframe);
-    loadedMeshes.forEach(m => { if(m.material) m.material.wireframe = showWireframe; });
-};
-window.toggleEditorPanel = function(panel) {
-    ['material','light','bg'].forEach(p => {
-        const el = document.getElementById('panel' + p.charAt(0).toUpperCase() + p.slice(1));
-        if (el) { el.classList.toggle('active', p === panel && !el.classList.contains('active')); }
-    });
-};
-window.resetCamera = function() {
-    camera.position.set(2, 1.5, 2);
-    controls.target.set(0, 0, 0);
-    controls.update();
-    scene.rotation.y = 0;
-    toast('Kamera sıfırlandı', 'info');
-};
-window.toggleFullscreen = function() {
-    const c = document.getElementById('viewerContainer');
-    if (document.fullscreenElement) document.exitFullscreen();
-    else c.requestFullscreen().catch(() => toast('Tam ekran kullanılamıyor', 'error'));
-};
-window.takeScreenshot = function() {
-    if (!renderer) return;
-    renderer.render(scene, camera);
-    const link = document.createElement('a');
-    link.download = 'printforge_screenshot.png';
-    link.href = renderer.domElement.toDataURL('image/png');
-    link.click();
-    toast('Ekran görüntüsü indirildi', 'success');
-};
-
-// ===== UNDO/REDO =====
-function saveUndo(mesh) {
-    if (!mesh || !mesh.material) return;
-    undoStack.push({
-        uuid: mesh.uuid,
-        color: '#' + mesh.material.color.getHexString(),
-        metalness: mesh.material.metalness,
-        roughness: mesh.material.roughness,
-        opacity: mesh.material.opacity
-    });
-    redoStack = [];
-    if (undoStack.length > 50) undoStack.shift();
+    var mv = getModelViewer();
+    if (mv) mv.style.background = 'transparent';
+    var swatches = document.querySelectorAll('.color-sw');
+    for (var i = 0; i < swatches.length; i++) swatches[i].classList.remove('active');
+    if (swatch) swatch.classList.add('active');
 }
-window.editorUndo = function() {
-    if (!undoStack.length) { toast('Geri alınacak işlem yok', 'info'); return; }
-    const state = undoStack.pop();
-    const mesh = loadedMeshes.find(m => m.uuid === state.uuid);
-    if (!mesh) return;
-    redoStack.push({ uuid: mesh.uuid, color: '#' + mesh.material.color.getHexString(), metalness: mesh.material.metalness, roughness: mesh.material.roughness, opacity: mesh.material.opacity });
-    mesh.material = mesh.material.clone();
-    mesh.material.color.set(state.color);
-    mesh.material.metalness = state.metalness;
-    mesh.material.roughness = state.roughness;
-    mesh.material.opacity = state.opacity;
-    updateMeshList();
-    toast('Geri alındı', 'info');
-};
-window.editorRedo = function() {
-    if (!redoStack.length) return;
-    const state = redoStack.pop();
-    const mesh = loadedMeshes.find(m => m.uuid === state.uuid);
-    if (!mesh) return;
-    undoStack.push({ uuid: mesh.uuid, color: '#' + mesh.material.color.getHexString(), metalness: mesh.material.metalness, roughness: mesh.material.roughness, opacity: mesh.material.opacity });
-    mesh.material = mesh.material.clone();
-    mesh.material.color.set(state.color);
-    mesh.material.metalness = state.metalness;
-    mesh.material.roughness = state.roughness;
-    mesh.material.opacity = state.opacity;
-    updateMeshList();
-};
-
-// ===== EXPORT EDITED GLB =====
-window.exportEditedGLB = function() {
-    if (!loadedMeshes.length) { toast('İndirilecek model yok', 'error'); return; }
-    const exporter = new GLTFExporter();
-    const exportScene = new THREE.Scene();
-    loadedMeshes.forEach(m => {
-        const clone = m.clone();
-        if (clone.userData._outline) clone.remove(clone.userData._outline);
-        exportScene.add(clone);
-    });
-    exporter.parse(exportScene, (result) => {
-        const blob = new Blob([result], { type: 'application/octet-stream' });
-        const link = document.createElement('a');
-        link.download = 'printforge_edited.glb';
-        link.href = URL.createObjectURL(blob);
+function resetCamera() {
+    var mv = getModelViewer();
+    if (mv) {
+        mv.cameraOrbit = '45deg 55deg auto';
+        mv.cameraTarget = 'auto auto auto';
+        mv.fieldOfView = 'auto';
+    }
+    toast('Kamera sıfırlandı', 'info');
+}
+function toggleFullscreen() {
+    var c = document.getElementById('viewerContainer');
+    if (document.fullscreenElement) {
+        document.exitFullscreen();
+    } else {
+        c.requestFullscreen().catch(function() { toast('Tam ekran kullanılamıyor', 'error'); });
+    }
+}
+function takeScreenshot() {
+    var mv = getModelViewer();
+    if (!mv) { toast('Model yok', 'error'); return; }
+    try {
+        var dataUrl = mv.toDataURL('image/png');
+        var link = document.createElement('a');
+        link.download = 'printforge_screenshot.png';
+        link.href = dataUrl;
         link.click();
-        toast('Düzenlenmiş model indirildi!', 'success');
-    }, (err) => { toast('Dışa aktarma hatası', 'error'); console.error(err); }, { binary: true });
-};
-
-// ===== GENERATE TEXT =====
-window.generateText = async function() {
-    const prompt = document.getElementById('promptInput').value.trim();
+        toast('Ekran görüntüsü indirildi', 'success');
+    } catch(e) {
+        toast('Screenshot alınamadı', 'error');
+    }
+}
+function downloadModel(format) {
+    if (!currentTaskId) { toast('İndirilecek model yok', 'error'); return; }
+    window.open(API + '/api/model/' + currentTaskId + '/' + format, '_blank');
+    toast(format.toUpperCase() + ' indiriliyor...', 'info');
+}
+// ===== GENERATE =====
+function generateText() {
+    var prompt = document.getElementById('promptInput').value.trim();
     if (!prompt) { toast('Prompt girin', 'error'); return; }
-    const btn = document.getElementById('genTextBtn');
+    var btn = document.getElementById('genTextBtn');
     btn.disabled = true; btn.className = 'gen-btn generating'; btn.innerHTML = '⏳ Üretiliyor...';
-    try {
-        const res = await fetch(API + '/api/generate/text', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken }, body: JSON.stringify({ prompt, style: currentStyle }) });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Başarısız');
-        currentTaskId = data.task_id; showProgress(); startPolling();
+    fetch(API + '/api/generate/text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
+        body: JSON.stringify({ prompt: prompt, style: currentStyle })
+    })
+    .then(function(res) { return res.json().then(function(d){ return {ok:res.ok,data:d}; }); })
+    .then(function(r) {
+        if (!r.ok) throw new Error(r.data.detail || 'Başarısız');
+        currentTaskId = r.data.task_id;
+        showProgress();
+        startPolling();
         toast('Model üretimi başlatıldı!', 'success');
-    } catch (err) { toast(err.message, 'error'); resetGenBtn(); }
-};
-
-window.generateImage = async function() {
-    const primary = imageSlots[primarySlot];
+    })
+    .catch(function(err) { toast(err.message, 'error'); resetGenBtn(); });
+}
+function generateImage() {
+    var primary = imageSlots[primarySlot];
     if (!primary) { toast('En az 1 görsel yükleyin', 'error'); return; }
-    const btn = document.getElementById('genImageBtn');
+    var btn = document.getElementById('genImageBtn');
     btn.disabled = true; btn.className = 'gen-btn generating'; btn.innerHTML = '⏳ Üretiliyor...';
-    try {
-        const fd = new FormData(); fd.append('file', primary.file);
-        const res = await fetch(API + '/api/generate/image', { method: 'POST', headers: { 'Authorization': 'Bearer ' + currentToken }, body: fd });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Başarısız');
-        currentTaskId = data.task_id; showProgress(); startPolling();
+    var fd = new FormData();
+    fd.append('file', primary.file);
+    fetch(API + '/api/generate/image', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + currentToken },
+        body: fd
+    })
+    .then(function(res) { return res.json().then(function(d){ return {ok:res.ok,data:d}; }); })
+    .then(function(r) {
+        if (!r.ok) throw new Error(r.data.detail || 'Başarısız');
+        currentTaskId = r.data.task_id;
+        showProgress();
+        startPolling();
         toast('Model üretimi başlatıldı!', 'success');
-    } catch (err) { toast(err.message, 'error'); resetGenBtn(); }
-};
-
+    })
+    .catch(function(err) { toast(err.message, 'error'); resetGenBtn(); });
+}
 function showProgress() { document.getElementById('genProgress').classList.add('active'); }
 function hideProgress() { document.getElementById('genProgress').classList.remove('active'); }
 function resetGenBtn() {
-    const a = document.getElementById('genTextBtn'), b = document.getElementById('genImageBtn');
+    var a = document.getElementById('genTextBtn'), b = document.getElementById('genImageBtn');
     a.disabled = false; a.className = 'gen-btn'; a.innerHTML = '✦ Model Üret';
     b.disabled = false; b.className = 'gen-btn'; b.innerHTML = '✦ Görselden Model Üret';
 }
 function startPolling() {
     if (pollInterval) clearInterval(pollInterval);
-    pollInterval = setInterval(async () => {
-        try {
-            const res = await fetch(API + '/api/status/' + currentTaskId);
-            const data = await res.json();
+    pollInterval = setInterval(function() {
+        fetch(API + '/api/status/' + currentTaskId)
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
             document.getElementById('progressFill').style.width = data.progress + '%';
             document.getElementById('progressStep').textContent = data.step || 'İşleniyor...';
             document.getElementById('progressPercent').textContent = data.progress + '%';
             if (data.status === 'done') {
                 clearInterval(pollInterval); pollInterval = null;
                 hideProgress(); resetGenBtn();
-                loadModelIntoScene(API + '/api/model/' + currentTaskId + '/view');
+                showModel(currentTaskId, data.is_demo);
                 loadUserData();
             } else if (data.status === 'failed') {
                 clearInterval(pollInterval); pollInterval = null;
                 hideProgress(); resetGenBtn();
                 toast('Üretim başarısız: ' + (data.error || ''), 'error');
             }
-        } catch (e) { console.log('Poll error:', e); }
+        })
+        .catch(function(e) { console.log('Poll error:', e); });
     }, 2000);
 }
-
-// ===== DOWNLOAD =====
-window.downloadModel = function(format) {
-    if (!currentTaskId) { toast('Model yok', 'error'); return; }
-    window.open(API + '/api/model/' + currentTaskId + '/' + format, '_blank');
-    toast(format.toUpperCase() + ' indiriliyor...', 'info');
-};
-
 // ===== GALLERY =====
-window.setGallerySort = function(sort, btn) {
+function setGallerySort(sort, btn) {
     gallerySort = sort;
-    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    var chips = document.querySelectorAll('.filter-chip');
+    for (var i = 0; i < chips.length; i++) chips[i].classList.remove('active');
     btn.classList.add('active');
     loadGallery();
-};
-async function loadGallery() {
-    const grid = document.getElementById('galleryGrid');
-    const search = document.getElementById('gallerySearch')?.value || '';
-    grid.innerHTML = '<div class="empty-state"><div style="height:200px" class="skeleton"></div></div>'.repeat(4);
-    try {
-        const res = await fetch(API + '/api/gallery?' + new URLSearchParams({ sort: gallerySort, limit: 20, search }));
-        const data = await res.json();
-        if (!data.models?.length) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">◎</div><div class="empty-title">Henüz model yok</div><button onclick="navigateTo('generate')">Model Üret →</button></div>`; return; }
-        grid.innerHTML = data.models.map(m => `<div class="model-card" onclick="window._viewModel('${m.task_id}')"><div class="model-thumb"><span class="thumb-placeholder">✦</span>${m.style?`<div class="model-style-tag">${m.style}</div>`:''}<div class="thumb-overlay"><button onclick="event.stopPropagation();window._viewModel('${m.task_id}')">Görüntüle</button></div></div><div class="model-body"><div class="model-title">${m.title||'Model'}</div><div class="model-meta"><span>@${m.author_name||'Maker'}</span><span>${(m.created_at||'').slice(0,10)}</span></div><div class="model-stats"><span class="model-stat">❤ <span>${m.likes||0}</span></span><span class="model-stat">↓ <span>${m.downloads||0}</span></span></div><div class="model-actions"><button class="model-action-btn download" onclick="event.stopPropagation();window.downloadModel('glb')">↓ GLB</button><button class="model-action-btn" onclick="event.stopPropagation();window._likeModel(${m.id},this)">♡</button></div></div></div>`).join('');
-    } catch (err) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">⚠</div><div class="empty-title">Yükleme hatası</div></div>`; }
 }
-window._viewModel = function(tid) { currentTaskId = tid; navigateTo('generate'); loadModelIntoScene(API + '/api/model/' + tid + '/view'); };
-window._likeModel = async function(id, btn) {
-    try { const res = await fetch(API + '/api/gallery/' + id + '/like', { method: 'POST', headers: { 'Authorization': 'Bearer ' + currentToken } }); const d = await res.json(); btn.textContent = d.liked ? '❤' : '♡'; btn.classList.toggle('liked', d.liked); }
-    catch { toast('Giriş yapın', 'error'); }
-};
-
+function loadGallery() {
+    var grid = document.getElementById('galleryGrid');
+    var search = document.getElementById('gallerySearch') ? document.getElementById('gallerySearch').value : '';
+    grid.innerHTML = '<div class="empty-state"><div class="skeleton" style="height:200px;width:100%"></div></div>';
+    fetch(API + '/api/gallery?sort=' + gallerySort + '&limit=20&search=' + encodeURIComponent(search))
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (!data.models || data.models.length === 0) {
+            grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">◎</div><div class="empty-title">Henüz model yok</div><div class="empty-desc">İlk modeli sen üret!</div><button onclick="navigateTo(\'generate\')">Model Üret →</button></div>';
+            return;
+        }
+        grid.innerHTML = data.models.map(function(m) {
+            return '<div class="model-card" onclick="viewGalleryModel(\'' + m.task_id + '\')">' +
+                '<div class="model-thumb"><span class="thumb-placeholder">✦</span>' +
+                (m.style ? '<div class="model-style-tag">' + m.style + '</div>' : '') +
+                '<div class="thumb-overlay"><button onclick="event.stopPropagation();viewGalleryModel(\'' + m.task_id + '\')">👁 Görüntüle</button></div></div>' +
+                '<div class="model-body"><div class="model-title">' + (m.title || 'Model') + '</div>' +
+                '<div class="model-meta"><span>@' + (m.author_name || 'Maker') + '</span><span>' + (m.created_at || '').slice(0,10) + '</span></div>' +
+                '<div class="model-stats"><span class="model-stat">❤ <span>' + (m.likes||0) + '</span></span><span class="model-stat">↓ <span>' + (m.downloads||0) + '</span></span></div>' +
+                '<div class="model-actions"><button class="model-action-btn download" onclick="event.stopPropagation();downloadGalleryModel(\'' + m.task_id + '\',\'glb\')">↓ GLB</button>' +
+                '<button class="model-action-btn" onclick="event.stopPropagation();likeModel(' + m.id + ',this)">♡</button></div></div></div>';
+        }).join('');
+    })
+    .catch(function() {
+        grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">⚠</div><div class="empty-title">Yükleme hatası</div></div>';
+    });
+}
+function viewGalleryModel(taskId) {
+    navigateTo('generate');
+    showModel(taskId, false);
+}
+function downloadGalleryModel(taskId, format) {
+    window.open(API + '/api/model/' + taskId + '/' + format, '_blank');
+    toast(format.toUpperCase() + ' indiriliyor...', 'info');
+}
+function likeModel(modelId, btn) {
+    fetch(API + '/api/gallery/' + modelId + '/like', {
+        method: 'POST', headers: { 'Authorization': 'Bearer ' + currentToken }
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(d) {
+        btn.textContent = d.liked ? '❤' : '♡';
+        btn.classList.toggle('liked', d.liked);
+    })
+    .catch(function() { toast('Giriş yapın', 'error'); });
+}
 // ===== MY MODELS =====
-async function loadMyModels() {
-    const grid = document.getElementById('myModelsGrid');
-    grid.innerHTML = '<div style="height:200px" class="skeleton"></div>'.repeat(3);
-    try {
-        const res = await fetch(API + '/api/my-models', { headers: { 'Authorization': 'Bearer ' + currentToken } });
-        const data = await res.json();
-        if (!data.models?.length) { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">◇</div><div class="empty-title">Henüz modeliniz yok</div><button onclick="navigateTo('generate')">Model Üret →</button></div>`; return; }
-        grid.innerHTML = data.models.map(m => `<div class="model-card"><div class="model-thumb"><span class="thumb-placeholder">✦</span><div class="thumb-overlay"><button onclick="window._viewModel('${m.task_id}')">Görüntüle</button></div></div><div class="model-body"><div class="model-title">${m.title||m.prompt||'Model'}</div><div class="model-meta"><span>${m.gen_type||'text'}</span><span>${(m.created_at||'').slice(0,10)}</span></div><div class="model-actions"><button class="model-action-btn download" onclick="window.open('${API}/api/model/${m.task_id}/glb')">↓ GLB</button><button class="model-action-btn" onclick="window.open('${API}/api/model/${m.task_id}/stl')">↓ STL</button><button class="model-action-btn delete" onclick="window._deleteModel(${m.id},this)">🗑</button></div></div></div>`).join('');
-    } catch { grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">⚠</div><div class="empty-title">Yükleme hatası</div></div>`; }
+function loadMyModels() {
+    var grid = document.getElementById('myModelsGrid');
+    grid.innerHTML = '<div class="skeleton" style="height:200px"></div>';
+    fetch(API + '/api/my-models', { headers: { 'Authorization': 'Bearer ' + currentToken } })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (!data.models || data.models.length === 0) {
+            grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">◇</div><div class="empty-title">Henüz modeliniz yok</div><button onclick="navigateTo(\'generate\')">Model Üret →</button></div>';
+            return;
+        }
+        grid.innerHTML = data.models.map(function(m) {
+            return '<div class="model-card"><div class="model-thumb"><span class="thumb-placeholder">✦</span>' +
+                '<div class="thumb-overlay"><button onclick="viewGalleryModel(\'' + m.task_id + '\')">👁 Görüntüle</button></div></div>' +
+                '<div class="model-body"><div class="model-title">' + (m.title || m.prompt || 'Model') + '</div>' +
+                '<div class="model-meta"><span>' + (m.gen_type||'text') + '</span><span>' + (m.created_at||'').slice(0,10) + '</span></div>' +
+                '<div class="model-actions"><button class="model-action-btn download" onclick="downloadGalleryModel(\'' + m.task_id + '\',\'glb\')">↓ GLB</button>' +
+                '<button class="model-action-btn" onclick="downloadGalleryModel(\'' + m.task_id + '\',\'stl\')">↓ STL</button>' +
+                '<button class="model-action-btn delete" onclick="deleteModel(' + m.id + ',this)">🗑</button></div></div></div>';
+        }).join('');
+    })
+    .catch(function() {
+        grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">⚠</div><div class="empty-title">Yükleme hatası</div></div>';
+    });
 }
-window._deleteModel = async function(id, btn) {
-    if (!confirm('Silmek istiyor musunuz?')) return;
-    try { await fetch(API + '/api/my-models/' + id, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + currentToken } }); btn.closest('.model-card').remove(); toast('Model silindi', 'success'); loadUserData(); }
-    catch { toast('Silme başarısız', 'error'); }
-};
-
+function deleteModel(modelId, btn) {
+    if (!confirm('Bu modeli silmek istediğinize emin misiniz?')) return;
+    fetch(API + '/api/my-models/' + modelId, {
+        method: 'DELETE', headers: { 'Authorization': 'Bearer ' + currentToken }
+    })
+    .then(function(res) {
+        if (res.ok) { btn.closest('.model-card').remove(); toast('Model silindi', 'success'); loadUserData(); }
+    })
+    .catch(function() { toast('Silme başarısız', 'error'); });
+}
 // ===== SETTINGS =====
-window.switchSettingsTab = function(tab, btn) {
-    ['Profile','Usage','Billing'].forEach(t => { const el = document.getElementById('settings'+t); if(el) el.style.display = t.toLowerCase()===tab ? 'block' : 'none'; });
-    document.querySelectorAll('.settings-nav-item').forEach(i => i.classList.remove('active'));
+function switchSettingsTab(tab, btn) {
+    document.getElementById('settingsProfile').style.display = tab === 'profile' ? 'block' : 'none';
+    document.getElementById('settingsUsage').style.display = tab === 'usage' ? 'block' : 'none';
+    document.getElementById('settingsBilling').style.display = tab === 'billing' ? 'block' : 'none';
+    var items = document.querySelectorAll('.settings-nav-item');
+    for (var i = 0; i < items.length; i++) items[i].classList.remove('active');
     btn.classList.add('active');
-};
-window.saveProfile = async function() {
-    const name = document.getElementById('settingsName').value.trim();
-    const password = document.getElementById('settingsPass').value;
-    const body = {};
+}
+function saveProfile() {
+    var name = document.getElementById('settingsName').value.trim();
+    var password = document.getElementById('settingsPass').value;
+    var body = {};
     if (name) body.name = name;
     if (password) body.password = password;
-    try {
-        const res = await fetch(API + '/api/auth/update-profile', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken }, body: JSON.stringify(body) });
+    fetch(API + '/api/auth/update-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
+        body: JSON.stringify(body)
+    })
+    .then(function(res) {
         if (!res.ok) throw new Error();
         if (name) currentUser.name = name;
         localStorage.setItem('pf_user', JSON.stringify(currentUser));
-        updateSidebar(); toast('Profil güncellendi!', 'success');
+        updateSidebar();
+        toast('Profil güncellendi!', 'success');
         document.getElementById('settingsPass').value = '';
-    } catch { toast('Kaydetme başarısız', 'error'); }
-};
-
+    })
+    .catch(function() { toast('Kaydetme başarısız', 'error'); });
+}
 // ===== PLANS =====
-window.upgradePlan = async function(plan) {
-    if (!confirm(`${plan.toUpperCase()} planına geçmek istiyor musunuz?`)) return;
-    try {
-        const res = await fetch(API + '/api/payment/upgrade', { method: 'POST', headers: { 'Authorization': 'Bearer ' + currentToken } });
-        const d = await res.json();
-        if (d.success) { currentUser.plan = d.plan; localStorage.setItem('pf_user', JSON.stringify(currentUser)); updateSidebar(); loadUserData(); toast('Plan yükseltildi!', 'success'); }
-    } catch { toast('Yükseltme başarısız', 'error'); }
-};
-
+function upgradePlan(plan) {
+    if (!confirm(plan.toUpperCase() + ' planına geçmek istiyor musunuz?')) return;
+    fetch(API + '/api/payment/upgrade', {
+        method: 'POST', headers: { 'Authorization': 'Bearer ' + currentToken }
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(d) {
+        if (d.success) {
+            currentUser.plan = d.plan;
+            localStorage.setItem('pf_user', JSON.stringify(currentUser));
+            updateSidebar(); loadUserData();
+            toast('Plan yükseltildi: ' + d.plan.toUpperCase(), 'success');
+        }
+    })
+    .catch(function() { toast('Yükseltme başarısız', 'error'); });
+}
 // ===== INIT =====
-async function init() {
-    if (new URLSearchParams(window.location.search).get('reset')) { switchAuth('reset'); return; }
-    const storedToken = localStorage.getItem('pf_token');
+function init() {
+    // Check reset token
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('reset')) { switchAuth('reset'); return; }
+    // Check existing token
+    var storedToken = localStorage.getItem('pf_token');
     if (storedToken && storedToken !== 'no-jwt') {
         currentToken = storedToken;
-        try {
-            const res = await fetch(API + '/api/auth/me', { headers: { 'Authorization': 'Bearer ' + currentToken } });
-            if (res.ok) { const d = await res.json(); currentUser = d.user; localStorage.setItem('pf_user', JSON.stringify(d.user)); enterApp(); return; }
-        } catch {}
-        const su = localStorage.getItem('pf_user');
-        if (su) { try { currentUser = JSON.parse(su); enterApp(); return; } catch {} }
-        localStorage.removeItem('pf_token'); localStorage.removeItem('pf_user');
+        fetch(API + '/api/auth/me', { headers: { 'Authorization': 'Bearer ' + currentToken } })
+        .then(function(res) {
+            if (res.ok) return res.json();
+            throw new Error('Invalid token');
+        })
+        .then(function(data) {
+            currentUser = data.user;
+            localStorage.setItem('pf_user', JSON.stringify(data.user));
+            enterApp();
+        })
+        .catch(function() {
+            // Try stored user as fallback
+            var su = localStorage.getItem('pf_user');
+            if (su) {
+                try {
+                    currentUser = JSON.parse(su);
+                    enterApp();
+                    return;
+                } catch(e) {}
+            }
+            localStorage.removeItem('pf_token');
+            localStorage.removeItem('pf_user');
+            document.getElementById('authOverlay').classList.remove('hidden');
+            document.getElementById('appLayout').style.display = 'none';
+        });
+    } else {
+        document.getElementById('authOverlay').classList.remove('hidden');
+        document.getElementById('appLayout').style.display = 'none';
     }
-    document.getElementById('authOverlay').classList.remove('hidden');
-    document.getElementById('appLayout').style.display = 'none';
 }
 init();
 </script>
