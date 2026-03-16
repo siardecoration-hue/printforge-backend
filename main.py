@@ -3,23 +3,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse, Response, RedirectResponse
 from pydantic import BaseModel
 import asyncio, uuid, httpx, base64, random, json, os, io, re
-import hashlib, secrets, sqlite3, time, struct
+import hashlib, secrets, sqlite3, hmac, time
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 from urllib.parse import urlencode
-from collections import defaultdict
+
 try:
     import jwt as pyjwt
     HAS_JWT = True
 except ImportError:
     HAS_JWT = False
+
 try:
     import trimesh, numpy
     HAS_TRIMESH = True
 except ImportError:
     HAS_TRIMESH = False
+
 app = FastAPI(title="PrintForge", docs_url=None, redoc_url=None)
-# ════════ GÜVENLIK AYARLARI ════════
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
 TRIPO_API_KEY = os.getenv("TRIPO_API_KEY", "")
 MESHY_API_KEY = os.getenv("MESHY_API_KEY", "")
 SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_hex(32))
@@ -30,264 +33,16 @@ RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 EMAIL_FROM = os.getenv("EMAIL_FROM", "onboarding@resend.dev")
 TRIPO_BASE = "https://api.tripo3d.ai/v2/openapi"
 MESHY_BASE = "https://api.meshy.ai/openapi/v2"
-# Güvenlik sabitleri
-JWT_EXPIRY_HOURS = int(os.getenv("JWT_EXPIRY_HOURS", "24"))
-JWT_REFRESH_DAYS = int(os.getenv("JWT_REFRESH_DAYS", "7"))
-MAX_LOGIN_ATTEMPTS = 5
-LOGIN_LOCKOUT_MINUTES = 15
-MAX_REGISTER_PER_HOUR = 3
-MAX_REQUESTS_PER_MINUTE = 60
-MAX_GENERATE_PER_MINUTE = 5
-PASSWORD_MIN_LENGTH = 8
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
-ALLOWED_FILE_TYPES = {"image/jpeg", "image/png", "image/webp"}
-SESSION_INACTIVE_HOURS = 12
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_methods=["GET", "POST", "DELETE"],
-    allow_headers=["Authorization", "Content-Type"],
-    allow_credentials=True,
-    max_age=3600,
-)
+
 def get_site_url():
     d = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
     return f"https://{d}" if d else "http://localhost:8000"
-# ════════ GÜVENLİK MIDDLEWARE ════════
-@app.middleware("http")
-async def security_middleware(request: Request, call_next):
-    """Güvenlik başlıkları ve rate limiting"""
-    client_ip = get_client_ip(request)
-    path = request.url.path
-    # Rate limiting kontrolü
-    if not check_rate_limit(client_ip, path):
-        log_security("RATE_LIMIT", client_ip, f"Path: {path}")
-        return Response(
-            content=json.dumps({"detail": "Çok fazla istek. Lütfen bekleyin."}),
-            status_code=429,
-            media_type="application/json",
-            headers={"Retry-After": "60"}
-        )
-    response = await call_next(request)
-    # Güvenlik başlıkları
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://ajax.googleapis.com https://cdn.jsdelivr.net; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-        "font-src 'self' https://fonts.gstatic.com; "
-        "img-src 'self' data: blob: https:; "
-        "connect-src 'self' https://api.tripo3d.ai https://api.meshy.ai https://raw.githubusercontent.com; "
-        "frame-src 'none'; "
-        "object-src 'none'; "
-        "base-uri 'self'"
-    )
-    return response
-# ════════ RATE LIMITING ════════
-rate_limits = defaultdict(list)  # ip -> [timestamp, ...]
-login_attempts = defaultdict(list)  # ip -> [(timestamp, success), ...]
-register_attempts = defaultdict(list)  # ip -> [timestamp, ...]
-generate_attempts = defaultdict(list)  # ip -> [timestamp, ...]
-account_lockouts = {}  # email -> lockout_until_timestamp
-blocked_ips = {}  # ip -> unblock_timestamp
-def get_client_ip(request: Request) -> str:
-    """Gerçek IP adresini al (proxy arkasında bile)"""
-    forwarded = request.headers.get("x-forwarded-for", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    real_ip = request.headers.get("x-real-ip", "")
-    if real_ip:
-        return real_ip
-    return request.client.host if request.client else "unknown"
-def check_rate_limit(ip: str, path: str) -> bool:
-    """Genel rate limiting"""
-    # Engelli IP kontrolü
-    if ip in blocked_ips:
-        if time.time() < blocked_ips[ip]:
-            return False
-        del blocked_ips[ip]
-    now = time.time()
-    # Eski kayıtları temizle (1 dk öncesi)
-    rate_limits[ip] = [t for t in rate_limits[ip] if now - t < 60]
-    rate_limits[ip].append(now)
-    if len(rate_limits[ip]) > MAX_REQUESTS_PER_MINUTE:
-        log_security("RATE_EXCEEDED", ip, f"Requests: {len(rate_limits[ip])}/min")
-        return False
-    return True
-def check_login_rate(ip: str, email: str) -> tuple:
-    """Login rate limiting ve brute force koruması"""
-    now = time.time()
-    # Hesap kilitli mi?
-    if email in account_lockouts:
-        if now < account_lockouts[email]:
-            remaining = int((account_lockouts[email] - now) / 60) + 1
-            return False, f"Hesap geçici olarak kilitlendi. {remaining} dk sonra tekrar deneyin."
-        del account_lockouts[email]
-    # IP bazlı kontrol
-    login_attempts[ip] = [(t, s) for t, s in login_attempts[ip] if now - t < 900]
-    failed = sum(1 for t, s in login_attempts[ip] if not s)
-    if failed >= MAX_LOGIN_ATTEMPTS:
-        account_lockouts[email] = now + (LOGIN_LOCKOUT_MINUTES * 60)
-        log_security("ACCOUNT_LOCKED", ip, f"Email: {email}, Failed: {failed}")
-        return False, f"Çok fazla başarısız deneme. {LOGIN_LOCKOUT_MINUTES} dk sonra tekrar deneyin."
-    return True, "OK"
-def record_login_attempt(ip: str, email: str, success: bool):
-    """Login denemesini kaydet"""
-    login_attempts[ip].append((time.time(), success))
-    if not success:
-        log_security("LOGIN_FAILED", ip, f"Email: {email}")
-    else:
-        # Başarılı girişte sayacı sıfırla
-        login_attempts[ip] = [(time.time(), True)]
-        if email in account_lockouts:
-            del account_lockouts[email]
-def check_register_rate(ip: str) -> bool:
-    """Kayıt rate limiting"""
-    now = time.time()
-    register_attempts[ip] = [t for t in register_attempts[ip] if now - t < 3600]
-    if len(register_attempts[ip]) >= MAX_REGISTER_PER_HOUR:
-        log_security("REGISTER_RATE", ip, f"Attempts: {len(register_attempts[ip])}/hr")
-        return False
-    register_attempts[ip].append(now)
-    return True
-def check_generate_rate(ip: str) -> bool:
-    """Model üretim rate limiting"""
-    now = time.time()
-    generate_attempts[ip] = [t for t in generate_attempts[ip] if now - t < 60]
-    if len(generate_attempts[ip]) >= MAX_GENERATE_PER_MINUTE:
-        return False
-    generate_attempts[ip].append(now)
-    return True
-# ════════ GÜVENLİK LOGLAMA ════════
-def log_security(event_type: str, ip: str, details: str = ""):
-    """Güvenlik olaylarını logla ve veritabanına kaydet"""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[SECURITY] [{timestamp}] [{event_type}] IP:{ip} {details}")
-    try:
-        conn = get_db()
-        conn.execute(
-            "INSERT INTO security_logs(event_type, ip_address, details, created_at) VALUES(?,?,?,?)",
-            (event_type, ip, details, timestamp)
-        )
-        conn.commit()
-        conn.close()
-    except:
-        pass
-# ════════ GÜVENLİ ŞİFRE HASHLEME (PBKDF2) ════════
-def hash_pw(pw: str) -> tuple:
-    """PBKDF2-SHA512 ile güvenli şifre hashleme"""
-    salt = secrets.token_hex(32)
-    iterations = 310000  # OWASP önerisi
-    h = hashlib.pbkdf2_hmac(
-        'sha512',
-        pw.encode('utf-8'),
-        salt.encode('utf-8'),
-        iterations
-    ).hex()
-    return salt, h
-def verify_pw(pw: str, salt: str, h: str) -> bool:
-    """PBKDF2-SHA512 ile şifre doğrulama"""
-    iterations = 310000
-    computed = hashlib.pbkdf2_hmac(
-        'sha512',
-        pw.encode('utf-8'),
-        salt.encode('utf-8'),
-        iterations
-    ).hex()
-    # Timing attack koruması - sabit zamanlı karşılaştırma
-    return secrets.compare_digest(computed, h)
-def validate_password_strength(password: str) -> tuple:
-    """Şifre gücü kontrolü"""
-    if len(password) < PASSWORD_MIN_LENGTH:
-        return False, f"Şifre en az {PASSWORD_MIN_LENGTH} karakter olmalı"
-    if not re.search(r'[a-zA-Z]', password):
-        return False, "Şifre en az bir harf içermeli"
-    if not re.search(r'[0-9]', password):
-        return False, "Şifre en az bir rakam içermeli"
-    # Yaygın zayıf şifreler
-    weak_passwords = [
-        "12345678", "password", "123456789", "qwerty123",
-        "abc12345", "password1", "11111111", "iloveyou",
-        "admin123", "letmein1", "welcome1", "monkey12",
-    ]
-    if password.lower() in weak_passwords:
-        return False, "Bu şifre çok yaygın, daha güçlü bir şifre seçin"
-    return True, "OK"
-# ════════ GİRİŞ TEMİZLEME & DOĞRULAMA ════════
-def sanitize_input(text: str, max_length: int = 500) -> str:
-    """Girişi temizle - XSS ve injection koruması"""
-    if not text:
-        return ""
-    text = text[:max_length]
-    # HTML etiketlerini temizle
-    text = re.sub(r'<[^>]+>', '', text)
-    # Tehlikeli karakterleri kaldır
-    text = text.replace('\x00', '')
-    # Script injection önleme
-    text = re.sub(r'(?i)(javascript|on\w+\s*=|eval\s*\(|alert\s*\()', '', text)
-    return text.strip()
-def sanitize_name(name: str) -> str:
-    """İsim temizleme"""
-    name = sanitize_input(name, 100)
-    name = re.sub(r'[^\w\s\-\.]', '', name, flags=re.UNICODE)
-    return name.strip()
-def sanitize_email(email: str) -> str:
-    """E-posta temizleme"""
-    return email.lower().strip()[:254]
-def sanitize_prompt(prompt: str) -> str:
-    """Prompt temizleme"""
-    prompt = sanitize_input(prompt, 500)
-    # SQL injection kalıplarını temizle
-    prompt = re.sub(r'(?i)(DROP\s+TABLE|DELETE\s+FROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|UNION\s+SELECT)', '', prompt)
-    return prompt.strip()
-# ════════ DOSYA DOĞRULAMA ════════
-IMAGE_SIGNATURES = {
-    b'\xff\xd8\xff': 'image/jpeg',
-    b'\x89\x50\x4e\x47': 'image/png',
-    b'\x52\x49\x46\x46': 'image/webp',  # RIFF header for WebP
-}
-def validate_file(contents: bytes, filename: str) -> tuple:
-    """Dosya içeriğini doğrula - magic bytes kontrolü"""
-    if len(contents) > MAX_UPLOAD_SIZE:
-        return False, "Dosya çok büyük (max 10MB)"
-    if len(contents) < 8:
-        return False, "Geçersiz dosya"
-    # Magic bytes kontrolü
-    detected_type = None
-    for signature, mime_type in IMAGE_SIGNATURES.items():
-        if contents[:len(signature)] == signature:
-            detected_type = mime_type
-            break
-    if not detected_type:
-        return False, "Desteklenmeyen dosya formatı. Sadece JPG, PNG ve WEBP kabul edilir."
-    # Uzantı kontrolü
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    allowed_exts = {"jpg", "jpeg", "png", "webp"}
-    if ext not in allowed_exts:
-        return False, f"Geçersiz dosya uzantısı: .{ext}"
-    # İçerik boyutu kontrolü (min 1KB - muhtemelen gerçek bir görsel)
-    if len(contents) < 1024:
-        return False, "Dosya çok küçük, geçerli bir görsel değil"
-    # Embedded script kontrolü
-    content_start = contents[:4096].decode('latin-1', errors='ignore').lower()
-    dangerous = ['<script', 'javascript:', 'onerror=', 'onload=', '<?php', '<%']
-    for d in dangerous:
-        if d in content_start:
-            log_security("MALICIOUS_FILE", "unknown", f"Dangerous content: {d}")
-            return False, "Dosyada şüpheli içerik tespit edildi"
-    return True, detected_type
-# ════════ VERİTABANI ════════
+
 tasks = {}
 model_cache = {}
 MAX_CACHE = 50
 PLAN_LIMITS = {"free": 5, "pro": 100, "business": 999999}
+
 DEMO_MODELS = [
     {"name": "Damaged Helmet", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb"},
     {"name": "Avocado", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Avocado/glTF-Binary/Avocado.glb"},
@@ -295,102 +50,119 @@ DEMO_MODELS = [
     {"name": "Lantern", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Lantern/glTF-Binary/Lantern.glb"},
     {"name": "Water Bottle", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/WaterBottle/glTF-Binary/WaterBottle.glb"},
 ]
+
+# ════════ RATE LIMITING ════════
+rate_limits = {}
+login_attempts = {}
+
+def check_rate_limit(ip, action="general", max_req=60, window=60):
+    key = f"{ip}:{action}"
+    now = time.time()
+    if key not in rate_limits:
+        rate_limits[key] = []
+    rate_limits[key] = [t for t in rate_limits[key] if now - t < window]
+    if len(rate_limits[key]) >= max_req:
+        return False
+    rate_limits[key].append(now)
+    return True
+
+def check_login_attempt(ip):
+    now = time.time()
+    if ip not in login_attempts:
+        login_attempts[ip] = []
+    login_attempts[ip] = [t for t in login_attempts[ip] if now - t < 900]
+    return len(login_attempts[ip]) < 5
+
+def record_login_fail(ip):
+    if ip not in login_attempts:
+        login_attempts[ip] = []
+    login_attempts[ip].append(time.time())
+
+def get_client_ip(request: Request):
+    forwarded = request.headers.get("x-forwarded-for", "")
+    return forwarded.split(",")[0].strip() if forwarded else request.client.host
+
+# ════════ GUVENLIK ════════
+def hash_pw(pw):
+    salt = secrets.token_hex(16)
+    h = hashlib.pbkdf2_hmac('sha512', pw.encode(), salt.encode(), 310000).hex()
+    return salt, h
+
+def verify_pw(pw, salt, h):
+    computed = hashlib.pbkdf2_hmac('sha512', pw.encode(), salt.encode(), 310000).hex()
+    return hmac.compare_digest(computed, h)
+
+def create_token(uid, email, name, plan):
+    if not HAS_JWT:
+        return "no-jwt"
+    return pyjwt.encode(
+        {"user_id": uid, "email": email, "name": name, "plan": plan,
+         "exp": datetime.utcnow() + timedelta(days=7)},
+        SECRET_KEY, algorithm="HS256"
+    )
+
+def decode_token(t):
+    if not HAS_JWT:
+        return None
+    try:
+        return pyjwt.decode(t, SECRET_KEY, algorithms=["HS256"])
+    except:
+        return None
+
+def sanitize(text):
+    if not text:
+        return ""
+    text = re.sub(r'<[^>]+>', '', str(text))
+    text = text.replace('&', '&amp;').replace('"', '&quot;')
+    return text.strip()[:500]
+
+def validate_password(pw):
+    if len(pw) < 8:
+        return False, "Sifre en az 8 karakter olmali"
+    if not re.search(r'[a-zA-Z]', pw):
+        return False, "Sifre en az 1 harf icermeli"
+    if not re.search(r'[0-9]', pw):
+        return False, "Sifre en az 1 rakam icermeli"
+    return True, "OK"
+
 BLOCKED_DOMAINS = set([
     "tempmail.com","throwaway.email","guerrillamail.com","mailinator.com",
     "yopmail.com","sharklasers.com","guerrillamailblock.com","grr.la",
-    "dispostable.com","trashmail.com","trashmail.net","10minutemail.com",
-    "temp-mail.org","tempail.com","tmpmail.net","mohmal.com","getnada.com",
-    "emailondeck.com","33mail.com","maildrop.cc","inboxbear.com",
-    "fakeinbox.com","tmpmail.org","tempinbox.com","bupmail.com",
-    "burnermail.io","discard.email","discardmail.com","mytemp.email",
-    "temp-mail.io","wegwerfmail.de","trash-mail.com","safetymail.info",
-    "spamgourmet.com","mailnesia.com","mailcatch.com","jetable.org",
-    "filzmail.com","trbvm.com","harakirimail.com","crazymailing.com",
-    "guerrillamail.info","guerrillamail.net","guerrillamail.org",
-    "guerrillamail.de","zetmail.com","spamfree24.org","trashymail.com",
-    "kasmail.com","mytrashmail.com","mailexpire.com","throwam.com",
-    "mailnull.com","e4ward.com","mailmoat.com","incognitomail.org",
-    "mailshell.com","mailzilla.com","tempmailaddress.com",
-    "meltmail.com","getairmail.com","mailsac.com","drdrb.com",
+    "dispostable.com","trashmail.com","10minutemail.com","temp-mail.org",
 ])
-ALLOWED_DOMAINS = set([
-    "gmail.com","googlemail.com","outlook.com","outlook.com.tr",
-    "hotmail.com","hotmail.com.tr","live.com","live.com.tr",
-    "yahoo.com","yahoo.com.tr","yandex.com","yandex.com.tr",
-    "icloud.com","me.com","mac.com","protonmail.com","proton.me",
-    "aol.com","mail.com","zoho.com","gmx.com","gmx.net","msn.com",
-])
-BLOCKED_PATTERNS = [
-    r"^test\d*@", r"^fake\d*@", r"^spam\d*@", r"^trash\d*@",
-    r"^temp\d*@", r"^dummy\d*@", r"^noreply@", r"^no-reply@",
-    r"^asdf+@", r"^qwer+@", r"^xxx+@", r"^aaa+@",
-    r"^111+@", r"^123+@", r"^\d{8,}@",
-]
-async def verify_email_dns(domain):
-    try:
-        async with httpx.AsyncClient(timeout=5) as c:
-            r = await c.get(f"https://dns.google/resolve?name={domain}&type=MX")
-            if r.json().get("Answer"):
-                return True
-            r2 = await c.get(f"https://dns.google/resolve?name={domain}&type=A")
-            return bool(r2.json().get("Answer"))
-    except:
-        return True
+
 async def validate_email(email):
-    email = sanitize_email(email)
+    email = email.lower().strip()
     if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9._%+-]*@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
-        return False, "Geçerli bir e-posta girin (örnek: isim@gmail.com)"
+        return False, "Gecerli bir e-posta girin"
     local, domain = email.split("@", 1)
     if len(local) < 2:
-        return False, "E-posta çok kısa"
-    if len(domain) < 4:
-        return False, "Geçerli bir e-posta sağlayıcısı kullanın"
+        return False, "E-posta cok kisa"
     if domain in BLOCKED_DOMAINS:
-        return False, "Geçici e-posta kabul edilmiyor. Gmail, Outlook veya Yahoo kullanın."
-    for b in BLOCKED_DOMAINS:
-        if domain.endswith("." + b):
-            return False, "Bu e-posta sağlayıcısı kabul edilmiyor."
-    for pat in BLOCKED_PATTERNS:
-        if re.match(pat, email):
-            return False, "Bu e-posta geçersiz. Gerçek e-posta adresinizi kullanın."
-    if local.replace(".", "").replace("-", "").replace("_", "").isdigit():
-        return False, "Gerçek bir e-posta kullanın"
-    for ch in set(local):
-        if ch * 4 in local:
-            return False, "Geçerli bir e-posta girin"
-    if domain not in ALLOWED_DOMAINS:
-        if not await verify_email_dns(domain):
-            return False, "Bu e-posta domaini bulunamadı."
+        return False, "Gecici e-posta kabul edilmiyor"
     return True, "OK"
-# ════════ E-POSTA GÖNDERME ════════
+
+def generate_username(name, uid):
+    base = re.sub(r'[^a-z0-9]', '', name.lower().replace(' ', ''))[:15]
+    if not base:
+        base = "user"
+    return f"{base}{uid}"
+
+
+# ════════ E-POSTA ════════
 async def send_email(to, subject, html_content):
     if not RESEND_API_KEY:
-        print(f"[MAIL] API key yok, mail gönderilemedi: {to}")
+        print(f"[MAIL] API key yok: {to}")
         return False
     try:
         async with httpx.AsyncClient(timeout=15) as client:
-            r = await client.post(
-                "https://api.resend.com/emails",
-                headers={
-                    "Authorization": f"Bearer {RESEND_API_KEY}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "from": EMAIL_FROM,
-                    "to": [to],
-                    "subject": subject,
-                    "html": html_content
-                }
-            )
-            if r.status_code in (200, 201):
-                print(f"[MAIL] Gönderildi: {to}")
-                return True
-            else:
-                print(f"[MAIL] Hata: {r.status_code} - {r.text}")
-                return False
-    except Exception as e:
-        print(f"[MAIL] Exception: {e}")
+            r = await client.post("https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+                json={"from": EMAIL_FROM, "to": [to], "subject": subject, "html": html_content})
+            return r.status_code in (200, 201)
+    except:
         return False
+
 async def send_verification_email(email, token):
     link = f"{get_site_url()}/api/auth/verify?token={token}"
     html = f"""
@@ -398,23 +170,19 @@ async def send_verification_email(email, token):
         <div style="text-align:center;margin-bottom:24px">
             <span style="font-size:24px;font-weight:800;color:#00e5ff;letter-spacing:0.1em">PRINTFORGE</span>
         </div>
-        <h2 style="color:#c8dde5;font-size:18px;margin-bottom:12px">Hesabınızı Doğrulayın</h2>
+        <h2 style="color:#c8dde5;font-size:18px;margin-bottom:12px">Hesabinizi Dogrulayin</h2>
         <p style="color:#2a4a5a;font-size:14px;line-height:1.8;margin-bottom:24px">
-            PrintForge'a hoş geldiniz! Hesabınızı aktif etmek için aşağıdaki butona tıklayın.
+            PrintForge'a hosgeldiniz! Hesabinizi aktif etmek icin asagidaki butona tiklayin.
         </p>
         <div style="text-align:center;margin-bottom:24px">
             <a href="{link}" style="display:inline-block;padding:14px 36px;background:#00e5ff;color:#04080a;text-decoration:none;font-weight:700;font-size:14px;border-radius:8px">
-                Hesabı Doğrula
+                Hesabi Dogrula
             </a>
         </div>
-        <p style="color:#2a4a5a;font-size:11px;line-height:1.6">
-            Bu link 24 saat geçerlidir. Eğer siz kayıt olmadıysanız bu maili görmezden gelin.
-        </p>
-        <hr style="border:none;border-top:1px solid #0e2028;margin:20px 0">
-        <p style="color:#2a4a5a;font-size:10px;text-align:center">PrintForge - AI ile 3D Model Üretici</p>
-    </div>
-    """
-    return await send_email(email, "PrintForge - Hesap Doğrulama", html)
+        <p style="color:#2a4a5a;font-size:11px">Bu link 24 saat gecerlidir.</p>
+    </div>"""
+    return await send_email(email, "PrintForge - Hesap Dogrulama", html)
+
 async def send_reset_email(email, token):
     link = f"{get_site_url()}/app?reset={token}"
     html = f"""
@@ -422,87 +190,134 @@ async def send_reset_email(email, token):
         <div style="text-align:center;margin-bottom:24px">
             <span style="font-size:24px;font-weight:800;color:#00e5ff;letter-spacing:0.1em">PRINTFORGE</span>
         </div>
-        <h2 style="color:#c8dde5;font-size:18px;margin-bottom:12px">Şifre Sıfırlama</h2>
+        <h2 style="color:#c8dde5;font-size:18px;margin-bottom:12px">Sifre Sifirlama</h2>
         <p style="color:#2a4a5a;font-size:14px;line-height:1.8;margin-bottom:24px">
-            Şifrenizi sıfırlamak için aşağıdaki butona tıklayın.
+            Sifrenizi sifirlamak icin asagidaki butona tiklayin.
         </p>
         <div style="text-align:center;margin-bottom:24px">
             <a href="{link}" style="display:inline-block;padding:14px 36px;background:#00e5ff;color:#04080a;text-decoration:none;font-weight:700;font-size:14px;border-radius:8px">
-                Şifremi Sıfırla
+                Sifremi Sifirla
             </a>
         </div>
-        <p style="color:#2a4a5a;font-size:11px;line-height:1.6">
-            Bu link 1 saat geçerlidir. Eğer siz talep etmediyseniz bu maili görmezden gelin.
-        </p>
-        <hr style="border:none;border-top:1px solid #0e2028;margin:20px 0">
-        <p style="color:#2a4a5a;font-size:10px;text-align:center">PrintForge - AI ile 3D Model Üretici</p>
-    </div>
-    """
-    return await send_email(email, "PrintForge - Şifre Sıfırlama", html)
-async def send_security_alert(email, event_type, ip):
-    """Şüpheli aktivite bildirim maili"""
+        <p style="color:#2a4a5a;font-size:11px">Bu link 1 saat gecerlidir.</p>
+    </div>"""
+    return await send_email(email, "PrintForge - Sifre Sifirlama", html)
+
+async def send_welcome_email(email, name):
     html = f"""
     <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:30px;background:#04080a;border:1px solid #0e2028;border-radius:12px">
         <div style="text-align:center;margin-bottom:24px">
             <span style="font-size:24px;font-weight:800;color:#00e5ff;letter-spacing:0.1em">PRINTFORGE</span>
         </div>
-        <h2 style="color:#ff4466;font-size:18px;margin-bottom:12px">⚠️ Güvenlik Uyarısı</h2>
-        <p style="color:#c8dde5;font-size:14px;line-height:1.8;margin-bottom:16px">
-            Hesabınızda şüpheli bir aktivite tespit edildi:
+        <h2 style="color:#c8dde5;font-size:18px;margin-bottom:12px">Hosgeldin {name}! 🎉</h2>
+        <p style="color:#2a4a5a;font-size:14px;line-height:1.8;margin-bottom:24px">
+            PrintForge'a katildigin icin tesekkurler! Artik AI ile 3D model uretebilirsin.
         </p>
-        <div style="background:#0a1318;border:1px solid #162a36;padding:16px;margin-bottom:20px">
-            <p style="color:#ff9800;font-size:12px;margin:0">Olay: {event_type}</p>
-            <p style="color:#2a4a5a;font-size:11px;margin:4px 0 0">IP: {ip}</p>
-            <p style="color:#2a4a5a;font-size:11px;margin:4px 0 0">Tarih: {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
+        <ul style="color:#c8dde5;font-size:13px;line-height:2;margin-bottom:24px">
+            <li>✅ Ayda 5 ucretsiz model uret</li>
+            <li>✅ GLB, STL, OBJ formatinda indir</li>
+            <li>✅ Topluluk galerisin kesfet</li>
+            <li>✅ Koleksiyonlar olustur</li>
+        </ul>
+        <div style="text-align:center">
+            <a href="{get_site_url()}/app" style="display:inline-block;padding:14px 36px;background:#00e5ff;color:#04080a;text-decoration:none;font-weight:700;font-size:14px;border-radius:8px">
+                Hemen Basla →
+            </a>
         </div>
-        <p style="color:#2a4a5a;font-size:12px;line-height:1.8">
-            Eğer bu siz değilseniz, hemen şifrenizi değiştirin.
+    </div>"""
+    return await send_email(email, f"PrintForge'a Hosgeldin, {name}!", html)
+
+async def send_follow_email(follower_name, target_email, target_name):
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:30px;background:#04080a;border:1px solid #0e2028;border-radius:12px">
+        <div style="text-align:center;margin-bottom:24px">
+            <span style="font-size:24px;font-weight:800;color:#00e5ff;letter-spacing:0.1em">PRINTFORGE</span>
+        </div>
+        <h2 style="color:#c8dde5;font-size:18px;margin-bottom:12px">Yeni Takipci! 🎉</h2>
+        <p style="color:#2a4a5a;font-size:14px;line-height:1.8">
+            <strong style="color:#00e5ff">{follower_name}</strong> seni takip etmeye basladi!
         </p>
-    </div>
-    """
-    return await send_email(email, "PrintForge - Güvenlik Uyarısı", html)
-# ════════ REQUEST MODELLER ════════
+    </div>"""
+    return await send_email(target_email, f"{follower_name} seni takip ediyor!", html)
+
+
+# ════════ MODELS ════════
 class TextRequest(BaseModel):
     prompt: str
     style: str = "realistic"
     negative_prompt: str = ""
+    tags: str = ""
+
 class RegisterReq(BaseModel):
     name: str
     email: str
     password: str
+
 class LoginReq(BaseModel):
     email: str
     password: str
+
 class UpdateProfileReq(BaseModel):
     name: Optional[str] = None
     password: Optional[str] = None
+    bio: Optional[str] = None
+    website: Optional[str] = None
+
 class ForgotPasswordReq(BaseModel):
     email: str
+
 class ResetPasswordReq(BaseModel):
     token: str
     password: str
-class DeleteAccountReq(BaseModel):
-    password: str
-class ExportDataReq(BaseModel):
-    pass
+
+class CollectionReq(BaseModel):
+    name: str
+    description: str = ""
+    is_public: int = 1
+
+class CollectionItemReq(BaseModel):
+    model_id: int
+
+class BlogPostReq(BaseModel):
+    title: str
+    slug: str
+    excerpt: str = ""
+    content: str
+    cover_image: str = ""
+    tags: str = ""
+
+class TagModelReq(BaseModel):
+    tags: str  # comma separated
+
+
 STYLE_MAP = {
     "realistic": "realistic", "cartoon": "cartoon", "lowpoly": "low-poly",
     "sculpture": "sculpture", "mechanical": "pbr", "miniature": "sculpture",
     "geometric": "realistic",
 }
+
+CATEGORIES = [
+    "karakter", "arac", "mimari", "dekor", "mobilya", "hayvan",
+    "yiyecek", "aksesuar", "silah", "bitki", "elektronik", "oyuncak",
+    "spor", "muzik", "diger"
+]
+
 def get_api():
     if TRIPO_API_KEY:
         return "tripo"
     if MESHY_API_KEY:
         return "meshy"
     return "demo"
-# ════════ VERİTABANI ════════
+
+
+# ════════ VERITABANI ════════
 def get_db():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
+
 def init_db():
     conn = get_db()
     conn.executescript("""
@@ -510,21 +325,20 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE NOT NULL,
             name TEXT NOT NULL,
+            username TEXT UNIQUE,
             password_hash TEXT NOT NULL,
             salt TEXT NOT NULL,
             plan TEXT DEFAULT 'free',
+            bio TEXT DEFAULT '',
+            website TEXT DEFAULT '',
             google_id TEXT,
             avatar_url TEXT,
             verified INTEGER DEFAULT 0,
             verify_token TEXT,
             reset_token TEXT,
             reset_expires TEXT,
-            last_login TEXT,
-            last_ip TEXT,
-            login_count INTEGER DEFAULT 0,
-            failed_attempts INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT (datetime('now')),
-            updated_at TEXT DEFAULT (datetime('now'))
+            email_notifications INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS models (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -532,13 +346,22 @@ def init_db():
             task_id TEXT UNIQUE,
             title TEXT,
             prompt TEXT,
+            negative_prompt TEXT DEFAULT '',
             gen_type TEXT,
             style TEXT,
+            category TEXT DEFAULT '',
             model_url TEXT,
             is_public INTEGER DEFAULT 1,
             likes INTEGER DEFAULT 0,
             downloads INTEGER DEFAULT 0,
+            views INTEGER DEFAULT 0,
             created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS model_tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model_id INTEGER,
+            tag TEXT,
+            UNIQUE(model_id, tag)
         );
         CREATE TABLE IF NOT EXISTS usage (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -550,188 +373,186 @@ def init_db():
         CREATE TABLE IF NOT EXISTS user_likes (
             user_id INTEGER,
             model_id INTEGER,
+            created_at TEXT DEFAULT (datetime('now')),
             PRIMARY KEY(user_id, model_id)
         );
-        CREATE TABLE IF NOT EXISTS security_logs (
+        CREATE TABLE IF NOT EXISTS follows (
+            follower_id INTEGER,
+            following_id INTEGER,
+            created_at TEXT DEFAULT (datetime('now')),
+            PRIMARY KEY(follower_id, following_id)
+        );
+        CREATE TABLE IF NOT EXISTS collections (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            event_type TEXT,
-            ip_address TEXT,
-            details TEXT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            is_public INTEGER DEFAULT 1,
+            model_count INTEGER DEFAULT 0,
             created_at TEXT DEFAULT (datetime('now'))
         );
-        CREATE TABLE IF NOT EXISTS active_sessions (
+        CREATE TABLE IF NOT EXISTS collection_items (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            token_hash TEXT UNIQUE,
-            ip_address TEXT,
-            user_agent TEXT,
-            created_at TEXT DEFAULT (datetime('now')),
-            last_active TEXT DEFAULT (datetime('now')),
-            expires_at TEXT
+            collection_id INTEGER NOT NULL,
+            model_id INTEGER NOT NULL,
+            added_at TEXT DEFAULT (datetime('now')),
+            UNIQUE(collection_id, model_id)
         );
-        CREATE TABLE IF NOT EXISTS data_exports (
+        CREATE TABLE IF NOT EXISTS blog_posts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            author_id INTEGER DEFAULT 0,
+            title TEXT NOT NULL,
+            slug TEXT UNIQUE NOT NULL,
+            excerpt TEXT DEFAULT '',
+            content TEXT NOT NULL,
+            cover_image TEXT DEFAULT '',
+            tags TEXT DEFAULT '',
+            views INTEGER DEFAULT 0,
+            is_published INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS security_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
-            status TEXT DEFAULT 'pending',
-            file_path TEXT,
-            requested_at TEXT DEFAULT (datetime('now')),
-            completed_at TEXT
+            action TEXT,
+            ip TEXT,
+            detail TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
         );
     """)
-    # İndeksler
+    # Add columns if missing (migration)
     try:
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_security_logs_ip ON security_logs(ip_address)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_security_logs_type ON security_logs(event_type)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user ON active_sessions(user_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_models_user ON models(user_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_models_public ON models(is_public, model_url)")
-    except:
-        pass
+        conn.execute("ALTER TABLE users ADD COLUMN username TEXT UNIQUE")
+    except: pass
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN bio TEXT DEFAULT ''")
+    except: pass
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN website TEXT DEFAULT ''")
+    except: pass
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN email_notifications INTEGER DEFAULT 1")
+    except: pass
+    try:
+        conn.execute("ALTER TABLE models ADD COLUMN negative_prompt TEXT DEFAULT ''")
+    except: pass
+    try:
+        conn.execute("ALTER TABLE models ADD COLUMN category TEXT DEFAULT ''")
+    except: pass
+    try:
+        conn.execute("ALTER TABLE models ADD COLUMN views INTEGER DEFAULT 0")
+    except: pass
+
+    # Insert sample blog posts
+    try:
+        cnt = conn.execute("SELECT COUNT(*) FROM blog_posts").fetchone()[0]
+        if cnt == 0:
+            conn.executescript("""
+                INSERT INTO blog_posts (title, slug, excerpt, content, cover_image, tags) VALUES
+                ('PrintForge ile Ilk 3D Modelinizi Uretin', 'ilk-3d-model', 'AI destekli 3D model uretiminin temelleri', 'PrintForge, yapay zeka teknolojisini kullanarak metin veya gorsellerden 3D model uretmenizi saglar. Bu rehberde adim adim ilk modelinizi nasil olusturacaginizi ogreneceksiniz.\n\n## Baslarken\n\nPrintForge''a kaydolduktan sonra ucretsiz planla ayda 5 model uretebilirsiniz. Hemen /app sayfasindan baslayabilirsiniz.\n\n## Metin ile Model Uretme\n\nSol panelde "Metin" sekmesini secin, modelinizi tanimlayan bir prompt yazin. Ornegin: "Detayli bir ortacag kalesi, kuleler ve asma kopru ile"\n\n## Gorsel ile Model Uretme\n\n"Gorsel" sekmesine gecin ve bir fotograf yukleyin. AI, gorseldeki nesneyi analiz ederek 3D modele donusturecektir.\n\n## Indirme\n\nModeliniz hazir oldugunda GLB, STL veya OBJ formatinda indirebilirsiniz.', '', 'rehber,baslangic,3d-model'),
+                ('3D Baski Icin Model Hazirlama Rehberi', '3d-baski-rehberi', '3D yazicida baskilar icin model hazirlama ipuclari', 'PrintForge ile urettiginiz modelleri 3D yazicida basmak icin bazi onemli adimlar vardir.\n\n## STL Formatinda Indirin\n\nCogu 3D yazici dilimleyici (slicer) yazilimi STL formatini destekler. Modelinizi indirirken STL secenegini tercih edin.\n\n## Slicer Ayarlari\n\nCura, PrusaSlicer veya Bambu Studio gibi bir dilimleyici kullanin. Katman yuksekligi, dolgu orani ve destek yapilarini ayarlayin.\n\n## Malzeme Secimi\n\nPLA: Baslangic icin ideal, kolay basilir\nPETG: Daha dayanikli, sicakliga direncli\nABS: Profesyonel kullanim, post-processing uygun', '', '3d-baski,slicer,rehber'),
+                ('Prompt Muhendisligi: Daha Iyi 3D Modeller', 'prompt-muhendisligi', 'Etkili prompt yazarak daha kaliteli modeller uretin', 'AI ile 3D model uretirken yazdiginiz prompt (aciklama) sonucun kalitesini dogrudan etkiler.\n\n## Iyi Prompt Nasil Yazilir?\n\n1. **Detayli olun**: "Araba" yerine "Kirmizi spor araba, karbon fiber detaylar, parlak boya"\n2. **Stil belirtin**: "Low-poly", "Gercekci", "Cartoon" gibi stiller ekleyin\n3. **Boyut referansi verin**: "20cm yuksekliginde masa ustu figur"\n4. **Malzeme belirtin**: "Metalik gorunumlu", "Ahsap dokulu"\n\n## Kotu Prompt Ornekleri\n- "bir sey yap" (cok belirsiz)\n- "gzl arba" (yazim hatalari)\n\n## Iyi Prompt Ornekleri\n- "Detayli ortacag savascisi, zirhli, kilicli, gercekci stil, 15cm figur"\n- "Minimalist geometric vazo, dalgali yuzey, beyaz seramik gorunum"', '', 'prompt,ipucu,kalite')
+            """)
+    except: pass
+
     conn.commit()
     conn.close()
+
 init_db()
+
 @app.on_event("startup")
 async def startup():
     init_db()
-    db_dir = os.path.dirname(DB_PATH)
-    if db_dir and not os.path.exists(db_dir):
-        try:
-            os.makedirs(db_dir, exist_ok=True)
-        except:
-            pass
     print(f"[DB] Yol: {DB_PATH}")
     print(f"[MAIL] Resend: {'ON' if RESEND_API_KEY else 'OFF'}")
     print(f"[GOOGLE] OAuth: {'ON' if GOOGLE_CLIENT_ID else 'OFF'}")
-    print(f"[SECURITY] Rate Limit: {MAX_REQUESTS_PER_MINUTE}/min")
-    print(f"[SECURITY] Login Lockout: {MAX_LOGIN_ATTEMPTS} attempts / {LOGIN_LOCKOUT_MINUTES} min")
-    print(f"[SECURITY] JWT Expiry: {JWT_EXPIRY_HOURS}h")
-    print(f"[SECURITY] Password Min: {PASSWORD_MIN_LENGTH} chars")
-# ════════ TOKEN SİSTEMİ (GÜVENLİ JWT) ════════
-def create_token(uid, email, name, plan, ip="unknown"):
-    if not HAS_JWT:
-        return "no-jwt"
-    jti = secrets.token_hex(16)  # Benzersiz token ID
-    payload = {
-        "user_id": uid,
-        "email": email,
-        "name": name,
-        "plan": plan,
-        "jti": jti,
-        "iat": datetime.utcnow(),
-        "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRY_HOURS),
-    }
-    token = pyjwt.encode(payload, SECRET_KEY, algorithm="HS256")
-    # Oturumu kaydet
-    try:
-        token_hash = hashlib.sha256(token.encode()).hexdigest()
-        expires = (datetime.utcnow() + timedelta(hours=JWT_EXPIRY_HOURS)).isoformat()
-        conn = get_db()
-        conn.execute(
-            "INSERT INTO active_sessions(user_id, token_hash, ip_address, expires_at) VALUES(?,?,?,?)",
-            (uid, token_hash, ip, expires)
-        )
-        conn.commit()
-        conn.close()
-    except:
-        pass
-    return token
-def decode_token(t):
-    if not HAS_JWT:
-        return None
-    try:
-        payload = pyjwt.decode(t, SECRET_KEY, algorithms=["HS256"])
-        # Oturum geçerlilik kontrolü
-        token_hash = hashlib.sha256(t.encode()).hexdigest()
-        conn = get_db()
-        session = conn.execute(
-            "SELECT id FROM active_sessions WHERE token_hash=? AND expires_at > datetime('now')",
-            (token_hash,)
-        ).fetchone()
-        if session:
-            # Son aktivite güncelle
-            conn.execute(
-                "UPDATE active_sessions SET last_active=datetime('now') WHERE token_hash=?",
-                (token_hash,)
-            )
-            conn.commit()
-        conn.close()
-        if not session:
-            return None  # Oturum sonlandırılmış veya süresi dolmuş
-        return payload
-    except pyjwt.ExpiredSignatureError:
-        return None
-    except:
-        return None
-def invalidate_token(token: str):
-    """Tek bir oturumu sonlandır"""
-    try:
-        token_hash = hashlib.sha256(token.encode()).hexdigest()
-        conn = get_db()
-        conn.execute("DELETE FROM active_sessions WHERE token_hash=?", (token_hash,))
-        conn.commit()
-        conn.close()
-    except:
-        pass
-def invalidate_all_sessions(user_id: int):
-    """Kullanıcının tüm oturumlarını sonlandır"""
-    try:
-        conn = get_db()
-        conn.execute("DELETE FROM active_sessions WHERE user_id=?", (user_id,))
-        conn.commit()
-        conn.close()
-    except:
-        pass
+
+
+# ════════ GUVENLIK MIDDLEWARE ════════
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    ip = get_client_ip(request)
+    if not check_rate_limit(ip, "general", 120, 60):
+        return Response(content='{"detail":"Cok fazla istek"}', status_code=429, media_type="application/json")
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+
+# ════════ AUTH HELPERS ════════
 async def get_user(authorization: Optional[str] = Header(None)):
     if not authorization:
         return None
-    token = authorization.replace("Bearer ", "")
-    data = decode_token(token)
+    data = decode_token(authorization.replace("Bearer ", ""))
     if not data:
         return None
     conn = get_db()
     row = conn.execute(
-        "SELECT id,email,name,plan,avatar_url,verified,created_at FROM users WHERE id=?",
+        "SELECT id,email,name,username,plan,bio,website,avatar_url,verified,email_notifications,created_at FROM users WHERE id=?",
         (data["user_id"],)
     ).fetchone()
     conn.close()
     if row:
-        return {"id": row[0], "email": row[1], "name": row[2], "plan": row[3],
-                "avatar_url": row[4], "verified": row[5], "created_at": row[6]}
+        return dict(row)
     return None
+
 def get_usage(uid):
     month = datetime.now().strftime("%Y-%m")
     conn = get_db()
     row = conn.execute("SELECT count FROM usage WHERE user_id=? AND month=?", (uid, month)).fetchone()
     conn.close()
     return row[0] if row else 0
+
 def add_usage(uid):
     month = datetime.now().strftime("%Y-%m")
     conn = get_db()
     conn.execute(
         "INSERT INTO usage(user_id,month,count) VALUES(?,?,1) "
-        "ON CONFLICT(user_id,month) DO UPDATE SET count=count+1",
-        (uid, month)
-    )
+        "ON CONFLICT(user_id,month) DO UPDATE SET count=count+1", (uid, month))
     conn.commit()
     conn.close()
-def save_model(uid, tid, title, prompt, gtype, style, url):
+
+def save_model(uid, tid, title, prompt, gtype, style, url, neg_prompt="", tags="", category=""):
     conn = get_db()
     try:
         conn.execute(
-            "INSERT INTO models(user_id,task_id,title,prompt,gen_type,style,model_url) VALUES(?,?,?,?,?,?,?)",
-            (uid, tid, sanitize_input(title, 100), sanitize_prompt(prompt), gtype, style, url)
-        )
-    except:
-        pass
+            "INSERT INTO models(user_id,task_id,title,prompt,negative_prompt,gen_type,style,category,model_url) VALUES(?,?,?,?,?,?,?,?,?)",
+            (uid, tid, title, prompt, neg_prompt, gtype, style, category, url))
+        if tags:
+            mid = conn.execute("SELECT id FROM models WHERE task_id=?", (tid,)).fetchone()
+            if mid:
+                for tag in [t.strip().lower() for t in tags.split(",") if t.strip()]:
+                    try:
+                        conn.execute("INSERT INTO model_tags(model_id,tag) VALUES(?,?)", (mid[0], tag))
+                    except: pass
+    except: pass
     conn.commit()
     conn.close()
+
 def get_user_stats(uid):
     conn = get_db()
     mc = conn.execute("SELECT COUNT(*) FROM models WHERE user_id=?", (uid,)).fetchone()[0]
     tl = conn.execute("SELECT COALESCE(SUM(likes),0) FROM models WHERE user_id=?", (uid,)).fetchone()[0]
     td = conn.execute("SELECT COALESCE(SUM(downloads),0) FROM models WHERE user_id=?", (uid,)).fetchone()[0]
+    followers = conn.execute("SELECT COUNT(*) FROM follows WHERE following_id=?", (uid,)).fetchone()[0]
+    following = conn.execute("SELECT COUNT(*) FROM follows WHERE follower_id=?", (uid,)).fetchone()[0]
+    collections = conn.execute("SELECT COUNT(*) FROM collections WHERE user_id=?", (uid,)).fetchone()[0]
     conn.close()
-    return {"models": mc, "likes": tl, "downloads": td}
+    return {"models": mc, "likes": tl, "downloads": td, "followers": followers, "following": following, "collections": collections}
+
+def log_security(uid, action, ip, detail=""):
+    try:
+        conn = get_db()
+        conn.execute("INSERT INTO security_log(user_id,action,ip,detail) VALUES(?,?,?,?)", (uid, action, ip, detail))
+        conn.commit()
+        conn.close()
+    except: pass
+
+
 # ════════ SAYFALAR ════════
 @app.get("/", response_class=HTMLResponse)
 def serve_landing():
@@ -740,130 +561,115 @@ def serve_landing():
         if os.path.exists(path):
             return FileResponse(path, media_type="text/html")
     return HTMLResponse("<html><body style='background:#04080a;color:#00e5ff;display:flex;align-items:center;justify-content:center;height:100vh'><a href='/app' style='color:#00e5ff;font-size:24px'>PrintForge /app</a></body></html>")
+
 @app.get("/app", response_class=HTMLResponse)
 def serve_app():
     path = os.path.join(os.path.dirname(__file__), "app.html")
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             return HTMLResponse(f.read())
-    return HTMLResponse("<html><body><h1>app.html bulunamadı</h1></body></html>")
-# ════════ AUTH API (GÜVENLİ) ════════
+    return HTMLResponse("<html><body><h1>app.html bulunamadi</h1></body></html>")
+
+@app.get("/blog", response_class=HTMLResponse)
+@app.get("/blog/{slug}", response_class=HTMLResponse)
+def serve_blog(slug: str = ""):
+    path = os.path.join(os.path.dirname(__file__), "index.html")
+    if os.path.exists(path):
+        return FileResponse(path, media_type="text/html")
+    return HTMLResponse("<html><body><h1>Blog</h1></body></html>")
+
+@app.get("/u/{username}", response_class=HTMLResponse)
+def serve_profile(username: str):
+    path = os.path.join(os.path.dirname(__file__), "index.html")
+    if os.path.exists(path):
+        return FileResponse(path, media_type="text/html")
+    return HTMLResponse("<html><body><h1>Profil</h1></body></html>")
+
+
+# ════════ AUTH API ════════
 @app.post("/api/auth/register")
 async def register(req: RegisterReq, request: Request):
     ip = get_client_ip(request)
-    # Rate limiting
-    if not check_register_rate(ip):
-        log_security("REGISTER_RATE_LIMIT", ip, f"Email: {req.email}")
-        raise HTTPException(429, "Çok fazla kayıt denemesi. 1 saat sonra tekrar deneyin.")
-    # Şifre gücü kontrolü
-    pw_ok, pw_msg = validate_password_strength(req.password)
-    if not pw_ok:
-        raise HTTPException(400, pw_msg)
-    # İsim temizleme ve kontrol
-    name = sanitize_name(req.name)
-    if not name or len(name) < 2:
-        raise HTTPException(400, "Geçerli bir isim girin (en az 2 karakter)")
-    if len(name) > 50:
-        raise HTTPException(400, "İsim çok uzun (max 50 karakter)")
-    # E-posta doğrulama
+    if not check_rate_limit(ip, "register", 3, 3600):
+        raise HTTPException(429, "Cok fazla kayit denemesi. 1 saat sonra tekrar deneyin.")
+    valid, msg = validate_password(req.password)
+    if not valid:
+        raise HTTPException(400, msg)
+    if not req.name.strip() or len(req.name.strip()) < 2:
+        raise HTTPException(400, "Gecerli bir isim girin")
     valid, msg = await validate_email(req.email)
     if not valid:
         raise HTTPException(400, msg)
-    email = sanitize_email(req.email)
+
     salt, h = hash_pw(req.password)
     verify_token = secrets.token_urlsafe(32)
     conn = get_db()
     try:
         conn.execute(
             "INSERT INTO users(email,name,password_hash,salt,verify_token,verified) VALUES(?,?,?,?,?,?)",
-            (email, name, h, salt, verify_token, 0 if RESEND_API_KEY else 1)
-        )
+            (req.email.lower().strip(), sanitize(req.name.strip()), h, salt, verify_token,
+             0 if RESEND_API_KEY else 1))
         conn.commit()
-        uid = conn.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()[0]
+        uid = conn.execute("SELECT id FROM users WHERE email=?", (req.email.lower().strip(),)).fetchone()[0]
+        username = generate_username(req.name, uid)
+        conn.execute("UPDATE users SET username=? WHERE id=?", (username, uid))
+        conn.commit()
         conn.close()
     except sqlite3.IntegrityError:
         conn.close()
-        log_security("REGISTER_DUPLICATE", ip, f"Email: {email}")
-        raise HTTPException(400, "Bu e-posta zaten kayıtlı")
-    log_security("REGISTER_SUCCESS", ip, f"Email: {email}, UID: {uid}")
+        raise HTTPException(400, "Bu e-posta zaten kayitli")
+
+    log_security(uid, "register", ip)
+
     if RESEND_API_KEY:
-        await send_verification_email(email, verify_token)
-    token = create_token(uid, email, name, "free", ip)
+        await send_verification_email(req.email.lower().strip(), verify_token)
+        await send_welcome_email(req.email.lower().strip(), req.name.strip())
+
+    token = create_token(uid, req.email, req.name, "free")
     result = {
         "token": token,
-        "user": {"id": uid, "name": name, "email": email, "plan": "free",
+        "user": {"id": uid, "name": req.name, "email": req.email, "username": username, "plan": "free",
                  "verified": 0 if RESEND_API_KEY else 1}
     }
     if RESEND_API_KEY:
-        result["message"] = "Doğrulama maili gönderildi. Lütfen e-postanızı kontrol edin."
+        result["message"] = "Dogrulama maili gonderildi. E-postanizi kontrol edin."
     return result
+
 @app.post("/api/auth/login")
 async def login(req: LoginReq, request: Request):
     ip = get_client_ip(request)
-    email = sanitize_email(req.email)
-    # Brute force kontrolü
-    rate_ok, rate_msg = check_login_rate(ip, email)
-    if not rate_ok:
-        raise HTTPException(429, rate_msg)
+    if not check_login_attempt(ip):
+        raise HTTPException(429, "Cok fazla basarisiz deneme. 15 dakika sonra tekrar deneyin.")
+    if not check_rate_limit(ip, "login", 10, 60):
+        raise HTTPException(429, "Cok fazla istek")
+
     conn = get_db()
     row = conn.execute(
-        "SELECT id,email,name,password_hash,salt,plan,verified FROM users WHERE email=?",
-        (email,)
-    ).fetchone()
-    if not row:
-        conn.close()
-        record_login_attempt(ip, email, False)
-        raise HTTPException(401, "E-posta veya şifre hatalı")
-    if not verify_pw(req.password, row["salt"], row["password_hash"]):
-        # Başarısız deneme sayısını artır
-        conn.execute(
-            "UPDATE users SET failed_attempts=failed_attempts+1 WHERE id=?",
-            (row["id"],)
-        )
-        conn.commit()
-        conn.close()
-        record_login_attempt(ip, email, False)
-        # Çok fazla deneme → güvenlik maili
-        failed = sum(1 for t, s in login_attempts[ip] if not s)
-        if failed >= 3 and RESEND_API_KEY:
-            asyncio.create_task(send_security_alert(email, "Başarısız giriş denemeleri", ip))
-        raise HTTPException(401, "E-posta veya şifre hatalı")
-    # Başarılı giriş
-    conn.execute(
-        "UPDATE users SET last_login=datetime('now'), last_ip=?, failed_attempts=0, login_count=login_count+1 WHERE id=?",
-        (ip, row["id"])
-    )
-    conn.commit()
+        "SELECT id,email,name,username,password_hash,salt,plan,verified FROM users WHERE email=?",
+        (req.email.lower().strip(),)).fetchone()
     conn.close()
-    record_login_attempt(ip, email, True)
-    log_security("LOGIN_SUCCESS", ip, f"Email: {email}")
-    token = create_token(row["id"], row["email"], row["name"], row["plan"], ip)
+    if not row:
+        record_login_fail(ip)
+        log_security(0, "login_fail", ip, f"email:{req.email}")
+        raise HTTPException(401, "E-posta veya sifre hatali")
+    if not verify_pw(req.password, row["salt"], row["password_hash"]):
+        record_login_fail(ip)
+        log_security(row["id"], "login_fail", ip)
+        raise HTTPException(401, "E-posta veya sifre hatali")
+
+    log_security(row["id"], "login_ok", ip)
+    token = create_token(row["id"], row["email"], row["name"], row["plan"])
     return {
         "token": token,
         "user": {"id": row["id"], "name": row["name"], "email": row["email"],
-                 "plan": row["plan"], "verified": row["verified"]}
+                 "username": row["username"], "plan": row["plan"], "verified": row["verified"]}
     }
-@app.post("/api/auth/logout")
-async def logout(authorization: Optional[str] = Header(None)):
-    """Oturumu sonlandır"""
-    if authorization:
-        token = authorization.replace("Bearer ", "")
-        invalidate_token(token)
-    return {"success": True}
-@app.post("/api/auth/logout-all")
-async def logout_all(authorization: Optional[str] = Header(None)):
-    """Tüm oturumları sonlandır"""
-    user = await get_user(authorization)
-    if not user:
-        raise HTTPException(401, "Giriş yapın")
-    invalidate_all_sessions(user["id"])
-    log_security("LOGOUT_ALL", "api", f"UID: {user['id']}")
-    return {"success": True, "message": "Tüm oturumlar sonlandırıldı"}
+
 @app.get("/api/auth/me")
 async def get_me(authorization: Optional[str] = Header(None)):
     user = await get_user(authorization)
     if not user:
-        raise HTTPException(401, "Giriş yapın")
+        raise HTTPException(401, "Giris yapin")
     used = get_usage(user["id"])
     limit = PLAN_LIMITS.get(user["plan"], 5)
     stats = get_user_stats(user["id"])
@@ -872,360 +678,458 @@ async def get_me(authorization: Optional[str] = Header(None)):
         "usage": {"used": used, "limit": limit, "remaining": max(0, limit - used)},
         "stats": stats
     }
-@app.get("/api/auth/sessions")
-async def get_sessions(authorization: Optional[str] = Header(None)):
-    """Aktif oturumları listele"""
-    user = await get_user(authorization)
-    if not user:
-        raise HTTPException(401, "Giriş yapın")
-    conn = get_db()
-    rows = conn.execute(
-        "SELECT id, ip_address, created_at, last_active FROM active_sessions "
-        "WHERE user_id=? AND expires_at > datetime('now') ORDER BY last_active DESC",
-        (user["id"],)
-    ).fetchall()
-    conn.close()
-    return {"sessions": [dict(r) for r in rows]}
+
 @app.get("/api/auth/verify")
 async def verify_email_endpoint(token: str = ""):
     if not token:
-        raise HTTPException(400, "Geçersiz link")
+        raise HTTPException(400, "Gecersiz link")
     conn = get_db()
-    row = conn.execute("SELECT id,email FROM users WHERE verify_token=?", (token,)).fetchone()
+    row = conn.execute("SELECT id FROM users WHERE verify_token=?", (token,)).fetchone()
     if not row:
         conn.close()
-        return HTMLResponse("""
-        <html><body style="background:#04080a;color:#ff4466;font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column">
-        <h2>Geçersiz veya süresi dolmuş link</h2>
-        <a href="/app" style="color:#00e5ff;margin-top:16px">Uygulamaya Dön</a>
-        </body></html>
-        """)
+        return HTMLResponse("<html><body style='background:#04080a;color:#ff4466;font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column'><h2>Gecersiz veya suresi dolmus link</h2><a href='/app' style='color:#00e5ff;margin-top:16px'>Uygulamaya Don</a></body></html>")
     conn.execute("UPDATE users SET verified=1, verify_token=NULL WHERE id=?", (row["id"],))
     conn.commit()
     conn.close()
-    log_security("EMAIL_VERIFIED", "web", f"Email: {row['email']}")
-    return HTMLResponse("""
-    <html><body style="background:#04080a;color:#00ff9d;font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column">
-    <h2>Hesabınız doğrulandı!</h2>
-    <p style="color:#c8dde5;margin-top:8px">Artık PrintForge'u kullanabilirsiniz.</p>
-    <a href="/app" style="color:#00e5ff;margin-top:16px;font-size:18px">Uygulamaya Git</a>
-    </body></html>
-    """)
+    return HTMLResponse("<html><body style='background:#04080a;color:#00ff9d;font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column'><h2>Hesabiniz dogrulandi! ✓</h2><p style='color:#c8dde5;margin-top:8px'>Artik PrintForge'u kullanabilirsiniz.</p><a href='/app' style='color:#00e5ff;margin-top:16px;font-size:18px'>Uygulamaya Git →</a></body></html>")
+
 @app.post("/api/auth/resend-verification")
 async def resend_verification(authorization: Optional[str] = Header(None)):
     user = await get_user(authorization)
     if not user:
-        raise HTTPException(401, "Giriş yapın")
+        raise HTTPException(401, "Giris yapin")
     if user.get("verified") == 1:
-        return {"message": "Hesabınız zaten doğrulanmış"}
+        return {"message": "Hesabiniz zaten dogrulanmis"}
     if not RESEND_API_KEY:
-        raise HTTPException(400, "E-posta servisi yapılandırılmamış")
+        raise HTTPException(400, "E-posta servisi yapilandirilmamis")
     new_token = secrets.token_urlsafe(32)
     conn = get_db()
     conn.execute("UPDATE users SET verify_token=? WHERE id=?", (new_token, user["id"]))
     conn.commit()
     conn.close()
     await send_verification_email(user["email"], new_token)
-    return {"message": "Doğrulama maili tekrar gönderildi"}
+    return {"message": "Dogrulama maili tekrar gonderildi"}
+
 @app.post("/api/auth/forgot-password")
 async def forgot_password(req: ForgotPasswordReq, request: Request):
     ip = get_client_ip(request)
+    if not check_rate_limit(ip, "forgot", 3, 3600):
+        raise HTTPException(429, "Cok fazla istek")
     if not RESEND_API_KEY:
-        raise HTTPException(400, "E-posta servisi yapılandırılmamış")
-    email = sanitize_email(req.email)
+        raise HTTPException(400, "E-posta servisi yapilandirilmamis")
     conn = get_db()
-    row = conn.execute("SELECT id,email FROM users WHERE email=?", (email,)).fetchone()
+    row = conn.execute("SELECT id,email FROM users WHERE email=?", (req.email.lower().strip(),)).fetchone()
     if not row:
-        conn.close()
-        return {"message": "Eğer bu e-posta kayıtlıysa sıfırlama maili gönderildi"}
+        return {"message": "Eger bu e-posta kayitliysa sifirlama maili gonderildi"}
     reset_token = secrets.token_urlsafe(32)
     expires = (datetime.utcnow() + timedelta(hours=1)).isoformat()
     conn.execute("UPDATE users SET reset_token=?, reset_expires=? WHERE id=?", (reset_token, expires, row["id"]))
     conn.commit()
     conn.close()
-    log_security("PASSWORD_RESET_REQUEST", ip, f"Email: {email}")
     await send_reset_email(row["email"], reset_token)
-    return {"message": "Şifre sıfırlama maili gönderildi. E-postanızı kontrol edin."}
+    log_security(row["id"], "password_reset_request", ip)
+    return {"message": "Sifre sifirlama maili gonderildi"}
+
 @app.post("/api/auth/reset-password")
-async def reset_password(req: ResetPasswordReq, request: Request):
-    ip = get_client_ip(request)
-    pw_ok, pw_msg = validate_password_strength(req.password)
-    if not pw_ok:
-        raise HTTPException(400, pw_msg)
+async def reset_password(req: ResetPasswordReq):
+    valid, msg = validate_password(req.password)
+    if not valid:
+        raise HTTPException(400, msg)
     conn = get_db()
-    row = conn.execute("SELECT id,email,reset_expires FROM users WHERE reset_token=?", (req.token,)).fetchone()
+    row = conn.execute("SELECT id,reset_expires FROM users WHERE reset_token=?", (req.token,)).fetchone()
     if not row:
         conn.close()
-        raise HTTPException(400, "Geçersiz veya süresi dolmuş link")
+        raise HTTPException(400, "Gecersiz veya suresi dolmus link")
     if row["reset_expires"]:
         try:
-            expires = datetime.fromisoformat(row["reset_expires"])
-            if datetime.utcnow() > expires:
+            if datetime.utcnow() > datetime.fromisoformat(row["reset_expires"]):
                 conn.close()
-                raise HTTPException(400, "Sıfırlama linkinin süresi dolmuş. Yeni link talep edin.")
-        except:
-            pass
+                raise HTTPException(400, "Link suresi dolmus")
+        except: pass
     salt, h = hash_pw(req.password)
-    conn.execute(
-        "UPDATE users SET password_hash=?, salt=?, reset_token=NULL, reset_expires=NULL, updated_at=datetime('now') WHERE id=?",
-        (h, salt, row["id"])
-    )
+    conn.execute("UPDATE users SET password_hash=?, salt=?, reset_token=NULL, reset_expires=NULL WHERE id=?", (h, salt, row["id"]))
     conn.commit()
     conn.close()
-    # Tüm eski oturumları sonlandır
-    invalidate_all_sessions(row["id"])
-    log_security("PASSWORD_RESET_SUCCESS", ip, f"Email: {row['email']}")
-    return {"message": "Şifreniz başarıyla değiştirildi. Giriş yapabilirsiniz."}
+    return {"message": "Sifreniz basariyla degistirildi"}
+
 @app.post("/api/auth/update-profile")
 async def update_profile(req: UpdateProfileReq, authorization: Optional[str] = Header(None)):
     user = await get_user(authorization)
     if not user:
-        raise HTTPException(401, "Giriş yapın")
+        raise HTTPException(401, "Giris yapin")
     conn = get_db()
-    if req.name:
-        name = sanitize_name(req.name)
-        if len(name) >= 2:
-            conn.execute("UPDATE users SET name=?, updated_at=datetime('now') WHERE id=?", (name, user["id"]))
+    if req.name and len(req.name.strip()) >= 2:
+        conn.execute("UPDATE users SET name=? WHERE id=?", (sanitize(req.name.strip()), user["id"]))
     if req.password:
-        pw_ok, pw_msg = validate_password_strength(req.password)
-        if not pw_ok:
+        valid, msg = validate_password(req.password)
+        if not valid:
             conn.close()
-            raise HTTPException(400, pw_msg)
+            raise HTTPException(400, msg)
         salt, h = hash_pw(req.password)
-        conn.execute(
-            "UPDATE users SET password_hash=?, salt=?, updated_at=datetime('now') WHERE id=?",
-            (h, salt, user["id"])
-        )
+        conn.execute("UPDATE users SET password_hash=?, salt=? WHERE id=?", (h, salt, user["id"]))
+    if req.bio is not None:
+        conn.execute("UPDATE users SET bio=? WHERE id=?", (sanitize(req.bio)[:300], user["id"]))
+    if req.website is not None:
+        conn.execute("UPDATE users SET website=? WHERE id=?", (sanitize(req.website)[:200], user["id"]))
     conn.commit()
     conn.close()
     return {"success": True}
-# ════════ KVKK / VERİ KORUMA ════════
-@app.post("/api/privacy/export-data")
-async def export_user_data(authorization: Optional[str] = Header(None)):
-    """KVKK - Kullanıcının tüm verilerini dışa aktar"""
-    user = await get_user(authorization)
-    if not user:
-        raise HTTPException(401, "Giriş yapın")
-    conn = get_db()
-    # Kullanıcı bilgileri
-    user_data = dict(conn.execute(
-        "SELECT id,email,name,plan,verified,created_at FROM users WHERE id=?",
-        (user["id"],)
-    ).fetchone())
-    # Modelleri
-    models = [dict(r) for r in conn.execute(
-        "SELECT id,task_id,title,prompt,gen_type,style,likes,downloads,created_at FROM models WHERE user_id=?",
-        (user["id"],)
-    ).fetchall()]
-    # Kullanım
-    usage = [dict(r) for r in conn.execute(
-        "SELECT month,count FROM usage WHERE user_id=?",
-        (user["id"],)
-    ).fetchall()]
-    # Beğeniler
-    likes = [dict(r) for r in conn.execute(
-        "SELECT model_id FROM user_likes WHERE user_id=?",
-        (user["id"],)
-    ).fetchall()]
-    conn.close()
-    export = {
-        "export_date": datetime.now().isoformat(),
-        "user": user_data,
-        "models": models,
-        "usage": usage,
-        "likes": likes,
-        "info": "Bu dosya KVKK kapsamında kişisel verilerinizi içerir."
-    }
-    log_security("DATA_EXPORT", "api", f"UID: {user['id']}")
-    return Response(
-        content=json.dumps(export, indent=2, default=str, ensure_ascii=False),
-        media_type="application/json",
-        headers={"Content-Disposition": f'attachment; filename="printforge_data_{user["id"]}.json"'}
-    )
-@app.post("/api/privacy/delete-account")
-async def delete_account(req: DeleteAccountReq, authorization: Optional[str] = Header(None)):
-    """KVKK - Hesabı ve tüm verileri sil"""
-    user = await get_user(authorization)
-    if not user:
-        raise HTTPException(401, "Giriş yapın")
-    # Şifre doğrulama
-    conn = get_db()
-    row = conn.execute(
-        "SELECT password_hash, salt FROM users WHERE id=?",
-        (user["id"],)
-    ).fetchone()
-    if not row or not verify_pw(req.password, row["salt"], row["password_hash"]):
-        conn.close()
-        raise HTTPException(403, "Şifre hatalı")
-    # Tüm verileri sil
-    conn.execute("DELETE FROM user_likes WHERE user_id=?", (user["id"],))
-    conn.execute("DELETE FROM models WHERE user_id=?", (user["id"],))
-    conn.execute("DELETE FROM usage WHERE user_id=?", (user["id"],))
-    conn.execute("DELETE FROM active_sessions WHERE user_id=?", (user["id"],))
-    conn.execute("DELETE FROM users WHERE id=?", (user["id"],))
-    conn.commit()
-    conn.close()
-    log_security("ACCOUNT_DELETED", "api", f"UID: {user['id']}, Email: {user['email']}")
-    return {"success": True, "message": "Hesabınız ve tüm verileriniz kalıcı olarak silindi."}
-@app.get("/api/privacy/policy")
-async def privacy_policy():
-    """Gizlilik politikası özeti"""
-    return {
-        "platform": "PrintForge",
-        "data_collected": [
-            "E-posta adresi ve isim (kayıt için)",
-            "Oluşturulan 3D modeller ve promptlar",
-            "Kullanım istatistikleri",
-            "IP adresi (güvenlik için)"
-        ],
-        "data_retention": "Hesap silinene kadar",
-        "data_sharing": "Üçüncü taraflarla paylaşılmaz",
-        "user_rights": [
-            "Verilerinizi dışa aktarabilirsiniz (GET /api/privacy/export-data)",
-            "Hesabınızı ve tüm verilerinizi silebilirsiniz (POST /api/privacy/delete-account)",
-            "E-posta tercihlerinizi değiştirebilirsiniz"
-        ],
-        "security_measures": [
-            "PBKDF2-SHA512 ile şifre hashleme (310.000 iterasyon)",
-            "JWT tabanlı oturum yönetimi",
-            "Rate limiting ve brute force koruması",
-            "HTTPS zorunluluğu",
-            "Güvenlik olayı loglama"
-        ],
-        "contact": "Veri sorumlusu ile iletişim: destek@printforge.app"
-    }
+
+
 # ════════ GOOGLE LOGIN ════════
 @app.get("/api/auth/google")
 async def google_login():
     if not GOOGLE_CLIENT_ID:
-        raise HTTPException(400, "Google login yapılandırılmamış")
+        raise HTTPException(400, "Google login yapilandirilmamis")
     redirect_uri = f"{get_site_url()}/api/auth/google/callback"
-    state = secrets.token_urlsafe(32)
     params = urlencode({
-        "client_id": GOOGLE_CLIENT_ID,
-        "redirect_uri": redirect_uri,
-        "response_type": "code",
-        "scope": "openid email profile",
-        "access_type": "offline",
-        "prompt": "select_account",
-        "state": state,
+        "client_id": GOOGLE_CLIENT_ID, "redirect_uri": redirect_uri,
+        "response_type": "code", "scope": "openid email profile",
+        "access_type": "offline", "prompt": "select_account",
     })
     return RedirectResponse(f"https://accounts.google.com/o/oauth2/v2/auth?{params}")
+
 @app.get("/api/auth/google/callback")
-async def google_callback(code: str = "", request: Request = None):
+async def google_callback(code: str = ""):
     if not code:
-        raise HTTPException(400, "Google login başarısız")
-    ip = get_client_ip(request) if request else "unknown"
+        raise HTTPException(400, "Google login basarisiz")
     redirect_uri = f"{get_site_url()}/api/auth/google/callback"
     async with httpx.AsyncClient() as client:
         tr = await client.post("https://oauth2.googleapis.com/token", data={
-            "client_id": GOOGLE_CLIENT_ID,
-            "client_secret": GOOGLE_CLIENT_SECRET,
-            "code": code,
-            "grant_type": "authorization_code",
-            "redirect_uri": redirect_uri,
-        })
+            "client_id": GOOGLE_CLIENT_ID, "client_secret": GOOGLE_CLIENT_SECRET,
+            "code": code, "grant_type": "authorization_code", "redirect_uri": redirect_uri})
         if tr.status_code != 200:
-            raise HTTPException(400, "Google token alınamadı")
+            raise HTTPException(400, "Google token alinamadi")
         at = tr.json().get("access_token")
-        ur = await client.get(
-            "https://www.googleapis.com/oauth2/v2/userinfo",
-            headers={"Authorization": f"Bearer {at}"}
-        )
+        ur = await client.get("https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={"Authorization": f"Bearer {at}"})
         if ur.status_code != 200:
-            raise HTTPException(400, "Google bilgi alınamadı")
+            raise HTTPException(400, "Google bilgi alinamadi")
         gu = ur.json()
-    email = sanitize_email(gu.get("email", ""))
-    name = sanitize_name(gu.get("name", email.split("@")[0]))
+    email = gu.get("email", "").lower()
+    name = gu.get("name", email.split("@")[0])
     gid = gu.get("id", "")
     avatar = gu.get("picture", "")
     conn = get_db()
     ex = conn.execute("SELECT id,name,plan FROM users WHERE email=?", (email,)).fetchone()
     if ex:
         uid, name, plan = ex["id"], ex["name"], ex["plan"]
-        conn.execute(
-            "UPDATE users SET google_id=?,avatar_url=?,verified=1,last_login=datetime('now'),last_ip=? WHERE id=?",
-            (gid, avatar, ip, uid)
-        )
+        conn.execute("UPDATE users SET google_id=?,avatar_url=?,verified=1 WHERE id=?", (gid, avatar, uid))
     else:
         salt, h = hash_pw(secrets.token_hex(16))
-        conn.execute(
-            "INSERT INTO users(email,name,password_hash,salt,google_id,avatar_url,verified,last_ip) VALUES(?,?,?,?,?,?,1,?)",
-            (email, name, h, salt, gid, avatar, ip)
-        )
+        conn.execute("INSERT INTO users(email,name,password_hash,salt,google_id,avatar_url,verified) VALUES(?,?,?,?,?,?,1)",
+            (email, name, h, salt, gid, avatar))
         uid = conn.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()[0]
+        username = generate_username(name, uid)
+        conn.execute("UPDATE users SET username=? WHERE id=?", (username, uid))
         plan = "free"
     conn.commit()
     conn.close()
-    log_security("GOOGLE_LOGIN", ip, f"Email: {email}")
-    jwt_token = create_token(uid, email, name, plan, ip)
-    return HTMLResponse(
-        "<html><head><script>"
-        "localStorage.setItem('pf_token','" + jwt_token + "');"
-        "window.location.href='/app';"
-        "</script></head><body style='background:#04080a;color:#00e5ff;"
-        "display:flex;align-items:center;justify-content:center;height:100vh'>"
-        "Giriş yapılıyor...</body></html>"
-    )
-# ════════ MODEL ÜRETİMİ (GÜVENLİ) ════════
+    jwt_token = create_token(uid, email, name, plan)
+    return HTMLResponse(f"<html><head><script>localStorage.setItem('pf_token','{jwt_token}');window.location.href='/app';</script></head><body style='background:#04080a;color:#00e5ff;display:flex;align-items:center;justify-content:center;height:100vh'>Giris yapiliyor...</body></html>")
+
+
+# ════════ PUBLIC PROFILE ════════
+@app.get("/api/users/{username}")
+async def get_public_profile(username: str):
+    conn = get_db()
+    user = conn.execute(
+        "SELECT id,name,username,bio,website,avatar_url,plan,created_at FROM users WHERE username=?",
+        (username,)).fetchone()
+    if not user:
+        conn.close()
+        raise HTTPException(404, "Kullanici bulunamadi")
+    uid = user["id"]
+    models = conn.execute(
+        "SELECT id,task_id,title,prompt,style,category,likes,downloads,views,created_at FROM models WHERE user_id=? AND is_public=1 ORDER BY created_at DESC LIMIT 50",
+        (uid,)).fetchall()
+    followers = conn.execute("SELECT COUNT(*) FROM follows WHERE following_id=?", (uid,)).fetchone()[0]
+    following = conn.execute("SELECT COUNT(*) FROM follows WHERE follower_id=?", (uid,)).fetchone()[0]
+    model_count = conn.execute("SELECT COUNT(*) FROM models WHERE user_id=? AND is_public=1", (uid,)).fetchone()[0]
+    total_likes = conn.execute("SELECT COALESCE(SUM(likes),0) FROM models WHERE user_id=?", (uid,)).fetchone()[0]
+    collections = conn.execute("SELECT id,name,description,model_count,created_at FROM collections WHERE user_id=? AND is_public=1 ORDER BY created_at DESC", (uid,)).fetchall()
+    conn.close()
+    return {
+        "user": dict(user),
+        "models": [dict(m) for m in models],
+        "collections": [dict(c) for c in collections],
+        "stats": {"models": model_count, "followers": followers, "following": following, "total_likes": total_likes}
+    }
+
+
+# ════════ FOLLOW SYSTEM ════════
+@app.post("/api/users/{username}/follow")
+async def toggle_follow(username: str, authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    target = conn.execute("SELECT id,email,name,email_notifications FROM users WHERE username=?", (username,)).fetchone()
+    if not target:
+        conn.close()
+        raise HTTPException(404, "Kullanici bulunamadi")
+    if target["id"] == user["id"]:
+        conn.close()
+        raise HTTPException(400, "Kendinizi takip edemezsiniz")
+    ex = conn.execute("SELECT 1 FROM follows WHERE follower_id=? AND following_id=?", (user["id"], target["id"])).fetchone()
+    if ex:
+        conn.execute("DELETE FROM follows WHERE follower_id=? AND following_id=?", (user["id"], target["id"]))
+        followed = False
+    else:
+        conn.execute("INSERT INTO follows(follower_id,following_id) VALUES(?,?)", (user["id"], target["id"]))
+        followed = True
+        if target["email_notifications"] and RESEND_API_KEY:
+            asyncio.create_task(send_follow_email(user["name"], target["email"], target["name"]))
+    conn.commit()
+    conn.close()
+    return {"followed": followed}
+
+@app.get("/api/users/{username}/followers")
+async def get_followers(username: str):
+    conn = get_db()
+    target = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+    if not target:
+        conn.close()
+        raise HTTPException(404, "Kullanici bulunamadi")
+    rows = conn.execute(
+        "SELECT u.name,u.username,u.avatar_url FROM follows f JOIN users u ON f.follower_id=u.id WHERE f.following_id=? ORDER BY f.created_at DESC LIMIT 100",
+        (target["id"],)).fetchall()
+    conn.close()
+    return {"followers": [dict(r) for r in rows]}
+
+@app.get("/api/users/{username}/following")
+async def get_following(username: str):
+    conn = get_db()
+    target = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+    if not target:
+        conn.close()
+        raise HTTPException(404, "Kullanici bulunamadi")
+    rows = conn.execute(
+        "SELECT u.name,u.username,u.avatar_url FROM follows f JOIN users u ON f.following_id=u.id WHERE f.follower_id=? ORDER BY f.created_at DESC LIMIT 100",
+        (target["id"],)).fetchall()
+    conn.close()
+    return {"following": [dict(r) for r in rows]}
+
+
+# ════════ COLLECTIONS ════════
+@app.get("/api/collections")
+async def get_my_collections(authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM collections WHERE user_id=? ORDER BY created_at DESC", (user["id"],)).fetchall()
+    conn.close()
+    return {"collections": [dict(r) for r in rows]}
+
+@app.post("/api/collections")
+async def create_collection(req: CollectionReq, authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    count = conn.execute("SELECT COUNT(*) FROM collections WHERE user_id=?", (user["id"],)).fetchone()[0]
+    if count >= 50:
+        conn.close()
+        raise HTTPException(400, "Maksimum 50 koleksiyon olusturabilirsiniz")
+    conn.execute("INSERT INTO collections(user_id,name,description,is_public) VALUES(?,?,?,?)",
+        (user["id"], sanitize(req.name)[:100], sanitize(req.description)[:500], req.is_public))
+    conn.commit()
+    cid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    conn.close()
+    return {"id": cid, "message": "Koleksiyon olusturuldu"}
+
+@app.get("/api/collections/{collection_id}")
+async def get_collection(collection_id: int):
+    conn = get_db()
+    col = conn.execute("SELECT c.*, u.name as owner_name, u.username as owner_username FROM collections c JOIN users u ON c.user_id=u.id WHERE c.id=?", (collection_id,)).fetchone()
+    if not col:
+        conn.close()
+        raise HTTPException(404, "Koleksiyon bulunamadi")
+    items = conn.execute(
+        "SELECT m.* FROM collection_items ci JOIN models m ON ci.model_id=m.id WHERE ci.collection_id=? ORDER BY ci.added_at DESC",
+        (collection_id,)).fetchall()
+    conn.close()
+    return {"collection": dict(col), "models": [dict(i) for i in items]}
+
+@app.post("/api/collections/{collection_id}/items")
+async def add_to_collection(collection_id: int, req: CollectionItemReq, authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    col = conn.execute("SELECT user_id FROM collections WHERE id=?", (collection_id,)).fetchone()
+    if not col or col["user_id"] != user["id"]:
+        conn.close()
+        raise HTTPException(403, "Bu koleksiyon size ait degil")
+    try:
+        conn.execute("INSERT INTO collection_items(collection_id,model_id) VALUES(?,?)", (collection_id, req.model_id))
+        conn.execute("UPDATE collections SET model_count=model_count+1 WHERE id=?", (collection_id,))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
+        raise HTTPException(400, "Model zaten koleksiyonda")
+    conn.close()
+    return {"message": "Koleksiyona eklendi"}
+
+@app.delete("/api/collections/{collection_id}/items/{model_id}")
+async def remove_from_collection(collection_id: int, model_id: int, authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    col = conn.execute("SELECT user_id FROM collections WHERE id=?", (collection_id,)).fetchone()
+    if not col or col["user_id"] != user["id"]:
+        conn.close()
+        raise HTTPException(403, "Bu koleksiyon size ait degil")
+    conn.execute("DELETE FROM collection_items WHERE collection_id=? AND model_id=?", (collection_id, model_id))
+    conn.execute("UPDATE collections SET model_count=MAX(0,model_count-1) WHERE id=?", (collection_id,))
+    conn.commit()
+    conn.close()
+    return {"message": "Koleksiyondan cikarildi"}
+
+@app.delete("/api/collections/{collection_id}")
+async def delete_collection(collection_id: int, authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    col = conn.execute("SELECT user_id FROM collections WHERE id=?", (collection_id,)).fetchone()
+    if not col or col["user_id"] != user["id"]:
+        conn.close()
+        raise HTTPException(403, "Bu koleksiyon size ait degil")
+    conn.execute("DELETE FROM collection_items WHERE collection_id=?", (collection_id,))
+    conn.execute("DELETE FROM collections WHERE id=?", (collection_id,))
+    conn.commit()
+    conn.close()
+    return {"deleted": True}
+
+
+# ════════ TAGS / CATEGORIES ════════
+@app.get("/api/tags")
+async def get_tags():
+    conn = get_db()
+    rows = conn.execute("SELECT tag, COUNT(*) as count FROM model_tags GROUP BY tag ORDER BY count DESC LIMIT 50").fetchall()
+    conn.close()
+    return {"tags": [{"tag": r["tag"], "count": r["count"]} for r in rows]}
+
+@app.get("/api/tags/{tag}")
+async def get_models_by_tag(tag: str, page: int = 1, limit: int = 20):
+    conn = get_db()
+    offset = (page - 1) * limit
+    rows = conn.execute(
+        "SELECT m.*, u.name as author_name, u.username as author_username FROM model_tags mt JOIN models m ON mt.model_id=m.id LEFT JOIN users u ON m.user_id=u.id WHERE mt.tag=? AND m.is_public=1 ORDER BY m.created_at DESC LIMIT ? OFFSET ?",
+        (tag.lower(), limit, offset)).fetchall()
+    total = conn.execute("SELECT COUNT(*) FROM model_tags mt JOIN models m ON mt.model_id=m.id WHERE mt.tag=? AND m.is_public=1", (tag.lower(),)).fetchone()[0]
+    conn.close()
+    return {"models": [dict(r) for r in rows], "total": total, "tag": tag}
+
+@app.post("/api/models/{model_id}/tags")
+async def update_model_tags(model_id: int, req: TagModelReq, authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    model = conn.execute("SELECT user_id FROM models WHERE id=?", (model_id,)).fetchone()
+    if not model or model["user_id"] != user["id"]:
+        conn.close()
+        raise HTTPException(403, "Bu model size ait degil")
+    conn.execute("DELETE FROM model_tags WHERE model_id=?", (model_id,))
+    tags = [t.strip().lower() for t in req.tags.split(",") if t.strip()][:10]
+    for tag in tags:
+        try:
+            conn.execute("INSERT INTO model_tags(model_id,tag) VALUES(?,?)", (model_id, sanitize(tag)[:30]))
+        except: pass
+    conn.commit()
+    conn.close()
+    return {"tags": tags}
+
+@app.get("/api/categories")
+async def get_categories():
+    return {"categories": CATEGORIES}
+
+
+# ════════ BLOG API ════════
+@app.get("/api/blog")
+async def get_blog_posts(page: int = 1, limit: int = 10, tag: str = ""):
+    conn = get_db()
+    offset = (page - 1) * limit
+    where = "WHERE is_published=1"
+    params = []
+    if tag:
+        where += " AND tags LIKE ?"
+        params.append(f"%{tag}%")
+    rows = conn.execute(
+        f"SELECT id,title,slug,excerpt,cover_image,tags,views,created_at FROM blog_posts {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        params + [limit, offset]).fetchall()
+    total = conn.execute(f"SELECT COUNT(*) FROM blog_posts {where}", params).fetchone()[0]
+    conn.close()
+    return {"posts": [dict(r) for r in rows], "total": total, "page": page, "pages": max(1, (total + limit - 1) // limit)}
+
+@app.get("/api/blog/{slug}")
+async def get_blog_post(slug: str):
+    conn = get_db()
+    row = conn.execute("SELECT bp.*, u.name as author_name FROM blog_posts bp LEFT JOIN users u ON bp.author_id=u.id WHERE bp.slug=? AND bp.is_published=1", (slug,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "Yazi bulunamadi")
+    conn.execute("UPDATE blog_posts SET views=views+1 WHERE slug=?", (slug,))
+    conn.commit()
+    related = conn.execute("SELECT id,title,slug,excerpt,cover_image FROM blog_posts WHERE slug!=? AND is_published=1 ORDER BY created_at DESC LIMIT 3", (slug,)).fetchall()
+    conn.close()
+    return {"post": dict(row), "related": [dict(r) for r in related]}
+
+
+# ════════ MODEL URETIMI ════════
 @app.post("/api/generate/text")
-async def generate_text(req: TextRequest, request: Request, authorization: Optional[str] = Header(None)):
+async def generate_text(req: TextRequest, authorization: Optional[str] = Header(None), request: Request = None):
     api = get_api()
     user = await get_user(authorization)
-    ip = get_client_ip(request)
     if api != "demo":
         if not user:
-            raise HTTPException(401, "Model üretmek için giriş yapın")
-        if not check_generate_rate(ip):
-            raise HTTPException(429, "Çok sık model üretiyorsunuz. Lütfen bekleyin.")
+            raise HTTPException(401, "Model uretmek icin giris yapin")
         used = get_usage(user["id"])
         limit = PLAN_LIMITS.get(user["plan"], 5)
         if used >= limit:
-            raise HTTPException(403, f"Aylık limitinize ulaştınız ({limit} model). Planınızı yükseltin.")
+            raise HTTPException(403, f"Aylik limitinize ulastiniz ({limit}). Planizi yukseltin.")
         add_usage(user["id"])
-    # Prompt temizleme
-    prompt = sanitize_prompt(req.prompt)
-    if not prompt or len(prompt) < 3:
-        raise HTTPException(400, "Prompt çok kısa (en az 3 karakter)")
-    style = req.style if req.style in STYLE_MAP else "realistic"
     tid = str(uuid.uuid4())[:8]
     tasks[tid] = {
-        "status": "processing", "progress": 0, "step": "Başlatılıyor...",
-        "type": "text", "api": api, "prompt": prompt, "style": style,
+        "status": "processing", "progress": 0, "step": "Baslatiliyor...",
+        "type": "text", "api": api, "prompt": req.prompt, "style": req.style,
+        "negative_prompt": req.negative_prompt, "tags": req.tags,
         "user_id": user["id"] if user else 0
     }
     if api == "tripo":
-        asyncio.create_task(_tripo_text(tid, prompt, style))
+        asyncio.create_task(_tripo_text(tid, req.prompt, req.style))
     elif api == "meshy":
-        asyncio.create_task(_meshy_text(tid, prompt, style))
+        asyncio.create_task(_meshy_text(tid, req.prompt, req.style))
     else:
         asyncio.create_task(_demo_generate(tid))
-    log_security("GENERATE_TEXT", ip, f"UID: {user['id'] if user else 0}, Prompt: {prompt[:50]}")
     return {"task_id": tid}
+
 @app.post("/api/generate/image")
-async def generate_image(request: Request, file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+async def generate_image(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
     api = get_api()
     user = await get_user(authorization)
-    ip = get_client_ip(request)
     if api != "demo":
         if not user:
-            raise HTTPException(401, "Model üretmek için giriş yapın")
-        if not check_generate_rate(ip):
-            raise HTTPException(429, "Çok sık model üretiyorsunuz. Lütfen bekleyin.")
+            raise HTTPException(401, "Model uretmek icin giris yapin")
         used = get_usage(user["id"])
         limit = PLAN_LIMITS.get(user["plan"], 5)
         if used >= limit:
-            raise HTTPException(403, f"Aylık limitinize ulaştınız ({limit} model). Planınızı yükseltin.")
+            raise HTTPException(403, f"Aylik limitinize ulastiniz ({limit}). Planizi yukseltin.")
         add_usage(user["id"])
     contents = await file.read()
-    fname = sanitize_input(file.filename or "image.jpg", 100)
-    # Güvenli dosya doğrulama
-    valid, result = validate_file(contents, fname)
-    if not valid:
-        raise HTTPException(400, result)
+    if len(contents) > 10 * 1024 * 1024:
+        raise HTTPException(400, "Dosya cok buyuk (max 10MB)")
+    # Magic bytes check
+    if contents[:3] not in (b'\xff\xd8\xff', b'\x89PN', b'RIF'):
+        raise HTTPException(400, "Gecersiz dosya formati")
     tid = str(uuid.uuid4())[:8]
+    fname = file.filename or "image.jpg"
     tasks[tid] = {
-        "status": "processing", "progress": 0, "step": "Görsel hazırlanıyor...",
+        "status": "processing", "progress": 0, "step": "Gorsel hazirlaniyor...",
         "type": "image", "api": api, "prompt": fname, "style": "",
         "user_id": user["id"] if user else 0
     }
@@ -1235,20 +1139,20 @@ async def generate_image(request: Request, file: UploadFile = File(...), authori
         asyncio.create_task(_meshy_image(tid, contents, fname))
     else:
         asyncio.create_task(_demo_generate(tid))
-    log_security("GENERATE_IMAGE", ip, f"UID: {user['id'] if user else 0}, File: {fname}")
     return {"task_id": tid}
+
 @app.get("/api/status/{task_id}")
 async def get_status(task_id: str):
-    task_id = sanitize_input(task_id, 20)
     if task_id not in tasks:
-        raise HTTPException(404, "Görev bulunamadı")
+        raise HTTPException(404, "Gorev bulunamadi")
     t = tasks[task_id]
     return {
         "task_id": task_id, "status": t["status"], "progress": t["progress"],
         "step": t.get("step", ""), "model_url": t.get("model_url", ""),
-        "is_demo": t.get("api") == "demo", "cached": task_id in model_cache,
-        "error": t.get("error", ""),
+        "is_demo": t.get("api") == "demo", "error": t.get("error", ""),
     }
+
+
 # ════════ MODEL SUNMA ════════
 async def cache_model(tid, url):
     if tid in model_cache:
@@ -1261,154 +1165,120 @@ async def cache_model(tid, url):
             if r.status_code == 200 and len(r.content) > 100:
                 model_cache[tid] = r.content
                 return True
-    except:
-        pass
+    except: pass
     return False
+
 async def ensure_cached(tid):
     if tid in model_cache:
         return True
     if tid in tasks and tasks[tid].get("model_url"):
         return await cache_model(tid, tasks[tid]["model_url"])
     return False
+
 @app.get("/api/model/{task_id}/view")
 async def model_view(task_id: str):
-    task_id = sanitize_input(task_id, 20)
     if not await ensure_cached(task_id):
-        raise HTTPException(404, "Model bulunamadı")
-    return Response(
-        content=model_cache[task_id],
-        media_type="model/gltf-binary",
-        headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=3600"}
-    )
+        raise HTTPException(404, "Model bulunamadi")
+    return Response(content=model_cache[task_id], media_type="model/gltf-binary",
+        headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=3600"})
+
 @app.get("/api/model/{task_id}/glb")
 async def download_glb(task_id: str):
-    task_id = sanitize_input(task_id, 20)
     if not await ensure_cached(task_id):
-        raise HTTPException(404, "Model bulunamadı")
+        raise HTTPException(404, "Model bulunamadi")
     conn = get_db()
     conn.execute("UPDATE models SET downloads=downloads+1 WHERE task_id=?", (task_id,))
     conn.commit()
     conn.close()
-    return Response(
-        content=model_cache[task_id],
-        media_type="model/gltf-binary",
-        headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.glb"'}
-    )
+    return Response(content=model_cache[task_id], media_type="model/gltf-binary",
+        headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.glb"'})
+
 @app.get("/api/model/{task_id}/stl")
 async def download_stl(task_id: str):
-    task_id = sanitize_input(task_id, 20)
     if not HAS_TRIMESH:
-        raise HTTPException(500, "STL dönüştürme yüklü değil")
+        raise HTTPException(500, "STL donusturme yuklu degil")
     if not await ensure_cached(task_id):
-        raise HTTPException(404, "Model bulunamadı")
+        raise HTTPException(404, "Model bulunamadi")
     try:
         scene = trimesh.load(io.BytesIO(model_cache[task_id]), file_type="glb", force="scene")
-        if isinstance(scene, trimesh.Scene):
-            meshes = [g for g in scene.geometry.values() if isinstance(g, trimesh.Trimesh)]
-        else:
-            meshes = [scene]
+        meshes = [g for g in scene.geometry.values() if isinstance(g, trimesh.Trimesh)] if isinstance(scene, trimesh.Scene) else [scene]
         if not meshes:
-            raise Exception("Mesh bulunamadı")
+            raise Exception("Mesh bulunamadi")
         stl = trimesh.util.concatenate(meshes).export(file_type="stl")
         conn = get_db()
         conn.execute("UPDATE models SET downloads=downloads+1 WHERE task_id=?", (task_id,))
         conn.commit()
         conn.close()
-        return Response(
-            content=stl,
-            media_type="application/vnd.ms-pki.stl",
-            headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.stl"'}
-        )
+        return Response(content=stl, media_type="application/vnd.ms-pki.stl",
+            headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.stl"'})
     except Exception as e:
-        raise HTTPException(500, f"STL hatası: {e}")
+        raise HTTPException(500, f"STL hatasi: {e}")
+
 @app.get("/api/model/{task_id}/obj")
 async def download_obj(task_id: str):
-    task_id = sanitize_input(task_id, 20)
     if not HAS_TRIMESH:
-        raise HTTPException(500, "OBJ dönüştürme yüklü değil")
+        raise HTTPException(500, "OBJ donusturme yuklu degil")
     if not await ensure_cached(task_id):
-        raise HTTPException(404, "Model bulunamadı")
+        raise HTTPException(404, "Model bulunamadi")
     try:
         scene = trimesh.load(io.BytesIO(model_cache[task_id]), file_type="glb", force="scene")
-        if isinstance(scene, trimesh.Scene):
-            meshes = [g for g in scene.geometry.values() if isinstance(g, trimesh.Trimesh)]
-        else:
-            meshes = [scene]
+        meshes = [g for g in scene.geometry.values() if isinstance(g, trimesh.Trimesh)] if isinstance(scene, trimesh.Scene) else [scene]
         obj = trimesh.util.concatenate(meshes).export(file_type="obj")
-        return Response(
-            content=obj,
-            media_type="text/plain",
-            headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.obj"'}
-        )
+        return Response(content=obj, media_type="text/plain",
+            headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.obj"'})
     except Exception as e:
-        raise HTTPException(500, f"OBJ hatası: {e}")
-# ════════ GALERİ ════════
+        raise HTTPException(500, f"OBJ hatasi: {e}")
+
+
+# ════════ GALERI ════════
 @app.get("/api/gallery")
-async def gallery(page: int = 1, limit: int = 20, sort: str = "newest", search: str = ""):
-    limit = min(limit, 50)
-    page = max(1, page)
-    search = sanitize_input(search, 100)
+async def gallery(page: int = 1, limit: int = 20, sort: str = "newest", search: str = "", category: str = "", tag: str = ""):
     conn = get_db()
     offset = (page - 1) * limit
-    where = "WHERE is_public=1 AND model_url != ''"
+    where = "WHERE m.is_public=1 AND m.model_url != ''"
     params = []
     if search:
-        where += " AND (title LIKE ? OR prompt LIKE ?)"
+        where += " AND (m.title LIKE ? OR m.prompt LIKE ?)"
         params += [f"%{search}%", f"%{search}%"]
-    order = {"popular": "ORDER BY likes DESC", "downloads": "ORDER BY downloads DESC"}.get(sort, "ORDER BY created_at DESC")
+    if category:
+        where += " AND m.category=?"
+        params.append(category)
+    if tag:
+        where += " AND m.id IN (SELECT model_id FROM model_tags WHERE tag=?)"
+        params.append(tag.lower())
+    order = {"popular": "ORDER BY m.likes DESC", "downloads": "ORDER BY m.downloads DESC", "views": "ORDER BY m.views DESC"}.get(sort, "ORDER BY m.created_at DESC")
     rows = conn.execute(
-        f"SELECT m.*, u.name as author_name FROM models m LEFT JOIN users u ON m.user_id=u.id {where} {order} LIMIT ? OFFSET ?",
-        params + [limit, offset]
-    ).fetchall()
-    total = conn.execute(f"SELECT COUNT(*) FROM models {where}", params).fetchone()[0]
+        f"SELECT m.*, u.name as author_name, u.username as author_username FROM models m LEFT JOIN users u ON m.user_id=u.id {where} {order} LIMIT ? OFFSET ?",
+        params + [limit, offset]).fetchall()
+    total = conn.execute(f"SELECT COUNT(*) FROM models m {where}", params).fetchone()[0]
     conn.close()
     return {"models": [dict(r) for r in rows], "total": total, "page": page, "pages": max(1, (total + limit - 1) // limit)}
+
 @app.get("/api/gallery/{model_id}")
 async def model_detail(model_id: int):
     conn = get_db()
-    row = conn.execute(
-        "SELECT m.*, u.name as author_name FROM models m LEFT JOIN users u ON m.user_id=u.id WHERE m.id=?",
-        (model_id,)
-    ).fetchone()
-    conn.close()
+    row = conn.execute("SELECT m.*, u.name as author_name, u.username as author_username FROM models m LEFT JOIN users u ON m.user_id=u.id WHERE m.id=?", (model_id,)).fetchone()
     if not row:
-        raise HTTPException(404, "Model bulunamadı")
-    return dict(row)
-@app.get("/api/gallery/{model_id}/similar")
-async def similar_models(model_id: int, limit: int = 6):
-    limit = min(limit, 20)
-    conn = get_db()
-    cur = conn.execute("SELECT style, gen_type FROM models WHERE id=?", (model_id,)).fetchone()
-    if not cur:
         conn.close()
-        raise HTTPException(404, "Bulunamadı")
-    style = cur["style"] or ""
-    gtype = cur["gen_type"] or ""
-    rows = conn.execute(
-        "SELECT m.*, u.name as author_name FROM models m LEFT JOIN users u ON m.user_id=u.id "
-        "WHERE m.id!=? AND m.is_public=1 AND m.model_url!='' AND (m.style=? OR m.gen_type=?) "
-        "ORDER BY m.likes DESC LIMIT ?",
-        (model_id, style, gtype, limit)
-    ).fetchall()
-    if len(rows) < limit:
-        extra = conn.execute(
-            "SELECT m.*, u.name as author_name FROM models m LEFT JOIN users u ON m.user_id=u.id "
-            "WHERE m.id!=? AND m.is_public=1 AND m.model_url!='' ORDER BY RANDOM() LIMIT ?",
-            (model_id, limit - len(rows))
-        ).fetchall()
-        rows = list(rows) + list(extra)
+        raise HTTPException(404, "Model bulunamadi")
+    conn.execute("UPDATE models SET views=views+1 WHERE id=?", (model_id,))
+    conn.commit()
+    tags = conn.execute("SELECT tag FROM model_tags WHERE model_id=?", (model_id,)).fetchall()
     conn.close()
-    return {"models": [dict(r) for r in rows]}
+    result = dict(row)
+    result["tags"] = [t["tag"] for t in tags]
+    return result
+
 @app.post("/api/gallery/{model_id}/like")
 async def toggle_like(model_id: int, authorization: Optional[str] = Header(None)):
     user = await get_user(authorization)
     if not user:
-        raise HTTPException(401, "Giriş yapın")
+        raise HTTPException(401, "Giris yapin")
     conn = get_db()
     ex = conn.execute("SELECT 1 FROM user_likes WHERE user_id=? AND model_id=?", (user["id"], model_id)).fetchone()
     if ex:
         conn.execute("DELETE FROM user_likes WHERE user_id=? AND model_id=?", (user["id"], model_id))
-        conn.execute("UPDATE models SET likes=MAX(0,likes-1) WHERE id=?", (model_id,))
+        conn.execute("UPDATE models SET likes=likes-1 WHERE id=?", (model_id,))
         liked = False
     else:
         conn.execute("INSERT INTO user_likes(user_id,model_id) VALUES(?,?)", (user["id"], model_id))
@@ -1417,174 +1287,156 @@ async def toggle_like(model_id: int, authorization: Optional[str] = Header(None)
     conn.commit()
     conn.close()
     return {"liked": liked}
+
 @app.get("/api/my-models")
 async def my_models(authorization: Optional[str] = Header(None)):
     user = await get_user(authorization)
     if not user:
-        raise HTTPException(401, "Giriş yapın")
+        raise HTTPException(401, "Giris yapin")
     conn = get_db()
     rows = conn.execute("SELECT * FROM models WHERE user_id=? ORDER BY created_at DESC", (user["id"],)).fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        tags = conn.execute("SELECT tag FROM model_tags WHERE model_id=?", (r["id"],)).fetchall()
+        d["tags"] = [t["tag"] for t in tags]
+        result.append(d)
     conn.close()
-    return {"models": [dict(r) for r in rows]}
+    return {"models": result}
+
 @app.delete("/api/my-models/{model_id}")
 async def delete_model(model_id: int, authorization: Optional[str] = Header(None)):
     user = await get_user(authorization)
     if not user:
-        raise HTTPException(401, "Giriş yapın")
+        raise HTTPException(401, "Giris yapin")
     conn = get_db()
+    conn.execute("DELETE FROM model_tags WHERE model_id=?", (model_id,))
+    conn.execute("DELETE FROM collection_items WHERE model_id=?", (model_id,))
+    conn.execute("DELETE FROM user_likes WHERE model_id=?", (model_id,))
     conn.execute("DELETE FROM models WHERE id=? AND user_id=?", (model_id, user["id"]))
     conn.commit()
     conn.close()
     return {"deleted": True}
+
 @app.post("/api/payment/upgrade")
 async def upgrade_plan(authorization: Optional[str] = Header(None)):
     user = await get_user(authorization)
     if not user:
-        raise HTTPException(401, "Giriş yapın")
+        raise HTTPException(401, "Giris yapin")
     conn = get_db()
-    conn.execute("UPDATE users SET plan='pro', updated_at=datetime('now') WHERE id=?", (user["id"],))
+    conn.execute("UPDATE users SET plan='pro' WHERE id=?", (user["id"],))
     conn.commit()
     conn.close()
     return {"success": True, "plan": "pro"}
+
+
+# ════════ PRIVACY ════════
+@app.post("/api/privacy/export-data")
+async def export_data(authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    models = [dict(r) for r in conn.execute("SELECT * FROM models WHERE user_id=?", (user["id"],)).fetchall()]
+    collections = [dict(r) for r in conn.execute("SELECT * FROM collections WHERE user_id=?", (user["id"],)).fetchall()]
+    likes = [dict(r) for r in conn.execute("SELECT * FROM user_likes WHERE user_id=?", (user["id"],)).fetchall()]
+    conn.close()
+    return {"user": user, "models": models, "collections": collections, "likes": likes, "exported_at": datetime.utcnow().isoformat()}
+
+@app.post("/api/privacy/delete-account")
+async def delete_account(authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    uid = user["id"]
+    conn.execute("DELETE FROM model_tags WHERE model_id IN (SELECT id FROM models WHERE user_id=?)", (uid,))
+    conn.execute("DELETE FROM collection_items WHERE collection_id IN (SELECT id FROM collections WHERE user_id=?)", (uid,))
+    conn.execute("DELETE FROM collections WHERE user_id=?", (uid,))
+    conn.execute("DELETE FROM follows WHERE follower_id=? OR following_id=?", (uid, uid))
+    conn.execute("DELETE FROM user_likes WHERE user_id=?", (uid,))
+    conn.execute("DELETE FROM usage WHERE user_id=?", (uid,))
+    conn.execute("DELETE FROM security_log WHERE user_id=?", (uid,))
+    conn.execute("DELETE FROM models WHERE user_id=?", (uid,))
+    conn.execute("DELETE FROM users WHERE id=?", (uid,))
+    conn.commit()
+    conn.close()
+    return {"deleted": True, "message": "Hesabiniz ve tum verileriniz kalici olarak silindi"}
+
 @app.get("/api/health")
 async def health():
     api = get_api()
     return {
-        "status": "online",
-        "active_api": api,
-        "api_ready": True,
-        "is_demo": api == "demo",
-        "stl_ready": HAS_TRIMESH,
-        "auth_ready": HAS_JWT,
-        "google_ready": bool(GOOGLE_CLIENT_ID),
-        "email_ready": bool(RESEND_API_KEY),
-        "cached_models": len(model_cache),
-        "security": {
-            "rate_limiting": True,
-            "pbkdf2_hashing": True,
-            "session_management": True,
-            "security_headers": True,
-            "input_sanitization": True,
-            "file_validation": True,
-        }
+        "status": "online", "active_api": api, "api_ready": True,
+        "is_demo": api == "demo", "stl_ready": HAS_TRIMESH,
+        "auth_ready": HAS_JWT, "google_ready": bool(GOOGLE_CLIENT_ID),
+        "email_ready": bool(RESEND_API_KEY), "cached_models": len(model_cache),
     }
-# ════════ GÜVENLİK ADMIN ════════
-@app.get("/api/security/logs")
-async def security_logs(authorization: Optional[str] = Header(None), limit: int = 50):
-    """Güvenlik loglarını görüntüle (sadece admin)"""
-    user = await get_user(authorization)
-    if not user or user["plan"] != "business":
-        raise HTTPException(403, "Yetkiniz yok")
-    limit = min(limit, 200)
-    conn = get_db()
-    rows = conn.execute(
-        "SELECT * FROM security_logs ORDER BY created_at DESC LIMIT ?",
-        (limit,)
-    ).fetchall()
-    conn.close()
-    return {"logs": [dict(r) for r in rows]}
-@app.get("/api/security/stats")
-async def security_stats(authorization: Optional[str] = Header(None)):
-    """Güvenlik istatistikleri"""
-    user = await get_user(authorization)
-    if not user or user["plan"] != "business":
-        raise HTTPException(403, "Yetkiniz yok")
-    conn = get_db()
-    total = conn.execute("SELECT COUNT(*) FROM security_logs").fetchone()[0]
-    failed_logins = conn.execute(
-        "SELECT COUNT(*) FROM security_logs WHERE event_type='LOGIN_FAILED' AND created_at > datetime('now','-24 hours')"
-    ).fetchone()[0]
-    registrations = conn.execute(
-        "SELECT COUNT(*) FROM security_logs WHERE event_type='REGISTER_SUCCESS' AND created_at > datetime('now','-24 hours')"
-    ).fetchone()[0]
-    active = conn.execute(
-        "SELECT COUNT(*) FROM active_sessions WHERE expires_at > datetime('now')"
-    ).fetchone()[0]
-    conn.close()
-    return {
-        "total_events": total,
-        "failed_logins_24h": failed_logins,
-        "new_registrations_24h": registrations,
-        "active_sessions": active,
-        "blocked_ips": len(blocked_ips),
-        "locked_accounts": len(account_lockouts),
-    }
-# ════════ URL ÇIKARMA ════════
+
+
+# ════════ URL CIKARMA ════════
 def extract_model_url(data):
-    if not data:
-        return ""
-    if isinstance(data, str) and data.startswith("http"):
-        return data
-    if not isinstance(data, dict):
-        return ""
+    if not data: return ""
+    if isinstance(data, str) and data.startswith("http"): return data
+    if not isinstance(data, dict): return ""
     for key in ["model", "pbr_model", "base_model"]:
         val = data.get(key, "")
-        if isinstance(val, str) and val.startswith("http"):
-            return val
+        if isinstance(val, str) and val.startswith("http"): return val
         if isinstance(val, dict):
             url = val.get("url", "") or val.get("download_url", "")
-            if url and url.startswith("http"):
-                return url
+            if url and url.startswith("http"): return url
     for k, v in data.items():
         if isinstance(v, str) and v.startswith("http"):
-            if any(x in v.lower() for x in [".glb", ".gltf", "model"]):
-                return v
+            if any(x in v.lower() for x in [".glb", ".gltf", "model"]): return v
     return ""
+
+
 # ════════ TRIPO3D ════════
 async def _tripo_text(tid, prompt, style):
     try:
         h = {"Authorization": f"Bearer {TRIPO_API_KEY}"}
         tasks[tid]["progress"] = 10
-        tasks[tid]["step"] = "Prompt gönderiliyor..."
+        tasks[tid]["step"] = "Prompt gonderiliyor..."
         async with httpx.AsyncClient(timeout=600) as c:
-            r = await c.post(
-                f"{TRIPO_BASE}/task",
+            r = await c.post(f"{TRIPO_BASE}/task",
                 json={"type": "text_to_model", "prompt": f"{prompt}, {style} style"},
-                headers={**h, "Content-Type": "application/json"}
-            )
-            if r.status_code != 200:
-                raise Exception(f"Tripo hata {r.status_code}")
+                headers={**h, "Content-Type": "application/json"})
+            if r.status_code != 200: raise Exception(f"Tripo hata {r.status_code}")
             tripo_id = r.json().get("data", {}).get("task_id")
-            if not tripo_id:
-                raise Exception("Task ID alınamadı")
+            if not tripo_id: raise Exception("Task ID alinamadi")
             tasks[tid]["progress"] = 25
             await _tripo_poll(c, h, tid, tripo_id)
     except Exception as e:
         tasks[tid]["status"] = "failed"
         tasks[tid]["error"] = str(e)
+
 async def _tripo_image(tid, contents, fname):
     try:
         h = {"Authorization": f"Bearer {TRIPO_API_KEY}"}
         ext = fname.rsplit(".", 1)[-1].lower()
-        if ext not in ("jpg", "jpeg", "png", "webp"):
-            ext = "jpeg"
+        if ext not in ("jpg", "jpeg", "png", "webp"): ext = "jpeg"
         mime = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
         tasks[tid]["progress"] = 10
-        tasks[tid]["step"] = "Görsel yükleniyor..."
+        tasks[tid]["step"] = "Gorsel yukleniyor..."
         async with httpx.AsyncClient(timeout=600) as c:
             ur = await c.post(f"{TRIPO_BASE}/upload", files={"file": (fname, contents, mime)}, headers=h)
-            if ur.status_code != 200:
-                raise Exception(f"Upload hata {ur.status_code}")
+            if ur.status_code != 200: raise Exception(f"Upload hata {ur.status_code}")
             token = ur.json().get("data", {}).get("image_token")
-            if not token:
-                raise Exception("Token alınamadı")
+            if not token: raise Exception("Token alinamadi")
             tasks[tid]["progress"] = 25
-            tasks[tid]["step"] = "Model oluşturuluyor..."
-            tr = await c.post(
-                f"{TRIPO_BASE}/task",
+            tasks[tid]["step"] = "Model olusturuluyor..."
+            tr = await c.post(f"{TRIPO_BASE}/task",
                 json={"type": "image_to_model", "file": {"type": ext if ext != "jpg" else "jpeg", "file_token": token}},
-                headers={**h, "Content-Type": "application/json"}
-            )
-            if tr.status_code != 200:
-                raise Exception(f"Task hata {tr.status_code}")
+                headers={**h, "Content-Type": "application/json"})
+            if tr.status_code != 200: raise Exception(f"Task hata {tr.status_code}")
             tripo_id = tr.json().get("data", {}).get("task_id")
-            if not tripo_id:
-                raise Exception("Task ID alınamadı")
+            if not tripo_id: raise Exception("Task ID alinamadi")
             tasks[tid]["progress"] = 35
             await _tripo_poll(c, h, tid, tripo_id)
     except Exception as e:
         tasks[tid]["status"] = "failed"
         tasks[tid]["error"] = str(e)
+
 async def _tripo_poll(client, headers, tid, tripo_id):
     for _ in range(200):
         await asyncio.sleep(3)
@@ -1594,20 +1446,20 @@ async def _tripo_poll(client, headers, tid, tripo_id):
             st = d.get("status", "")
             pr = d.get("progress", 0)
             tasks[tid]["progress"] = 35 + int(pr * 0.55)
-            tasks[tid]["step"] = f"Model üretiliyor... %{pr}"
+            tasks[tid]["step"] = f"Model uretiliyor... %{pr}"
             if st == "success":
                 url = extract_model_url(d.get("output", {}))
                 tasks[tid]["model_url"] = url
                 tasks[tid]["progress"] = 92
                 tasks[tid]["step"] = "Model indiriliyor..."
-                if url:
-                    await cache_model(tid, url)
+                if url: await cache_model(tid, url)
                 tasks[tid]["status"] = "done"
                 tasks[tid]["progress"] = 100
-                tasks[tid]["step"] = "Tamamlandı!"
+                tasks[tid]["step"] = "Tamamlandi!"
                 uid = tasks[tid].get("user_id", 0)
                 prompt = tasks[tid].get("prompt", "")
-                save_model(uid, tid, prompt[:50], prompt, tasks[tid].get("type", ""), tasks[tid].get("style", ""), url)
+                save_model(uid, tid, prompt[:50], prompt, tasks[tid].get("type", ""), tasks[tid].get("style", ""), url,
+                    tasks[tid].get("negative_prompt", ""), tasks[tid].get("tags", ""))
                 return
             elif st in ("failed", "cancelled"):
                 raise Exception(f"Tripo: {st}")
@@ -1617,27 +1469,25 @@ async def _tripo_poll(client, headers, tid, tripo_id):
                 tasks[tid]["error"] = str(e)
                 return
     tasks[tid]["status"] = "failed"
-    tasks[tid]["error"] = "Zaman aşımı"
+    tasks[tid]["error"] = "Zaman asimi"
+
+
 # ════════ MESHY ════════
 async def _meshy_text(tid, prompt, style):
     try:
         h = {"Authorization": f"Bearer {MESHY_API_KEY}", "Content-Type": "application/json"}
         tasks[tid]["progress"] = 10
-        tasks[tid]["step"] = "Prompt gönderiliyor..."
         async with httpx.AsyncClient(timeout=600) as c:
-            r = await c.post(
-                f"{MESHY_BASE}/text-to-3d",
-                json={"mode": "preview", "prompt": prompt, "art_style": "realistic"},
-                headers=h
-            )
-            if r.status_code not in (200, 202):
-                raise Exception(f"Meshy hata {r.status_code}")
+            r = await c.post(f"{MESHY_BASE}/text-to-3d",
+                json={"mode": "preview", "prompt": prompt, "art_style": "realistic"}, headers=h)
+            if r.status_code not in (200, 202): raise Exception(f"Meshy hata {r.status_code}")
             mid = r.json().get("result")
             tasks[tid]["progress"] = 20
             await _meshy_poll(c, h, tid, mid, "text-to-3d")
     except Exception as e:
         tasks[tid]["status"] = "failed"
         tasks[tid]["error"] = str(e)
+
 async def _meshy_image(tid, contents, fname):
     try:
         h = {"Authorization": f"Bearer {MESHY_API_KEY}", "Content-Type": "application/json"}
@@ -1645,66 +1495,56 @@ async def _meshy_image(tid, contents, fname):
         mime = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
         b64 = base64.b64encode(contents).decode()
         tasks[tid]["progress"] = 15
-        tasks[tid]["step"] = "Görsel gönderiliyor..."
         async with httpx.AsyncClient(timeout=600) as c:
-            r = await c.post(
-                f"{MESHY_BASE}/image-to-3d",
-                json={"image_url": f"data:{mime};base64,{b64}", "enable_pbr": True},
-                headers=h
-            )
-            if r.status_code not in (200, 202):
-                raise Exception(f"Meshy hata {r.status_code}")
+            r = await c.post(f"{MESHY_BASE}/image-to-3d",
+                json={"image_url": f"data:{mime};base64,{b64}", "enable_pbr": True}, headers=h)
+            if r.status_code not in (200, 202): raise Exception(f"Meshy hata {r.status_code}")
             mid = r.json().get("result")
             tasks[tid]["progress"] = 25
             await _meshy_poll(c, h, tid, mid, "image-to-3d")
     except Exception as e:
         tasks[tid]["status"] = "failed"
         tasks[tid]["error"] = str(e)
+
 async def _meshy_poll(client, h, tid, mid, ep):
     for _ in range(200):
         await asyncio.sleep(3)
         try:
             r = await client.get(f"{MESHY_BASE}/{ep}/{mid}", headers=h)
-            if r.status_code != 200:
-                continue
+            if r.status_code != 200: continue
             d = r.json()
             status = d.get("status", "")
             progress = d.get("progress", 0)
             tasks[tid]["progress"] = 25 + int(progress * 0.7)
-            tasks[tid]["step"] = f"Model üretiliyor... %{progress}"
+            tasks[tid]["step"] = f"Model uretiliyor... %{progress}"
             if status == "SUCCEEDED":
                 glb = d.get("model_urls", {}).get("glb", "")
                 tasks[tid]["model_url"] = glb
-                if glb:
-                    await cache_model(tid, glb)
+                if glb: await cache_model(tid, glb)
                 tasks[tid]["status"] = "done"
                 tasks[tid]["progress"] = 100
-                tasks[tid]["step"] = "Tamamlandı!"
+                tasks[tid]["step"] = "Tamamlandi!"
                 uid = tasks[tid].get("user_id", 0)
                 prompt = tasks[tid].get("prompt", "")
-                save_model(uid, tid, prompt[:50], prompt, tasks[tid].get("type", ""), "", glb)
+                save_model(uid, tid, prompt[:50], prompt, tasks[tid].get("type", ""), "", glb,
+                    tasks[tid].get("negative_prompt", ""), tasks[tid].get("tags", ""))
                 return
             elif status == "FAILED":
-                raise Exception("Meshy: Model üretilemedi")
+                raise Exception("Meshy: Model uretilemedi")
         except Exception as e:
-            if "üretilemedi" in str(e):
+            if "uretilemedi" in str(e):
                 tasks[tid]["status"] = "failed"
                 tasks[tid]["error"] = str(e)
                 return
     tasks[tid]["status"] = "failed"
-    tasks[tid]["error"] = "Zaman aşımı"
+    tasks[tid]["error"] = "Zaman asimi"
+
+
 # ════════ DEMO ════════
 async def _demo_generate(tid):
     try:
-        steps = [
-            (8, "Analiz ediliyor..."),
-            (22, "AI yükleniyor..."),
-            (40, "Geometri oluşturuluyor..."),
-            (58, "Mesh üretiliyor..."),
-            (72, "Texture uygulanıyor..."),
-            (88, "Optimize ediliyor..."),
-            (95, "Hazırlanıyor..."),
-        ]
+        steps = [(8,"Analiz ediliyor..."),(22,"AI yukleniyor..."),(40,"Geometri olusturuluyor..."),
+                 (58,"Mesh uretiliyor..."),(72,"Texture uygulanıyor..."),(88,"Optimize ediliyor..."),(95,"Hazirlaniyor...")]
         for pr, st in steps:
             tasks[tid]["progress"] = pr
             tasks[tid]["step"] = st
@@ -1719,28 +1559,3 @@ async def _demo_generate(tid):
     except Exception as e:
         tasks[tid]["status"] = "failed"
         tasks[tid]["error"] = str(e)
-# ════════ PERIYODIK TEMIZLIK ════════
-@app.on_event("startup")
-async def cleanup_scheduler():
-    """Eski verileri düzenli temizle"""
-    async def periodic_cleanup():
-        while True:
-            await asyncio.sleep(3600)  # Her saat
-            try:
-                conn = get_db()
-                # Süresi dolmuş oturumları temizle
-                conn.execute("DELETE FROM active_sessions WHERE expires_at < datetime('now')")
-                # 30 günden eski güvenlik loglarını temizle
-                conn.execute("DELETE FROM security_logs WHERE created_at < datetime('now','-30 days')")
-                conn.commit()
-                conn.close()
-                # Bellek temizliği
-                now = time.time()
-                for key in list(rate_limits.keys()):
-                    rate_limits[key] = [t for t in rate_limits[key] if now - t < 120]
-                    if not rate_limits[key]:
-                        del rate_limits[key]
-                print(f"[CLEANUP] {datetime.now().strftime('%H:%M')} - Sessions/logs temizlendi")
-            except Exception as e:
-                print(f"[CLEANUP] Hata: {e}")
-    asyncio.create_task(periodic_cleanup())
