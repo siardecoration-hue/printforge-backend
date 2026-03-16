@@ -20,6 +20,15 @@ body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);over
 ::-webkit-scrollbar-thumb{background:var(--muted)}
 a{text-decoration:none;color:inherit}
 
+/* ===== TOAST ===== */
+.toast-container{position:fixed;top:80px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px}
+.toast{padding:14px 20px;border-radius:4px;font-size:11px;font-family:'DM Mono',monospace;letter-spacing:0.05em;animation:toastIn 0.3s ease,toastOut 0.3s ease 3.7s forwards;max-width:360px;line-height:1.6;border:1px solid;backdrop-filter:blur(12px)}
+.toast.success{background:rgba(0,255,157,0.1);border-color:rgba(0,255,157,0.3);color:var(--accent2)}
+.toast.error{background:rgba(255,68,102,0.1);border-color:rgba(255,68,102,0.3);color:var(--red)}
+.toast.info{background:rgba(0,229,255,0.1);border-color:rgba(0,229,255,0.3);color:var(--accent)}
+@keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+@keyframes toastOut{from{opacity:1}to{opacity:0;transform:translateY(-10px)}}
+
 /* ===== ANIMATED BACKGROUND ===== */
 .bg-layer{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
 .bg-grid{position:fixed;inset:0;z-index:-2;pointer-events:none;background-image:linear-gradient(rgba(0,229,255,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.025) 1px,transparent 1px);background-size:72px 72px}
@@ -52,15 +61,6 @@ a{text-decoration:none;color:inherit}
 .reveal-s.on{opacity:1;transform:scale(1)}
 .d1{transition-delay:0.1s}.d2{transition-delay:0.2s}.d3{transition-delay:0.3s}.d4{transition-delay:0.4s}.d5{transition-delay:0.5s}.d6{transition-delay:0.6s}
 
-/* ===== TOAST ===== */
-.toast-container{position:fixed;top:80px;right:20px;z-index:10000;display:flex;flex-direction:column;gap:8px}
-.toast{padding:14px 20px;border-radius:4px;font-size:11px;letter-spacing:0.08em;font-family:'DM Mono',monospace;animation:toastIn 0.3s ease;max-width:360px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 32px rgba(0,0,0,0.4)}
-.toast.success{background:rgba(0,255,157,0.12);border:1px solid rgba(0,255,157,0.3);color:var(--accent2)}
-.toast.error{background:rgba(255,68,102,0.12);border:1px solid rgba(255,68,102,0.3);color:var(--red)}
-.toast.info{background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.3);color:var(--accent)}
-@keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
-@keyframes toastOut{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(40px)}}
-
 /* ===== NAV ===== */
 nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-content:space-between;align-items:center;padding:18px 60px;background:rgba(4,8,10,0.88);backdrop-filter:blur(24px);border-bottom:1px solid rgba(0,229,255,0.07)}
 .nav-logo{display:flex;align-items:center;gap:10px;cursor:pointer}
@@ -68,7 +68,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-conten
 .nli{width:8px;height:8px;background:var(--accent);transform:rotate(-45deg)}
 .nlt{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:var(--accent);letter-spacing:0.1em}
 .nav-links{display:flex;gap:32px;align-items:center}
-.nav-links a{color:var(--muted);font-size:11px;letter-spacing:0.15em;transition:color 0.2s;cursor:pointer}
+.nav-links a{color:var(--muted);font-size:11px;letter-spacing:0.15em;transition:color 0.2s}
 .nav-links a:hover{color:var(--accent)}
 .nav-right{display:flex;gap:10px;align-items:center}
 .btn-no{padding:9px 20px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.15em;border:1px solid rgba(0,229,255,0.3);background:transparent;color:var(--accent);cursor:pointer;transition:all 0.2s}
@@ -78,9 +78,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-conten
 .nav-avatar{width:32px;height:32px;border-radius:50%;background:var(--border);border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--accent);cursor:pointer;font-family:'Syne',sans-serif;font-weight:700}
 #navUser{display:none;align-items:center;gap:10px}
 #navGuest{display:flex;gap:10px}
-
-/* MOBILE MENU */
-.mobile-toggle{display:none;background:none;border:1px solid var(--border);color:var(--accent);padding:6px 10px;font-size:16px;cursor:pointer}
+.mobile-menu-btn{display:none;background:none;border:1px solid var(--border);color:var(--accent);font-size:18px;padding:6px 10px;cursor:pointer}
 
 /* ===== PAGES ===== */
 .page{display:none;min-height:100vh;padding-top:72px}
@@ -126,7 +124,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-conten
 .ft2{bottom:20%;left:-30px;animation-delay:-2s;color:var(--accent2);border-color:rgba(0,255,157,0.2)}
 .ft3{top:55%;right:-40px;animation-delay:-1s}
 @keyframes floatTag{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
-
 @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
 
 /* MARQUEE */
@@ -257,7 +254,7 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:60px;dis
 .chips{display:flex;gap:8px;flex-wrap:wrap}
 .chip{padding:7px 16px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:0.12em;cursor:pointer;transition:all 0.15s}
 .chip.on,.chip:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,229,255,0.04)}
-.ssort{padding:8px 14px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:'DM Mono',monospace;font-size:10px;margin-left:auto;outline:none}
+.ssort{padding:8px 14px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:'DM Mono',monospace;font-size:10px;margin-left:auto}
 .lib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;padding:28px 60px}
 .mcard{background:var(--card);border:1px solid var(--border);transition:all 0.25s;cursor:pointer}
 .mcard:hover{border-color:rgba(0,229,255,0.25);transform:translateY(-3px);box-shadow:0 12px 32px rgba(0,0,0,0.2)}
@@ -282,10 +279,9 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:60px;dis
 .mbtn.dl{background:var(--accent);color:#04080a;border-color:var(--accent)}
 .mbtn.dl:hover{background:var(--accent2)}
 .mbtn.lkd{color:var(--red);border-color:rgba(255,68,102,0.4)}
-
-/* LOADING SKELETON */
-.skeleton{background:linear-gradient(90deg,var(--bg2) 25%,#0a1418 50%,var(--bg2) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:4px}
-@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.lib-empty{grid-column:1/-1;text-align:center;padding:80px 20px;color:var(--muted)}
+.lib-empty-icon{font-size:48px;opacity:0.3;margin-bottom:16px}
+.lib-loading{grid-column:1/-1;text-align:center;padding:60px;color:var(--muted);font-size:11px;letter-spacing:0.1em}
 
 /* ===== AUTH ===== */
 .auth-page{display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 72px);padding:40px;background:var(--bg);position:relative;overflow:hidden}
@@ -312,13 +308,10 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:60px;dis
 .afooter{text-align:center;margin-top:22px;font-size:10px;color:var(--muted)}
 .afooter a{color:var(--accent);cursor:pointer}
 .afooter a:hover{text-decoration:underline}
-.aerr{background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.25);padding:10px 14px;font-size:11px;color:var(--red);margin-bottom:14px;display:none}
-.aok{background:rgba(0,255,157,0.08);border:1px solid rgba(0,255,157,0.25);padding:10px 14px;font-size:11px;color:var(--accent2);margin-bottom:14px;display:none}
-.forgot-link{display:block;text-align:right;font-size:9px;color:var(--muted);margin-top:6px;cursor:pointer;letter-spacing:0.08em}
+.aerr{background:rgba(255,68,102,0.08);border:1px solid rgba(255,68,102,0.25);padding:10px 14px;font-size:11px;color:var(--red);margin-bottom:14px;display:none;line-height:1.6}
+.aok{background:rgba(0,255,157,0.08);border:1px solid rgba(0,255,157,0.25);padding:10px 14px;font-size:11px;color:var(--accent2);margin-bottom:14px;display:none;line-height:1.6}
+.forgot-link{display:block;text-align:right;font-size:9px;color:var(--muted);margin-top:6px;cursor:pointer;letter-spacing:0.05em}
 .forgot-link:hover{color:var(--accent)}
-
-/* FORGOT PASSWORD FORM */
-#forgotForm{display:none}
 
 /* ===== PROFILE ===== */
 .prof-page{background:var(--bg)}
@@ -329,7 +322,7 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:60px;dis
 .prof-avatar{width:76px;height:76px;border-radius:50%;background:var(--border);border:3px solid var(--bg2);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--accent);position:relative;z-index:1}
 .prof-name{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;margin-bottom:4px}
 .prof-email{font-size:10px;color:var(--muted)}
-.prof-plan-badge{display:inline-block;margin-top:4px;font-size:8px;letter-spacing:0.15em;padding:3px 10px;border:1px solid rgba(0,229,255,0.3);color:var(--accent)}
+.prof-plan-badge{display:inline-block;margin-top:4px;padding:2px 10px;font-size:8px;letter-spacing:0.15em;border:1px solid rgba(0,229,255,0.3);color:var(--accent)}
 .prof-stats{display:flex;gap:28px;margin-left:auto}
 .psnum{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--accent)}
 .pslbl{font-size:9px;color:var(--muted);letter-spacing:0.12em}
@@ -344,8 +337,10 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:60px;dis
 .sbtn.danger{border-color:rgba(255,68,102,0.3);color:var(--red)}
 .sbtn.danger:hover{background:rgba(255,68,102,0.08)}
 .plan-badge{display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(0,229,255,0.3);padding:8px 16px;color:var(--accent);font-size:10px;letter-spacing:0.15em;margin-bottom:18px}
-.usage-bar-outer{width:100%;max-width:400px;height:8px;background:var(--bg2);border:1px solid var(--border);margin:12px 0}
-.usage-bar-inner{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width 0.4s}
+.usage-bar-wrap{margin:20px 0;max-width:400px}
+.usage-label{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:6px}
+.usage-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.usage-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:3px;transition:width 0.5s}
 
 /* ===== PAYMENT ===== */
 .pay-page{display:flex;align-items:flex-start;justify-content:center;min-height:calc(100vh - 72px);padding:48px;background:var(--bg);gap:28px;flex-wrap:wrap}
@@ -377,25 +372,24 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:60px;dis
 .tbadge{font-size:9px;color:var(--muted);letter-spacing:0.08em;display:flex;align-items:center;gap:4px}
 .tbadge::before{content:'✓';color:var(--accent2)}
 
-/* RESPONSIVE */
 @media(max-width:1100px){.hero-visual{display:none}}
 @media(max-width:768px){
   nav{padding:14px 20px}
   .nav-links{display:none}
-  .mobile-toggle{display:block}
+  .mobile-menu-btn{display:block}
   section,.lib-hdr,.lib-toolbar,.lib-grid,.prof-hdr,.ptabs,.pbody{padding-left:20px;padding-right:20px}
   .steps,.feat-grid,.price-grid,.test-grid,.stats-grid{grid-template-columns:1fr}
   .gallery-grid{grid-template-columns:repeat(2,1fr)}
   .gitem.big{grid-column:span 1;aspect-ratio:1}
   footer{grid-template-columns:1fr;padding:36px 20px}
   .fbot{padding:14px 20px;flex-direction:column;gap:6px}
-  .prof-stats{display:none}
+  .prof-info{flex-wrap:wrap}
+  .prof-stats{margin-left:0;margin-top:16px;width:100%}
   .sgrid{grid-template-columns:1fr}
   .pay-page{padding:24px}
   .hero{padding:50px 20px 60px}
-  .hero-stats{gap:24px}
-  .auth-box{padding:32px 24px}
   .plan-opts{grid-template-columns:1fr}
+  .auth-box{padding:32px 24px}
 }
 </style>
 </head>
@@ -420,16 +414,17 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:60px;dis
     <div class="nlm"><div class="nli"></div></div>
     <span class="nlt">PRINTFORGE</span>
   </div>
-  <div class="nav-links">
-    <a onclick="showPage('landing')">Ana Sayfa</a>
-    <a onclick="showPage('library')">Kutüphane</a>
-    <a onclick="showPage('landing');setTimeout(()=>document.getElementById('pricing').scrollIntoView({behavior:'smooth'}),150)">Fiyatlar</a>
-    <a href="/app">Uygulama ↗</a>
+  <div class="nav-links" id="navLinks">
+    <a href="#" onclick="showPage('landing');return false">Ana Sayfa</a>
+    <a href="#" onclick="showPage('library');return false">Kutüphane</a>
+    <a href="#" onclick="showPage('blog');return false">Blog</a>
+    <a href="#" onclick="showPage('landing');setTimeout(()=>document.getElementById('pricing')?.scrollIntoView({behavior:'smooth'}),150);return false">Fiyatlar</a>
+    <a href="/app">Uygulama</a>
   </div>
   <div class="nav-right">
-    <button class="mobile-toggle" onclick="document.querySelector('.nav-links').style.display=document.querySelector('.nav-links').style.display==='flex'?'none':'flex'">☰</button>
+    <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
     <div id="navGuest">
-      <button class="btn-no" onclick="showPage('auth');switchAuth('login')">GİRİŞ YAP</button>
+      <button class="btn-no" onclick="showPage('auth');switchAuth('login')">GIRIS YAP</button>
       <button class="btn-ns" onclick="showPage('auth');switchAuth('register')">KAYIT OL</button>
     </div>
     <div id="navUser">
@@ -444,17 +439,17 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:60px;dis
   <section class="hero">
     <div class="hero-glow"></div>
     <div class="hero-content">
-      <div class="hero-badge"><span class="bdot"></span>YENİ · AI DESTEKLİ 3D MODEL ÜRETİCİ</div>
-      <h1 class="hero-title">Görselinden<br><span class="c1">3D Model</span><br><span class="c2">Saniyeler</span>de</h1>
-      <p class="hero-sub">Fotoğrafını yükle, yapay zeka ile profesyonel 3D model oluştur. STL formatında indir, yazıcına gönder. Bu kadar basit.</p>
+      <div class="hero-badge"><span class="bdot"></span>YENI · AI DESTEKLI 3D MODEL URETICI</div>
+      <h1 class="hero-title">Gorselinden<br><span class="c1">3D Model</span><br><span class="c2">Saniyeler</span>de</h1>
+      <p class="hero-sub">Fotografini yukle, yapay zeka ile profesyonel 3D model olustur. STL formatinda indir, yazicina gonder. Bu kadar basit.</p>
       <div class="hero-btns">
-        <button class="btn-p" onclick="checkGoApp()">HEMEN BAŞLA →</button>
-        <button class="btn-s" onclick="showPage('library')">KÜTÜPHANEYİ GEZ</button>
+        <button class="btn-p" onclick="goToApp()">HEMEN BASLA →</button>
+        <button class="btn-s" onclick="showPage('library')">KUTUPHANEYY GEZ</button>
       </div>
       <div class="hero-stats">
-        <div><div class="snum" id="statModels">2K+</div><div class="slbl">MODEL ÜRETİLDİ</div></div>
-        <div><div class="snum">98%</div><div class="slbl">MEMNUNİYET</div></div>
-        <div><div class="snum">&lt;60s</div><div class="slbl">ORTALAMA SÜRE</div></div>
+        <div><div class="snum">2K+</div><div class="slbl">MODEL URETILDI</div></div>
+        <div><div class="snum">98%</div><div class="slbl">MEMNUNIYET</div></div>
+        <div><div class="snum">&lt;60s</div><div class="slbl">ORTALAMA SURE</div></div>
         <div><div class="snum">STL</div><div class="slbl">BASKIYA HAZIR</div></div>
       </div>
     </div>
@@ -463,7 +458,7 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:60px;dis
         <div class="orbit o1"><div class="odot"></div></div>
         <div class="orbit o2"><div class="odot odot2"></div></div>
         <div class="orbit o3"></div>
-        <div class="float-tag ft1">✓ ARKA PLAN TEMİZLENDİ</div>
+        <div class="float-tag ft1">✓ ARKA PLAN TEMIZLENDI</div>
         <div class="float-tag ft2">↓ STL HAZIR</div>
         <div class="float-tag ft3">⚡ 42s</div>
         <div class="hero-model">
@@ -482,57 +477,57 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:60px;dis
 
   <div class="marquee-bar">
     <div class="marquee-track">
-      <span class="mi">GÖRSEL → 3D MODEL</span><span class="mi">STL FORMATINDA İNDİR</span><span class="mi">3D BASKIYA HAZIR</span><span class="mi">AI DESTEKLİ</span><span class="mi">ARKA PLAN TEMİZLEME</span><span class="mi">OBJ & STL FORMAT</span><span class="mi">SNAPMAKER UYUMLU</span>
-      <span class="mi">GÖRSEL → 3D MODEL</span><span class="mi">STL FORMATINDA İNDİR</span><span class="mi">3D BASKIYA HAZIR</span><span class="mi">AI DESTEKLİ</span><span class="mi">ARKA PLAN TEMİZLEME</span><span class="mi">OBJ & STL FORMAT</span><span class="mi">SNAPMAKER UYUMLU</span>
+      <span class="mi">GORSEL → 3D MODEL</span><span class="mi">STL FORMATINDA INDIR</span><span class="mi">3D BASKIYA HAZIR</span><span class="mi">AI DESTEKLI</span><span class="mi">ARKA PLAN TEMIZLEME</span><span class="mi">OBJ & STL FORMAT</span><span class="mi">SNAPMAKER UYUMLU</span>
+      <span class="mi">GORSEL → 3D MODEL</span><span class="mi">STL FORMATINDA INDIR</span><span class="mi">3D BASKIYA HAZIR</span><span class="mi">AI DESTEKLI</span><span class="mi">ARKA PLAN TEMIZLEME</span><span class="mi">OBJ & STL FORMAT</span><span class="mi">SNAPMAKER UYUMLU</span>
     </div>
   </div>
 
   <section class="how-bg" style="padding:88px 60px">
-    <div class="s-label reveal">// NASIL ÇALIŞIR</div>
-    <h2 class="s-title reveal d1">3 Adımda <span style="color:var(--accent)">3D Model</span></h2>
-    <p class="s-sub reveal d2">Karmaşık yazılımlara gerek yok. Dakikalar içinde baskıya hazır model.</p>
+    <div class="s-label reveal">// NASIL CALISIR</div>
+    <h2 class="s-title reveal d1">3 Adimda <span style="color:var(--accent)">3D Model</span></h2>
+    <p class="s-sub reveal d2">Karmasik yazilimlara gerek yok. Dakikalar icinde baskiya hazir model.</p>
     <div class="steps">
-      <div class="step reveal d1"><div class="step-num">01</div><div class="step-icon">⬡</div><h3 class="step-title">Görsel Yükle</h3><p class="step-desc">Fotoğrafını sürükle-bırak ile yükle. JPG, PNG, WEBP desteklenir. Arka plan temizleme otomatik.</p><div class="step-line"></div></div>
-      <div class="step reveal d2"><div class="step-num">02</div><div class="step-icon">◎</div><h3 class="step-title">AI İşliyor</h3><p class="step-desc">Yapay zekamız nesneyi analiz eder, 3D mesh oluşturur. Ortalama 60 saniye sürer.</p><div class="step-line"></div></div>
-      <div class="step reveal d3"><div class="step-num">03</div><div class="step-icon">↓</div><h3 class="step-title">İndir & Bas</h3><p class="step-desc">STL veya OBJ formatında indir. Doğrudan yazıcına gönder, slicer'a aktar.</p><div class="step-line"></div></div>
+      <div class="step reveal d1"><div class="step-num">01</div><div class="step-icon">⬡</div><h3 class="step-title">Gorsel Yukle</h3><p class="step-desc">Fotografini surukle-birak ile yukle. JPG, PNG, WEBP desteklenir. Arka plan temizleme otomatik.</p><div class="step-line"></div></div>
+      <div class="step reveal d2"><div class="step-num">02</div><div class="step-icon">◎</div><h3 class="step-title">AI Isliyor</h3><p class="step-desc">Yapay zekamiz nesneyi analiz eder, 3D mesh olusturur. Ortalama 60 saniye surer.</p><div class="step-line"></div></div>
+      <div class="step reveal d3"><div class="step-num">03</div><div class="step-icon">↓</div><h3 class="step-title">Indir & Bas</h3><p class="step-desc">STL veya OBJ formatinda indir. Dogrudan yazicina gonder, slicer'a aktar.</p><div class="step-line"></div></div>
     </div>
   </section>
 
   <div class="section-divider"></div>
 
   <section>
-    <div class="s-label reveal">// ÖZELLİKLER</div>
+    <div class="s-label reveal">// OZELLIKLER</div>
     <h2 class="s-title reveal d1">Neden <span style="color:var(--accent)">PrintForge?</span></h2>
     <div class="feat-grid" style="margin-top:40px">
-      <div class="feat reveal d1"><div class="feat-icon">🎯</div><h3 class="feat-title">Yüksek Hassasiyet</h3><p class="feat-desc">Gelişmiş AI modeli ile detaylı 3D mesh üretimi. Karmaşık geometriler doğru oluşturulur.</p><span class="feat-tag">AI MODEL</span></div>
-      <div class="feat reveal d2"><div class="feat-icon">⚡</div><h3 class="feat-title">Hızlı Dönüşüm</h3><p class="feat-desc">Ortalama 60 saniyede model hazır. Saat süren manuel modelleme yerine dakikalar.</p><span class="feat-tag">&lt;60 SANİYE</span></div>
-      <div class="feat reveal d3"><div class="feat-icon">🖨️</div><h3 class="feat-title">Baskıya Hazır</h3><p class="feat-desc">STL ve OBJ formatları desteklenir. Tüm 3D yazıcı ve slicer yazılımlarıyla uyumlu.</p><span class="feat-tag">STL / OBJ</span></div>
-      <div class="feat reveal d4"><div class="feat-icon">✂️</div><h3 class="feat-title">Arka Plan Temizleme</h3><p class="feat-desc">AI otomatik olarak arka planı kaldırır, sadece nesneyi 3D'ye dönüştürür.</p><span class="feat-tag">OTOMATİK</span></div>
-      <div class="feat reveal d5"><div class="feat-icon">📚</div><h3 class="feat-title">Model Kütüphanesi</h3><p class="feat-desc">Ürettiğin modelleri kaydet. Topluluk modellerini keşfet, beğen, indir.</p><span class="feat-tag">KÜTÜPHANE</span></div>
-      <div class="feat reveal d6"><div class="feat-icon">🌐</div><h3 class="feat-title">Tarayıcıdan Çalışır</h3><p class="feat-desc">Yazılım kurulumu yok. Herhangi bir cihazdan, herhangi bir yerden erişim.</p><span class="feat-tag">WEB TABANLI</span></div>
+      <div class="feat reveal d1"><div class="feat-icon">🎯</div><h3 class="feat-title">Yuksek Hassasiyet</h3><p class="feat-desc">Gelismis AI modeli ile detayli 3D mesh uretimi. Karmasik geometriler dogru olusturulur.</p><span class="feat-tag">AI MODEL</span></div>
+      <div class="feat reveal d2"><div class="feat-icon">⚡</div><h3 class="feat-title">Hizli Donusum</h3><p class="feat-desc">Ortalama 60 saniyede model hazir. Saat suren manuel modelleme yerine dakikalar.</p><span class="feat-tag">&lt;60 SANIYE</span></div>
+      <div class="feat reveal d3"><div class="feat-icon">🖨️</div><h3 class="feat-title">Baskiya Hazir</h3><p class="feat-desc">STL ve OBJ formatlari desteklenir. Tum 3D yazici ve slicer yazilimlariyla uyumlu.</p><span class="feat-tag">STL / OBJ</span></div>
+      <div class="feat reveal d4"><div class="feat-icon">✂️</div><h3 class="feat-title">Arka Plan Temizleme</h3><p class="feat-desc">AI otomatik olarak arka plani kaldirir, sadece nesneyi 3D'ye donusturur.</p><span class="feat-tag">OTOMATIK</span></div>
+      <div class="feat reveal d5"><div class="feat-icon">📚</div><h3 class="feat-title">Model Kutuphanesi</h3><p class="feat-desc">Urettigin modelleri kaydet. Topluluk modellerini kesfet, begen, indir.</p><span class="feat-tag">KUTUPHANE</span></div>
+      <div class="feat reveal d6"><div class="feat-icon">🌐</div><h3 class="feat-title">Tarayicidan Calisir</h3><p class="feat-desc">Yazilim kurulumu yok. Herhangi bir cihazdan, herhangi bir yerden erisim.</p><span class="feat-tag">WEB TABANLI</span></div>
     </div>
   </section>
 
   <section class="stats-section">
     <div class="stats-grid">
-      <div class="stat-box reveal d1"><div class="stat-big">2K+</div><div class="stat-label">MODEL ÜRETİLDİ</div></div>
-      <div class="stat-box reveal d2"><div class="stat-big">98%</div><div class="stat-label">MEMNUNİYET ORANI</div></div>
-      <div class="stat-box reveal d3"><div class="stat-big">60s</div><div class="stat-label">ORTALAMA SÜRE</div></div>
-      <div class="stat-box reveal d4"><div class="stat-big">500+</div><div class="stat-label">AKTİF KULLANICI</div></div>
+      <div class="stat-box reveal d1"><div class="stat-big">2K+</div><div class="stat-label">MODEL URETILDI</div></div>
+      <div class="stat-box reveal d2"><div class="stat-big">98%</div><div class="stat-label">MEMNUNIYET ORANI</div></div>
+      <div class="stat-box reveal d3"><div class="stat-big">60s</div><div class="stat-label">ORTALAMA SURE</div></div>
+      <div class="stat-box reveal d4"><div class="stat-big">500+</div><div class="stat-label">AKTIF KULLANICI</div></div>
     </div>
   </section>
 
   <div class="section-divider"></div>
 
   <section>
-    <div class="s-label reveal">// ÖRNEK MODELLER</div>
-    <h2 class="s-title reveal d1">Neler <span style="color:var(--accent2)">Üretebilirsin?</span></h2>
-    <p class="s-sub reveal d2">Karakterler, objeler, figürler, ürünler — her türlü görseli 3D modele dönüştür.</p>
+    <div class="s-label reveal">// ORNEK MODELLER</div>
+    <h2 class="s-title reveal d1">Neler <span style="color:var(--accent2)">Uretebilirsin?</span></h2>
+    <p class="s-sub reveal d2">Karakterler, objeler, figurler, urunler — her turlu gorseli 3D modele donustur.</p>
     <div class="gallery-grid">
       <div class="gitem big reveal-s d1" style="min-height:300px">
         <svg viewBox="0 0 200 200"><defs><radialGradient id="gg1" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#00e5ff" stop-opacity="0.2"/><stop offset="100%" stop-color="#00e5ff" stop-opacity="0"/></radialGradient></defs><ellipse cx="100" cy="100" rx="80" ry="80" fill="url(#gg1)"/><polygon points="100,20 170,60 170,140 100,180 30,140 30,60" fill="none" stroke="#00e5ff" stroke-width="1.2"/><line x1="100" y1="20" x2="100" y2="180" stroke="#00e5ff" stroke-width="0.5" opacity="0.4"/><line x1="30" y1="60" x2="170" y2="140" stroke="#00e5ff" stroke-width="0.5" opacity="0.4"/></svg>
         <div class="gitem-badge">GEOMETRIC</div>
-        <div class="gitem-label">KARAKTERLER & FİGÜRLER</div>
+        <div class="gitem-label">KARAKTERLER & FIGURLER</div>
       </div>
       <div class="gitem reveal-s d2">
         <svg viewBox="0 0 200 200"><defs><radialGradient id="gg2" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#00ff9d" stop-opacity="0.18"/><stop offset="100%" stop-color="#00ff9d" stop-opacity="0"/></radialGradient></defs><ellipse cx="100" cy="100" rx="70" ry="70" fill="url(#gg2)"/><path d="M60,100 Q80,40 100,80 Q120,20 140,80 Q160,140 100,160 Q40,140 60,100Z" fill="none" stroke="#00ff9d" stroke-width="1.2"/></svg>
@@ -540,11 +535,11 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:60px;dis
       </div>
       <div class="gitem reveal-s d3">
         <svg viewBox="0 0 200 200"><defs><radialGradient id="gg3" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#00e5ff" stop-opacity="0.15"/><stop offset="100%" stop-color="#00e5ff" stop-opacity="0"/></radialGradient></defs><ellipse cx="100" cy="100" rx="70" ry="70" fill="url(#gg3)"/><rect x="50" y="70" width="100" height="80" fill="none" stroke="#00e5ff" stroke-width="1.2"/><rect x="70" y="50" width="60" height="22" fill="none" stroke="#00e5ff" stroke-width="0.8"/></svg>
-        <div class="gitem-badge">FUNCTIONAL</div><div class="gitem-label">ÜRÜNLER & PROTOTİPLER</div>
+        <div class="gitem-badge">FUNCTIONAL</div><div class="gitem-label">URUNLER & PROTOTIPLER</div>
       </div>
       <div class="gitem reveal-s d2">
         <svg viewBox="0 0 200 200"><defs><radialGradient id="gg4" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#00ff9d" stop-opacity="0.15"/><stop offset="100%" stop-color="#00ff9d" stop-opacity="0"/></radialGradient></defs><ellipse cx="100" cy="100" rx="70" ry="70" fill="url(#gg4)"/><polygon points="100,30 130,70 170,80 140,110 148,150 100,130 52,150 60,110 30,80 70,70" fill="none" stroke="#00ff9d" stroke-width="1.2"/></svg>
-        <div class="gitem-badge">MİNYATÜR</div><div class="gitem-label">FİGÜRLER</div>
+        <div class="gitem-badge">MINYATUR</div><div class="gitem-label">FIGURLER</div>
       </div>
       <div class="gitem reveal-s d3">
         <svg viewBox="0 0 200 200"><defs><radialGradient id="gg5" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#00e5ff" stop-opacity="0.15"/><stop offset="100%" stop-color="#00e5ff" stop-opacity="0"/></radialGradient></defs><ellipse cx="100" cy="100" rx="70" ry="70" fill="url(#gg5)"/><path d="M100,40 Q140,70 130,110 Q120,150 100,160 Q80,150 70,110 Q60,70 100,40Z" fill="none" stroke="#00e5ff" stroke-width="1.2"/></svg>
@@ -554,54 +549,54 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:60px;dis
   </section>
 
   <section class="price-bg" id="pricing">
-    <div class="s-label reveal">// FİYATLANDIRMA</div>
+    <div class="s-label reveal">// FIYATLANDIRMA</div>
     <h2 class="s-title reveal d1">Sana Uygun <span style="color:var(--accent)">Plan</span></h2>
-    <p class="s-sub reveal d2">Ücretsiz başla, ihtiyacına göre büyüt. Gizli ücret yok.</p>
+    <p class="s-sub reveal d2">Ucretsiz basla, ihtiyacina gore buyut. Gizli ucret yok.</p>
     <div class="price-grid">
       <div class="pcard reveal d1">
-        <div class="pname">BAŞLANGIÇ</div>
+        <div class="pname">BASLANGIC</div>
         <div class="pprice">₺0<span>/ay</span></div>
-        <div class="pperiod">Kredi kartı gerekmez</div>
-        <ul class="pfeats"><li>5 model/ay</li><li>STL & OBJ indirme</li><li>Model kütüphanesi</li><li class="off">Öncelikli işleme</li><li class="off">API erişimi</li></ul>
-        <button class="pbtn" onclick="showPage('auth');switchAuth('register')">ÜCRETSİZ BAŞLA</button>
+        <div class="pperiod">Kredi karti gerekmez</div>
+        <ul class="pfeats"><li>5 model/ay</li><li>STL & OBJ indirme</li><li>Model kutuphanesi</li><li class="off">Oncelikli isleme</li><li class="off">API erisimi</li></ul>
+        <button class="pbtn" onclick="goToApp()">UCRETSIZ BASLA</button>
       </div>
       <div class="pcard pop reveal d2">
-        <div class="pop-badge">EN POPÜLER</div>
+        <div class="pop-badge">EN POPULER</div>
         <div class="pname">PRO</div>
         <div class="pprice">₺299<span>/ay</span></div>
-        <div class="pperiod">Yıllık ödemede %20 indirim</div>
-        <ul class="pfeats"><li>100 model/ay</li><li>STL & OBJ indirme</li><li>Model kütüphanesi</li><li>Öncelikli işleme</li><li class="off">API erişimi</li></ul>
-        <button class="pbtn main" onclick="showPayment('pro')">HEMEN BAŞLA →</button>
+        <div class="pperiod">Yillik odemede %20 indirim</div>
+        <ul class="pfeats"><li>100 model/ay</li><li>STL & OBJ indirme</li><li>Model kutuphanesi</li><li>Oncelikli isleme</li><li class="off">API erisimi</li></ul>
+        <button class="pbtn main" onclick="showPayment('pro')">HEMEN BASLA →</button>
       </div>
       <div class="pcard reveal d3">
-        <div class="pname">İŞLETME</div>
+        <div class="pname">ISLETME</div>
         <div class="pprice">₺899<span>/ay</span></div>
-        <div class="pperiod">Tüm özellikler dahil</div>
-        <ul class="pfeats"><li>Sınırsız model</li><li>STL & OBJ indirme</li><li>Model kütüphanesi</li><li>Öncelikli işleme</li><li>API erişimi</li></ul>
-        <button class="pbtn" onclick="showPayment('business')">HEMEN BAŞLA</button>
+        <div class="pperiod">Tum ozellikler dahil</div>
+        <ul class="pfeats"><li>Sinirsiz model</li><li>STL & OBJ indirme</li><li>Model kutuphanesi</li><li>Oncelikli isleme</li><li>API erisimi</li></ul>
+        <button class="pbtn" onclick="showPayment('business')">HEMEN BASLA</button>
       </div>
     </div>
   </section>
 
   <section>
-    <div class="s-label reveal">// KULLANICI GÖRÜŞLERİ</div>
-    <h2 class="s-title reveal d1">Onlar Ne <span style="color:var(--accent2)">Düşünüyor?</span></h2>
+    <div class="s-label reveal">// KULLANICI GORUSLERI</div>
+    <h2 class="s-title reveal d1">Onlar Ne <span style="color:var(--accent2)">Dusunuyor?</span></h2>
     <div class="test-grid" style="margin-top:40px">
-      <div class="tcard reveal d1"><div class="tstars">★★★★★</div><p class="ttext">"Snapmaker U1 ile birlikte kullanıyorum. Fotoğraftan model üretip direkt basmak inanılmaz pratik. Artık her şeyi kendim yapabiliyorum."</p><div class="tauthor"><div class="tavatar">M</div><div><div class="tname">Mert K.</div><div class="trole">3D Baskı Hobbici</div></div></div></div>
-      <div class="tcard reveal d2"><div class="tstars">★★★★★</div><p class="ttext">"Ürün prototipleri için kullanıyorum. Eskiden 3D tasarımcıya para verirdim, şimdi kendim saniyeler içinde yapabiliyorum."</p><div class="tauthor"><div class="tavatar">A</div><div><div class="tname">Ayşe D.</div><div class="trole">Ürün Tasarımcısı</div></div></div></div>
-      <div class="tcard reveal d3"><div class="tstars">★★★★☆</div><p class="ttext">"Arayüzü çok temiz. Teknik bilgi olmadan da rahatlıkla kullanabiliyorsunuz. Kesinlikle tavsiye ederim."</p><div class="tauthor"><div class="tavatar">E</div><div><div class="tname">Emre T.</div><div class="trole">Maker & Youtuber</div></div></div></div>
+      <div class="tcard reveal d1"><div class="tstars">★★★★★</div><p class="ttext">"Snapmaker U1 ile birlikte kullaniyorum. Fotograftan model uretip direkt basmak inanilmaz pratik."</p><div class="tauthor"><div class="tavatar">M</div><div><div class="tname">Mert K.</div><div class="trole">3D Baski Hobbici</div></div></div></div>
+      <div class="tcard reveal d2"><div class="tstars">★★★★★</div><p class="ttext">"Urun prototipleri icin kullaniyorum. Eskiden 3D tasarimciya para verirdim, simdi kendim saniyeler icinde yapabiliyorum."</p><div class="tauthor"><div class="tavatar">A</div><div><div class="tname">Ayse D.</div><div class="trole">Urun Tasarimcisi</div></div></div></div>
+      <div class="tcard reveal d3"><div class="tstars">★★★★☆</div><p class="ttext">"Arayuzu cok temiz. Teknik bilgi olmadan da rahatlikla kullanabiliyorsunuz. Kesinlikle tavsiye ederim."</p><div class="tauthor"><div class="tavatar">E</div><div><div class="tname">Emre T.</div><div class="trole">Maker & Youtuber</div></div></div></div>
     </div>
   </section>
 
   <section class="cta-sec">
     <div class="cta-glow"></div>
     <div class="cta-grid"></div>
-    <div class="s-label reveal">// HEMEN BAŞLA</div>
-    <h2 class="cta-title reveal d1">Fotoğrafını <span style="color:var(--accent)">3D'ye</span><br>Dönüştür</h2>
-    <p class="cta-sub reveal d2">Ücretsiz hesap aç, ilk 5 modelini hemen üret.</p>
+    <div class="s-label reveal">// HEMEN BASLA</div>
+    <h2 class="cta-title reveal d1">Fotografini <span style="color:var(--accent)">3D'ye</span><br>Donustur</h2>
+    <p class="cta-sub reveal d2">Ucretsiz hesap ac, ilk 5 modelini hemen uret.</p>
     <div class="cta-btns reveal d3">
-      <button class="btn-p" onclick="checkGoApp()">HEMEN BAŞLA →</button>
-      <a href="/app" class="btn-s">UYGULAMAYI AÇ ↗</a>
+      <button class="btn-p" onclick="goToApp()">HEMEN BASLA →</button>
+      <a href="/app" class="btn-s">UYGULAMAYI AC</a>
     </div>
   </section>
 
@@ -611,39 +606,38 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:60px;dis
         <div style="width:24px;height:24px;border:1.5px solid var(--accent);transform:rotate(45deg);display:flex;align-items:center;justify-content:center"><div style="width:7px;height:7px;background:var(--accent);transform:rotate(-45deg)"></div></div>
         <span style="font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:var(--accent)">PRINTFORGE</span>
       </div>
-      <p class="fdesc">AI destekli 3D model üreticisi. Fotoğrafından saniyeler içinde baskıya hazır model oluştur.</p>
+      <p class="fdesc">AI destekli 3D model ureticisi. Fotografindan saniyeler icinde baskiya hazir model olustur.</p>
     </div>
-    <div><div class="fctitle">ÜRÜN</div><ul class="flinks"><li><a onclick="showPage('library')">Kütüphane</a></li><li><a onclick="showPage('landing');setTimeout(()=>document.getElementById('pricing').scrollIntoView({behavior:'smooth'}),150)">Fiyatlar</a></li><li><a href="/app">Uygulama</a></li></ul></div>
-    <div><div class="fctitle">DESTEK</div><ul class="flinks"><li><a href="#">SSS</a></li><li><a href="#">İletişim</a></li><li><a href="#">Dokümantasyon</a></li></ul></div>
-    <div><div class="fctitle">YASAL</div><ul class="flinks"><li><a href="#">Gizlilik</a></li><li><a href="#">Şartlar</a></li><li><a href="#">KVKK</a></li></ul></div>
+    <div><div class="fctitle">URUN</div><ul class="flinks"><li><a href="#" onclick="showPage('library');return false">Kutuphane</a></li><li><a href="#" onclick="showPage('landing');setTimeout(()=>document.getElementById('pricing')?.scrollIntoView({behavior:'smooth'}),150);return false">Fiyatlar</a></li><li><a href="/app">Uygulama</a></li></ul></div>
+    <div><div class="fctitle">DESTEK</div><ul class="flinks"><li><a href="#">SSS</a></li><li><a href="#">Iletisim</a></li><li><a href="#">Dokumantasyon</a></li></ul></div>
+    <div><div class="fctitle">YASAL</div><ul class="flinks"><li><a href="#">Gizlilik</a></li><li><a href="#">Sartlar</a></li><li><a href="#">KVKK</a></li></ul></div>
   </footer>
-  <div class="fbot"><span class="fcopy">© 2025 PrintForge. Tüm hakları saklıdır.</span><span class="fcopy">Türkiye'de üretildi 🇹🇷</span></div>
+  <div class="fbot"><span class="fcopy">© 2025 PrintForge. Tum haklari saklidir.</span><span class="fcopy">Turkiye'de uretildi</span></div>
 </div>
 
 <!-- ===== LIBRARY ===== -->
 <div class="page" id="page-library">
   <div class="lib-page">
     <div class="lib-hdr">
-      <div><h1 class="lib-title">⬡ Model <span>Kütüphanesi</span></h1><p class="lib-sub">Topluluk tarafından üretilen 3D modelleri keşfet, beğen ve indir</p></div>
-      <button class="btn-p" onclick="checkGoApp()">+ YENİ MODEL ÜRET</button>
+      <div><h1 class="lib-title">⬡ Model <span>Kutuphanesi</span></h1><p class="lib-sub">Topluluk tarafindan uretilen 3D modelleri kesfet, begen ve indir</p></div>
+      <button class="btn-p" onclick="goToApp()">+ YENI MODEL URET</button>
     </div>
     <div class="lib-toolbar">
-      <div class="sbox"><span style="color:var(--muted);font-size:12px">🔍</span><input type="text" placeholder="Model ara..." id="libSearch" oninput="renderLib()"></div>
+      <div class="sbox"><span style="color:var(--muted);font-size:12px">🔍</span><input type="text" placeholder="Model ara..." id="libSearch" oninput="loadGallery()"></div>
       <div class="chips">
-        <button class="chip on" onclick="setFilter('all',this)">TÜMÜ</button>
-        <button class="chip" onclick="setFilter('geometric',this)">◇ GEOMETRİC</button>
-        <button class="chip" onclick="setFilter('organic',this)">◎ ORGANIC</button>
-        <button class="chip" onclick="setFilter('functional',this)">▣ FUNCTIONAL</button>
-        <button class="chip" onclick="setFilter('image',this)">⬡ GÖRSEL</button>
-        <button class="chip" onclick="setFilter('miniature',this)">◦ MİNYATÜR</button>
+        <button class="chip on" data-filter="all" onclick="setFilter('all',this)">TUMU</button>
+        <button class="chip" data-filter="text" onclick="setFilter('text',this)">✎ TEXT</button>
+        <button class="chip" data-filter="image" onclick="setFilter('image',this)">⬡ GORSEL</button>
       </div>
-      <select class="ssort" id="libSort" onchange="libSortBy=this.value;renderLib()">
+      <select class="ssort" id="libSort" onchange="loadGallery()">
         <option value="newest">En Yeni</option>
-        <option value="popular">En Popüler</option>
-        <option value="downloads">En Çok İndirilen</option>
+        <option value="popular">En Populer</option>
+        <option value="downloads">En Cok Indirilen</option>
       </select>
     </div>
-    <div class="lib-grid" id="libGrid"></div>
+    <div class="lib-grid" id="libGrid">
+      <div class="lib-loading">Yukleniyor...</div>
+    </div>
   </div>
 </div>
 
@@ -656,55 +650,57 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:60px;dis
         <div style="width:24px;height:24px;border:1.5px solid var(--accent);transform:rotate(45deg);display:flex;align-items:center;justify-content:center"><div style="width:7px;height:7px;background:var(--accent);transform:rotate(-45deg)"></div></div>
         <span style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--accent)">PRINTFORGE</span>
       </div>
+
       <div class="atabs" id="authTabs">
-        <button class="atab on" id="ltab" onclick="switchAuth('login')">GİRİŞ YAP</button>
-        <button class="atab" id="rtab" onclick="switchAuth('register')">KAYIT OL</button>
+        <button class="atab on" onclick="switchAuth('login')">GIRIS YAP</button>
+        <button class="atab" onclick="switchAuth('register')">KAYIT OL</button>
       </div>
-      <div id="aerr" class="aerr"></div>
-      <div id="aok" class="aok"></div>
+
+      <div id="authError" class="aerr"></div>
+      <div id="authOk" class="aok"></div>
 
       <!-- LOGIN FORM -->
       <div id="loginForm">
-        <h2 class="atitle">Tekrar Hoş Geldin</h2>
-        <p class="asub">Hesabına giriş yap</p>
+        <h2 class="atitle">Tekrar Hos Geldin</h2>
+        <p class="asub">Hesabina giris yap</p>
         <div class="fgrp"><label class="flbl">E-POSTA</label><input class="finp" type="email" id="loginEmail" placeholder="ornek@mail.com"></div>
         <div class="fgrp">
-          <label class="flbl">ŞİFRE</label>
+          <label class="flbl">SIFRE</label>
           <input class="finp" type="password" id="loginPass" placeholder="••••••••">
-          <span class="forgot-link" onclick="switchAuth('forgot')">Şifremi unuttum</span>
+          <span class="forgot-link" onclick="switchAuth('forgot')">Sifremi unuttum</span>
         </div>
-        <button class="abtn" id="loginBtn" onclick="doLogin()">GİRİŞ YAP →</button>
+        <button class="abtn" id="loginBtn" onclick="doLogin()">GIRIS YAP →</button>
         <div class="adiv">VEYA</div>
-        <button class="gbtn" onclick="doGoogle()">
+        <button class="gbtn" onclick="doGoogleLogin()">
           <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
           Google ile Devam Et
         </button>
-        <div class="afooter">Hesabın yok mu? <a onclick="switchAuth('register')">Kayıt ol</a></div>
+        <div class="afooter">Hesabin yok mu? <a onclick="switchAuth('register')">Kayit ol</a></div>
       </div>
 
       <!-- REGISTER FORM -->
       <div id="registerForm" style="display:none">
-        <h2 class="atitle">Hesap Oluştur</h2>
-        <p class="asub">Ücretsiz başla, 5 model/ay</p>
-        <div class="fgrp"><label class="flbl">AD SOYAD</label><input class="finp" type="text" id="regName" placeholder="Adın Soyadın"></div>
+        <h2 class="atitle">Hesap Olustur</h2>
+        <p class="asub">Ucretsiz basla, 5 model/ay</p>
+        <div class="fgrp"><label class="flbl">AD SOYAD</label><input class="finp" type="text" id="regName" placeholder="Adin Soyadin"></div>
         <div class="fgrp"><label class="flbl">E-POSTA</label><input class="finp" type="email" id="regEmail" placeholder="ornek@mail.com"></div>
-        <div class="fgrp"><label class="flbl">ŞİFRE</label><input class="finp" type="password" id="regPass" placeholder="En az 6 karakter"></div>
-        <button class="abtn" id="regBtn" onclick="doRegister()">HESAP OLUŞTUR →</button>
+        <div class="fgrp"><label class="flbl">SIFRE</label><input class="finp" type="password" id="regPass" placeholder="En az 6 karakter"></div>
+        <button class="abtn" id="regBtn" onclick="doRegister()">HESAP OLUSTUR →</button>
         <div class="adiv">VEYA</div>
-        <button class="gbtn" onclick="doGoogle()">
+        <button class="gbtn" onclick="doGoogleLogin()">
           <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
           Google ile Devam Et
         </button>
-        <div class="afooter">Zaten hesabın var mı? <a onclick="switchAuth('login')">Giriş yap</a></div>
+        <div class="afooter">Zaten hesabin var mi? <a onclick="switchAuth('login')">Giris yap</a></div>
       </div>
 
       <!-- FORGOT PASSWORD FORM -->
       <div id="forgotForm" style="display:none">
-        <h2 class="atitle">Şifremi Unuttum</h2>
-        <p class="asub">E-posta adresine sıfırlama linki göndereceğiz</p>
+        <h2 class="atitle">Sifremi Unuttum</h2>
+        <p class="asub">E-posta adresinize sifirlama linki gonderecegiz</p>
         <div class="fgrp"><label class="flbl">E-POSTA</label><input class="finp" type="email" id="forgotEmail" placeholder="ornek@mail.com"></div>
-        <button class="abtn" id="forgotBtn" onclick="doForgotPassword()">SIFIRLAMA LİNKİ GÖNDER →</button>
-        <div class="afooter" style="margin-top:22px"><a onclick="switchAuth('login')">← Giriş sayfasına dön</a></div>
+        <button class="abtn" id="forgotBtn" onclick="doForgotPassword()">SIFIRLAMA LINKI GONDER →</button>
+        <div class="afooter" style="margin-top:18px"><a onclick="switchAuth('login')">← Girise don</a></div>
       </div>
     </div>
   </div>
@@ -716,52 +712,102 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:60px;dis
     <div class="prof-hdr">
       <div class="prof-cover"><div class="prof-cover-grid"></div></div>
       <div class="prof-info">
-        <div class="prof-avatar" id="pAvatar">U</div>
+        <div class="prof-avatar" id="profAvatar">U</div>
         <div>
-          <div class="prof-name" id="pName">Kullanıcı</div>
-          <div class="prof-email" id="pEmail">-</div>
-          <div class="prof-plan-badge" id="pPlanBadge">FREE</div>
+          <div class="prof-name" id="profName">Kullanici</div>
+          <div class="prof-email" id="profEmail">-</div>
+          <div class="prof-plan-badge" id="profPlanBadge">FREE</div>
         </div>
         <div class="prof-stats">
-          <div><div class="psnum" id="pMCount">0</div><div class="pslbl">MODEL</div></div>
-          <div><div class="psnum" id="pLikes">0</div><div class="pslbl">BEĞENİ</div></div>
-          <div><div class="psnum" id="pDownloads">0</div><div class="pslbl">İNDİRME</div></div>
+          <div><div class="psnum" id="profModelCount">0</div><div class="pslbl">MODEL</div></div>
+          <div><div class="psnum" id="profLikeCount">0</div><div class="pslbl">BEGENI</div></div>
+          <div><div class="psnum" id="profDownCount">0</div><div class="pslbl">INDIRME</div></div>
         </div>
       </div>
     </div>
     <div class="ptabs">
-      <button class="ptab on" onclick="switchPTab('models',this)">MODELLERİM</button>
-      <button class="ptab" onclick="switchPTab('settings',this)">AYARLAR</button>
-      <button class="ptab" onclick="switchPTab('billing',this)">FATURALAMA</button>
+      <button class="ptab on" onclick="switchProfileTab('models',this)">MODELLERIM</button>
+      <button class="ptab" onclick="switchProfileTab('settings',this)">AYARLAR</button>
+      <button class="ptab" onclick="switchProfileTab('billing',this)">FATURALAMA</button>
     </div>
     <div class="pbody">
-      <div id="pt-models">
+      <div id="profTabModels">
         <div class="psec-title">Modellerim</div>
-        <div id="profGrid" class="lib-grid" style="padding:0"></div>
+        <div id="profModelsGrid" class="lib-grid" style="padding:0">
+          <div class="lib-loading">Yukleniyor...</div>
+        </div>
       </div>
-      <div id="pt-settings" style="display:none">
-        <div class="psec-title">Hesap Ayarları</div>
+      <div id="profTabSettings" style="display:none">
+        <div class="psec-title">Hesap Ayarlari</div>
         <div class="sgrid">
           <div class="fgrp" style="grid-column:span 2"><label class="flbl">AD SOYAD</label><input class="finp" type="text" id="settingsName"></div>
-          <div class="fgrp" style="grid-column:span 2"><label class="flbl">E-POSTA (değiştirilemez)</label><input class="finp" type="email" id="settingsEmail" disabled style="opacity:0.5"></div>
-          <div class="fgrp" style="grid-column:span 2"><label class="flbl">YENİ ŞİFRE</label><input class="finp" type="password" id="settingsPass" placeholder="Değiştirmek için yeni şifre girin"></div>
+          <div class="fgrp" style="grid-column:span 2"><label class="flbl">E-POSTA (degistirilemez)</label><input class="finp" type="email" id="settingsEmail" disabled style="opacity:0.5"></div>
+          <div class="fgrp" style="grid-column:span 2"><label class="flbl">YENI SIFRE</label><input class="finp" type="password" id="settingsPass" placeholder="Degistirmek icin girin"></div>
         </div>
-        <div style="display:flex;gap:12px;margin-top:16px">
+        <div class="usage-bar-wrap">
+          <div class="usage-label"><span>Bu Ay Kullanim</span><span id="usageText">0 / 5</span></div>
+          <div class="usage-bar"><div class="usage-fill" id="usageFill" style="width:0%"></div></div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:20px">
           <button class="sbtn" style="border-color:var(--accent);color:var(--accent)" onclick="saveSettings()">KAYDET</button>
-          <button class="sbtn danger" onclick="doLogout()">ÇIKIŞ YAP</button>
-        </div>
-        <div style="margin-top:32px">
-          <div class="psec-title">Kullanım</div>
-          <p style="font-size:11px;color:var(--muted);margin-bottom:8px" id="usageText">Bu ay: 0 / 5 model</p>
-          <div class="usage-bar-outer"><div class="usage-bar-inner" id="usageBar" style="width:0%"></div></div>
+          <button class="sbtn danger" onclick="doLogout()">CIKIS YAP</button>
         </div>
       </div>
-      <div id="pt-billing" style="display:none">
+      <div id="profTabBilling" style="display:none">
         <div class="psec-title">Faturalama</div>
-        <div class="plan-badge"><span style="width:6px;height:6px;background:var(--accent2);border-radius:50%;display:inline-block"></span>MEVCUT PLAN: <span id="bPlan">FREE</span></div>
-        <p style="font-size:11px;color:var(--muted);margin-bottom:24px;line-height:1.8">Daha fazla model üretmek için planını yükselt.</p>
-        <button class="btn-p" onclick="showPayment('pro')">PLANI YÜKSELT →</button>
+        <div class="plan-badge"><span style="width:6px;height:6px;background:var(--accent2);border-radius:50%;display:inline-block"></span>MEVCUT PLAN: <span id="billingPlan">FREE</span></div>
+        <p style="font-size:11px;color:var(--muted);margin-bottom:24px;line-height:1.8">Daha fazla model uretmek icin planini yukselt.</p>
+        <button class="btn-p" onclick="showPayment('pro')">PLANI YUKSELT →</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== BLOG ===== -->
+<div class="page" id="page-blog">
+  <div style="padding-top:72px;min-height:100vh">
+    <div style="padding:60px;text-align:center;background:var(--bg2);border-bottom:1px solid var(--border)">
+      <div class="s-label">// BLOG</div>
+      <h1 class="s-title" style="margin-bottom:12px">PrintForge <span style="color:var(--accent)">Blog</span></h1>
+      <p style="font-size:12px;color:var(--muted);max-width:500px;margin:0 auto;line-height:1.8">3D baski, AI model uretimi ve dijital uretim hakkinda rehberler, ipuclari ve haberler</p>
+    </div>
+    <div id="blogList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px;padding:40px 60px"></div>
+    <div id="blogDetail" style="display:none;max-width:740px;margin:0 auto;padding:40px 60px">
+      <a onclick="showBlogList()" style="display:inline-flex;align-items:center;gap:8px;color:var(--accent);font-size:11px;letter-spacing:.1em;margin-bottom:24px;cursor:pointer">← Tum Yazilar</a>
+      <h1 id="blogDetailTitle" style="font-family:'Syne',sans-serif;font-size:clamp(24px,3.5vw,36px);font-weight:800;margin-bottom:12px;line-height:1.3"></h1>
+      <div id="blogDetailMeta" style="font-size:10px;color:var(--muted);margin-bottom:32px;display:flex;gap:16px;flex-wrap:wrap"></div>
+      <div id="blogDetailContent" style="font-size:13px;line-height:2;color:var(--text)"></div>
+      <div id="blogRelated" style="padding-top:40px;margin-top:40px;border-top:1px solid var(--border)">
+        <h3 style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:20px">Ilgili Yazilar</h3>
+        <div id="blogRelatedGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PUBLIC PROFILE ===== -->
+<div class="page" id="page-pubprofile">
+  <div style="padding-top:72px;min-height:100vh">
+    <div style="height:160px;background:linear-gradient(135deg,rgba(0,229,255,.06),rgba(0,255,157,.04));border-bottom:1px solid var(--border);position:relative">
+      <div style="position:absolute;inset:0;background-image:linear-gradient(rgba(0,229,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,.04) 1px,transparent 1px);background-size:40px 40px"></div>
+    </div>
+    <div style="padding:0 60px;margin-top:-40px;display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap">
+      <div id="pubAvatar" style="width:80px;height:80px;border-radius:50%;background:var(--border);border:3px solid var(--bg);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--accent);flex-shrink:0">U</div>
+      <div style="flex:1;min-width:200px">
+        <div id="pubName" style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800">Kullanici</div>
+        <div id="pubUsername" style="font-size:11px;color:var(--accent);letter-spacing:.1em">@user</div>
+        <div id="pubBio" style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.6;max-width:400px"></div>
+      </div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center">
+        <div style="text-align:center"><div id="pubModels" style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--accent)">0</div><div style="font-size:8px;color:var(--muted);letter-spacing:.12em">MODEL</div></div>
+        <div style="text-align:center"><div id="pubFollowers" style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--accent)">0</div><div style="font-size:8px;color:var(--muted);letter-spacing:.12em">TAKIPCi</div></div>
+        <div style="text-align:center"><div id="pubFollowing" style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--accent)">0</div><div style="font-size:8px;color:var(--muted);letter-spacing:.12em">TAKiP</div></div>
+        <button id="pubFollowBtn" onclick="toggleFollow()" style="padding:8px 24px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.12em;cursor:pointer;transition:all .2s;border:1px solid var(--accent);background:transparent;color:var(--accent)">TAKiP ET</button>
+      </div>
+    </div>
+    <div style="padding:28px 60px">
+      <div class="s-label" style="margin-bottom:16px">// MODELLER</div>
+      <div id="pubModelsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px"></div>
     </div>
   </div>
 </div>
@@ -770,33 +816,33 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:60px;dis
 <div class="page" id="page-payment">
   <div class="pay-page">
     <div class="pay-left">
-      <h2 class="pay-title">Planını Seç</h2>
+      <h2 class="pay-title">Planini Sec</h2>
       <div class="plan-opts">
-        <div class="popt" onclick="selectPlan('starter',this)"><div class="pon">BAŞLANGIÇ</div><div class="pop">₺0</div><div class="poperiod">/ay</div></div>
+        <div class="popt" onclick="selectPlan('starter',this)"><div class="pon">BASLANGIC</div><div class="pop">₺0</div><div class="poperiod">/ay</div></div>
         <div class="popt sel" onclick="selectPlan('pro',this)"><div class="pon">PRO</div><div class="pop">₺299</div><div class="poperiod">/ay</div></div>
-        <div class="popt" onclick="selectPlan('business',this)"><div class="pon">İŞLETME</div><div class="pop">₺899</div><div class="poperiod">/ay</div></div>
+        <div class="popt" onclick="selectPlan('business',this)"><div class="pon">ISLETME</div><div class="pop">₺899</div><div class="poperiod">/ay</div></div>
       </div>
-      <div class="pay-sec"><div class="pay-sec-title">KART BİLGİLERİ</div>
+      <div class="pay-sec"><div class="pay-sec-title">KART BILGILERI</div>
         <div class="cinp"><input type="text" placeholder="1234 5678 9012 3456" maxlength="19" oninput="formatCard(this)"><span style="font-size:18px">💳</span></div>
         <div class="crow"><div class="cinp"><input type="text" placeholder="AA/YY" maxlength="5" oninput="formatExp(this)"></div><div class="cinp"><input type="text" placeholder="CVV" maxlength="3"></div></div>
       </div>
-      <div class="pay-sec"><div class="pay-sec-title">FATURA BİLGİLERİ</div>
+      <div class="pay-sec"><div class="pay-sec-title">FATURA BILGILERI</div>
         <div class="cinp" style="margin-bottom:8px"><input type="text" placeholder="Ad Soyad"></div>
         <div class="cinp"><input type="email" placeholder="E-posta adresi"></div>
       </div>
-      <button class="paybtn" id="payBtn" onclick="doPayment()">ÖDEMEYI TAMAMLA →</button>
-      <p style="font-size:9px;color:var(--muted);text-align:center;margin-top:10px;line-height:1.8">256-bit SSL şifreleme · İstediğin zaman iptal</p>
+      <button class="paybtn" id="payBtn" onclick="doPayment()">ODEMEYI TAMAMLA →</button>
+      <p style="font-size:9px;color:var(--muted);text-align:center;margin-top:10px;line-height:1.8">256-bit SSL sifreleme · Istedigin zaman iptal</p>
     </div>
     <div class="pay-right">
       <div class="osummary">
-        <div class="ostitle">Sipariş Özeti</div>
-        <div class="oline"><span id="oPN">Pro Plan</span><span id="oPP">₺299/ay</span></div>
-        <div class="oline"><span>KDV (%18)</span><span id="oTax">₺53,82</span></div>
-        <div class="oline"><span style="color:var(--accent2)">İndirim</span><span style="color:var(--accent2)">-₺0</span></div>
-        <div class="ototal"><span>TOPLAM</span><span id="oTotal">₺352,82</span></div>
+        <div class="ostitle">Siparis Ozeti</div>
+        <div class="oline"><span id="orderPlanName">Pro Plan</span><span id="orderPlanPrice">₺299/ay</span></div>
+        <div class="oline"><span>KDV (%18)</span><span id="orderTax">₺53,82</span></div>
+        <div class="oline"><span style="color:var(--accent2)">Indirim</span><span style="color:var(--accent2)">-₺0</span></div>
+        <div class="ototal"><span>TOPLAM</span><span id="orderTotal">₺352,82</span></div>
         <div class="trust">
-          <span class="tbadge">Güvenli Ödeme</span>
-          <span class="tbadge">İstediğin zaman iptal</span>
+          <span class="tbadge">Guvenli Odeme</span>
+          <span class="tbadge">Istedigin zaman iptal</span>
           <span class="tbadge">7/24 Destek</span>
         </div>
       </div>
@@ -806,672 +852,861 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:60px;dis
 
 <script>
 // ═══════════════════════════════════════
-//  PRINTFORGE - TEMİZ JAVASCRIPT
+//  PRINTFORGE — SINGLE SOURCE OF TRUTH
 // ═══════════════════════════════════════
 
 const API = window.location.origin;
 let currentUser = null;
-let libFilter = 'all';
-let libSortBy = 'newest';
-let userLikes = JSON.parse(localStorage.getItem('pf_likes') || '[]');
-
-// ═══════ DEMO DATA ═══════
-const PATHS = {
-  geometric: "M60,60 L180,60 L210,140 L120,190 L30,140 Z",
-  organic: "M60,120 Q80,40 120,80 Q160,20 180,100 Q200,160 160,180 Q120,200 80,170 Q40,150 60,120Z",
-  sculptural: "M120,30 Q180,80 170,140 Q160,190 120,200 Q80,190 70,140 Q60,80 120,30Z",
-  functional: "M50,70 L190,70 L190,160 L130,160 L130,190 L110,190 L110,160 L50,160 Z",
-  miniature: "M120,40 L150,90 L200,100 L160,138 L170,190 L120,165 L70,190 L80,138 L40,100 L90,90 Z",
-  image: "M60,60 L180,60 L210,140 L120,190 L30,140 Z"
-};
-
-const DEMO_MODELS = [
-  {id:1, title:"Geometric Vase 20cm", author:"Ahmet K.", style:"geometric", likes:142, downloads:89, date:"2 gün önce"},
-  {id:2, title:"Low-poly Fox", author:"Zeynep A.", style:"organic", likes:98, downloads:67, date:"3 gün önce"},
-  {id:3, title:"Cable Organizer", author:"Mert D.", style:"functional", likes:234, downloads:156, date:"5 gün önce"},
-  {id:4, title:"Samurai Figurine", author:"Can T.", style:"image", likes:187, downloads:203, date:"1 hafta önce"},
-  {id:5, title:"Lattice Sphere", author:"Elif S.", style:"geometric", likes:76, downloads:45, date:"1 hafta önce"},
-  {id:6, title:"Mini Dragon", author:"Burak Y.", style:"miniature", likes:312, downloads:278, date:"2 hafta önce"},
-  {id:7, title:"Sculptural Bowl", author:"Ayşe M.", style:"sculptural", likes:54, downloads:32, date:"2 hafta önce"},
-  {id:8, title:"Phone Stand", author:"Cem O.", style:"functional", likes:421, downloads:389, date:"3 hafta önce"},
-  {id:9, title:"Organic Lamp", author:"Selin K.", style:"organic", likes:167, downloads:123, date:"1 ay önce"},
-  {id:10, title:"Toy Story Figür", author:"Emre B.", style:"image", likes:289, downloads:234, date:"1 ay önce"},
-  {id:11, title:"Geometric Ring", author:"Hande C.", style:"geometric", likes:93, downloads:71, date:"1 ay önce"},
-  {id:12, title:"Mini Castle", author:"Tolga A.", style:"miniature", likes:445, downloads:401, date:"2 ay önce"},
-];
-
-// ═══════ TOAST SİSTEMİ ═══════
-function showToast(message, type = 'info') {
-  const container = document.getElementById('toastContainer');
-  const toast = document.createElement('div');
-  toast.className = 'toast ' + type;
-  const icons = { success: '✓', error: '✕', info: 'ℹ' };
-  toast.innerHTML = '<span>' + (icons[type] || 'ℹ') + '</span> ' + message;
-  container.appendChild(toast);
-  setTimeout(() => {
-    toast.style.animation = 'toastOut 0.3s ease forwards';
-    setTimeout(() => toast.remove(), 300);
-  }, 3500);
-}
-
-// ═══════ SCROLL ═══════
-window.addEventListener('scroll', () => {
-  const prog = document.getElementById('scrollProgress');
-  const h = document.documentElement.scrollHeight - window.innerHeight;
-  if (h > 0) prog.style.width = (window.scrollY / h * 100) + '%';
-  revealAll();
-});
-
-function revealAll() {
-  document.querySelectorAll('.reveal,.reveal-l,.reveal-r,.reveal-s').forEach(el => {
-    if (el.getBoundingClientRect().top < window.innerHeight * 0.88) el.classList.add('on');
-  });
-}
-
-// ═══════ NAV UPDATE ═══════
-function updateNav() {
-  const guest = document.getElementById('navGuest');
-  const userEl = document.getElementById('navUser');
-  if (currentUser) {
-    guest.style.display = 'none';
-    userEl.style.display = 'flex';
-    document.getElementById('navUN').textContent = currentUser.name;
-    document.getElementById('navAV').textContent = (currentUser.name || 'U')[0].toUpperCase();
-  } else {
-    guest.style.display = 'flex';
-    userEl.style.display = 'none';
-  }
-}
-
-// ═══════ SAYFA GEÇİŞİ ═══════
-function showPage(page) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  const el = document.getElementById('page-' + page);
-  if (el) el.classList.add('active');
-  window.scrollTo(0, 0);
-  setTimeout(revealAll, 100);
-
-  if (page === 'library') renderLib();
-  if (page === 'profile') {
-    if (!currentUser) { showPage('auth'); switchAuth('login'); return; }
-    updateProfile();
-  }
-}
-
-function checkGoApp() {
-  if (localStorage.getItem('pf_token')) {
-    window.location.href = '/app';
-  } else {
-    showPage('auth');
-    switchAuth('login');
-  }
-}
-
-// ═══════ AUTH SİSTEMİ ═══════
-function switchAuth(tab) {
-  // Formları gizle
-  document.getElementById('loginForm').style.display = 'none';
-  document.getElementById('registerForm').style.display = 'none';
-  document.getElementById('forgotForm').style.display = 'none';
-
-  // Hata/başarı mesajlarını temizle
-  document.getElementById('aerr').style.display = 'none';
-  document.getElementById('aok').style.display = 'none';
-
-  // Tab'ları güncelle
-  document.getElementById('ltab').classList.remove('on');
-  document.getElementById('rtab').classList.remove('on');
-  document.getElementById('authTabs').style.display = 'flex';
-
-  if (tab === 'login') {
-    document.getElementById('loginForm').style.display = 'block';
-    document.getElementById('ltab').classList.add('on');
-  } else if (tab === 'register') {
-    document.getElementById('registerForm').style.display = 'block';
-    document.getElementById('rtab').classList.add('on');
-  } else if (tab === 'forgot') {
-    document.getElementById('forgotForm').style.display = 'block';
-    document.getElementById('authTabs').style.display = 'none';
-  }
-}
-
-function showAuthError(msg) {
-  const el = document.getElementById('aerr');
-  el.textContent = msg;
-  el.style.display = 'block';
-  document.getElementById('aok').style.display = 'none';
-}
-
-function showAuthSuccess(msg) {
-  const el = document.getElementById('aok');
-  el.textContent = msg;
-  el.style.display = 'block';
-  document.getElementById('aerr').style.display = 'none';
-}
-
-// --- GİRİŞ YAP ---
-async function doLogin() {
-  const email = document.getElementById('loginEmail').value.trim();
-  const password = document.getElementById('loginPass').value;
-
-  if (!email || !password) {
-    showAuthError('E-posta ve şifre gerekli');
-    return;
-  }
-
-  const btn = document.getElementById('loginBtn');
-  btn.disabled = true;
-  btn.textContent = 'GİRİŞ YAPILIYOR...';
-
-  try {
-    const res = await fetch(API + '/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.detail || 'Giriş başarısız');
-    }
-
-    // Başarılı giriş
-    localStorage.setItem('pf_token', data.token);
-    localStorage.setItem('pf_user', JSON.stringify(data.user));
-    currentUser = data.user;
-    updateNav();
-    showAuthSuccess('Giriş başarılı! Yönlendiriliyorsunuz...');
-    showToast('Hoş geldin, ' + currentUser.name + '!', 'success');
-
-    setTimeout(() => {
-      showPage('landing');
-    }, 800);
-
-  } catch (err) {
-    showAuthError(err.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'GİRİŞ YAP →';
-  }
-}
-
-// --- KAYIT OL ---
-async function doRegister() {
-  const name = document.getElementById('regName').value.trim();
-  const email = document.getElementById('regEmail').value.trim();
-  const password = document.getElementById('regPass').value;
-
-  if (!name || !email || !password) {
-    showAuthError('Tüm alanları doldurun');
-    return;
-  }
-  if (name.length < 2) {
-    showAuthError('İsim en az 2 karakter olmalı');
-    return;
-  }
-  if (password.length < 6) {
-    showAuthError('Şifre en az 6 karakter olmalı');
-    return;
-  }
-
-  const btn = document.getElementById('regBtn');
-  btn.disabled = true;
-  btn.textContent = 'HESAP OLUŞTURULUYOR...';
-
-  try {
-    const res = await fetch(API + '/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password })
-    });
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.detail || 'Kayıt başarısız');
-    }
-
-    // Kayıt başarılı - token varsa otomatik giriş yap
-    if (data.token) {
-      localStorage.setItem('pf_token', data.token);
-      localStorage.setItem('pf_user', JSON.stringify(data.user));
-      currentUser = data.user;
-      updateNav();
-
-      if (data.message) {
-        showAuthSuccess(data.message);
-        showToast(data.message, 'info');
-      } else {
-        showAuthSuccess('Hesabınız oluşturuldu!');
-        showToast('Hoş geldin, ' + currentUser.name + '!', 'success');
-      }
-
-      setTimeout(() => {
-        showPage('landing');
-      }, 1200);
-    } else {
-      // Token yoksa giriş sayfasına yönlendir
-      showAuthSuccess('Kayıt başarılı! Şimdi giriş yapabilirsiniz.');
-      setTimeout(() => switchAuth('login'), 1500);
-    }
-
-  } catch (err) {
-    showAuthError(err.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'HESAP OLUŞTUR →';
-  }
-}
-
-// --- GOOGLE GİRİŞ ---
-function doGoogle() {
-  window.location.href = API + '/api/auth/google';
-}
-
-// --- ŞİFREMİ UNUTTUM ---
-async function doForgotPassword() {
-  const email = document.getElementById('forgotEmail').value.trim();
-  if (!email) {
-    showAuthError('E-posta adresinizi girin');
-    return;
-  }
-
-  const btn = document.getElementById('forgotBtn');
-  btn.disabled = true;
-  btn.textContent = 'GÖNDERİLİYOR...';
-
-  try {
-    const res = await fetch(API + '/api/auth/forgot-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email })
-    });
-    const data = await res.json();
-
-    if (!res.ok) throw new Error(data.detail || 'Hata oluştu');
-
-    showAuthSuccess(data.message || 'Sıfırlama linki gönderildi. E-postanızı kontrol edin.');
-    showToast('Sıfırlama maili gönderildi', 'success');
-
-  } catch (err) {
-    showAuthError(err.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'SIFIRLAMA LİNKİ GÖNDER →';
-  }
-}
-
-// --- ÇIKIŞ ---
-function doLogout() {
-  currentUser = null;
-  localStorage.removeItem('pf_token');
-  localStorage.removeItem('pf_user');
-  updateNav();
-  showPage('landing');
-  showToast('Çıkış yapıldı', 'info');
-}
-
-// --- ENTER TUŞU ---
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    const authPage = document.getElementById('page-auth');
-    if (authPage.classList.contains('active')) {
-      if (document.getElementById('loginForm').style.display !== 'none') doLogin();
-      else if (document.getElementById('registerForm').style.display !== 'none') doRegister();
-      else if (document.getElementById('forgotForm').style.display !== 'none') doForgotPassword();
-    }
-  }
-});
-
-// ═══════ KÜTÜPHANE ═══════
-function svgFor(style) {
-  const path = PATHS[style] || PATHS.geometric;
-  const c = (style === 'organic' || style === 'miniature') ? '#00ff9d' : '#00e5ff';
-  return '<svg viewBox="0 0 240 240" style="width:100%;height:100%"><defs><radialGradient id="rg_' + style + '" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="' + c + '" stop-opacity="0.18"/><stop offset="100%" stop-color="' + c + '" stop-opacity="0"/></radialGradient></defs><ellipse cx="120" cy="120" rx="88" ry="88" fill="url(#rg_' + style + ')"/><path d="' + path + '" fill="none" stroke="' + c + '" stroke-width="1.5" opacity="0.85"/></svg>';
-}
-
-function renderLib() {
-  const grid = document.getElementById('libGrid');
-  if (!grid) return;
-
-  let data = [...DEMO_MODELS];
-  const q = (document.getElementById('libSearch')?.value || '').toLowerCase();
-  if (q) data = data.filter(m => m.title.toLowerCase().includes(q) || m.author.toLowerCase().includes(q));
-  if (libFilter !== 'all') data = data.filter(m => m.style === libFilter);
-  if (libSortBy === 'popular') data.sort((a, b) => b.likes - a.likes);
-  if (libSortBy === 'downloads') data.sort((a, b) => b.downloads - a.downloads);
-
-  if (!data.length) {
-    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--muted)"><div style="font-size:40px;opacity:0.3;margin-bottom:12px">⬡</div><div style="font-size:11px;letter-spacing:0.12em">Model bulunamadı</div></div>';
-    return;
-  }
-
-  grid.innerHTML = data.map(m => {
-    const lkd = userLikes.includes(m.id);
-    return '<div class="mcard">' +
-      '<div class="mthumb">' + svgFor(m.style) + '<div class="mstyle">' + m.style.toUpperCase() + '</div>' +
-      '<div class="movr"><button class="obtn" onclick="event.stopPropagation();checkGoApp()">↓ İNDİR</button></div></div>' +
-      '<div class="mbody">' +
-      '<div class="mtitle">' + m.title + '</div>' +
-      '<div class="mmeta"><span class="mauthor">@' + m.author + '</span><span class="mdate">' + m.date + '</span></div>' +
-      '<div class="mstats"><span class="ms">❤ <span>' + m.likes + '</span></span><span class="ms">↓ <span>' + m.downloads + '</span></span></div>' +
-      '<div class="mbtns">' +
-      '<button class="mbtn dl" onclick="checkGoApp()">↓ STL</button>' +
-      '<button class="mbtn ' + (lkd ? 'lkd' : '') + '" onclick="toggleLike(' + m.id + ',this)">' + (lkd ? '❤' : '♡') + '</button>' +
-      '</div></div></div>';
-  }).join('');
-}
-
-function toggleLike(id, btn) {
-  if (userLikes.includes(id)) {
-    userLikes = userLikes.filter(l => l !== id);
-  } else {
-    userLikes.push(id);
-  }
-  btn.textContent = userLikes.includes(id) ? '❤' : '♡';
-  btn.classList.toggle('lkd', userLikes.includes(id));
-  localStorage.setItem('pf_likes', JSON.stringify(userLikes));
-}
-
-function setFilter(f, btn) {
-  libFilter = f;
-  document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
-  btn.classList.add('on');
-  renderLib();
-}
-
-// Backend'den gerçek galeri verisi yüklemeyi dene
-async function loadRealGallery() {
-  try {
-    const res = await fetch(API + '/api/gallery?limit=20&sort=' + libSortBy);
-    if (!res.ok) return;
-    const data = await res.json();
-    if (data.models && data.models.length > 0) {
-      data.models.forEach(m => {
-        const existingId = 'db_' + m.id;
-        if (!DEMO_MODELS.find(x => x.id === existingId)) {
-          DEMO_MODELS.unshift({
-            id: existingId,
-            title: m.title || 'Model',
-            author: m.author_name || 'Kullanıcı',
-            style: m.style || 'geometric',
-            likes: m.likes || 0,
-            downloads: m.downloads || 0,
-            date: (m.created_at || '').slice(0, 10),
-            task_id: m.task_id,
-            real: true
-          });
-        }
-      });
-      renderLib();
-    }
-  } catch (e) {
-    // API'ye ulaşılamazsa demo veriler kullanılır
-  }
-}
-
-// ═══════ PROFİL ═══════
-async function updateProfile() {
-  if (!currentUser) return;
-
-  document.getElementById('pAvatar').textContent = (currentUser.name || 'U')[0].toUpperCase();
-  document.getElementById('pName').textContent = currentUser.name || 'Kullanıcı';
-  document.getElementById('pEmail').textContent = currentUser.email || '-';
-  document.getElementById('settingsName').value = currentUser.name || '';
-  document.getElementById('settingsEmail').value = currentUser.email || '';
-
-  const planNames = { free: 'FREE', pro: 'PRO', business: 'İŞLETME' };
-  const planName = planNames[currentUser.plan] || 'FREE';
-  document.getElementById('pPlanBadge').textContent = planName;
-  document.getElementById('bPlan').textContent = planName;
-
-  // API'den gerçek verileri çek
-  const token = localStorage.getItem('pf_token');
-  if (token) {
-    try {
-      const res = await fetch(API + '/api/auth/me', {
-        headers: { 'Authorization': 'Bearer ' + token }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        currentUser = data.user;
-        localStorage.setItem('pf_user', JSON.stringify(currentUser));
-
-        document.getElementById('pMCount').textContent = data.stats?.models || 0;
-        document.getElementById('pLikes').textContent = data.stats?.likes || 0;
-        document.getElementById('pDownloads').textContent = data.stats?.downloads || 0;
-
-        const used = data.usage?.used || 0;
-        const limit = data.usage?.limit || 5;
-        document.getElementById('usageText').textContent = 'Bu ay: ' + used + ' / ' + limit + ' model';
-        document.getElementById('usageBar').style.width = Math.min(100, (used / limit * 100)) + '%';
-
-        const pn = planNames[data.user.plan] || 'FREE';
-        document.getElementById('pPlanBadge').textContent = pn;
-        document.getElementById('bPlan').textContent = pn;
-      }
-    } catch (e) {}
-
-    // Kullanıcının modellerini yükle
-    try {
-      const res = await fetch(API + '/api/my-models', {
-        headers: { 'Authorization': 'Bearer ' + token }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const profGrid = document.getElementById('profGrid');
-        if (data.models && data.models.length > 0) {
-          profGrid.innerHTML = data.models.map(m =>
-            '<div class="mcard"><div class="mthumb">' + svgFor(m.style || 'geometric') +
-            '<div class="mstyle">' + (m.style || 'MODEL').toUpperCase() + '</div></div>' +
-            '<div class="mbody"><div class="mtitle">' + (m.title || 'Model') + '</div>' +
-            '<div class="mmeta"><span class="mdate">' + (m.created_at || '').slice(0, 10) + '</span></div>' +
-            '<div class="mbtns">' +
-            (m.task_id ? '<button class="mbtn dl" onclick="window.open(API+\'/api/model/' + m.task_id + '/glb\')">↓ GLB</button>' : '') +
-            '<button class="mbtn" style="color:var(--red);border-color:rgba(255,68,102,0.3)" onclick="deleteModel(' + m.id + ',this)">🗑</button>' +
-            '</div></div></div>'
-          ).join('');
-        } else {
-          profGrid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)"><p style="font-size:11px">Henüz model üretmediniz</p><button class="btn-p" style="margin-top:16px" onclick="checkGoApp()">İLK MODELİNİ ÜRET →</button></div>';
-        }
-      }
-    } catch (e) {}
-  }
-
-  updateNav();
-}
-
-function switchPTab(tab, btn) {
-  ['models', 'settings', 'billing'].forEach(t => {
-    document.getElementById('pt-' + t).style.display = (t === tab) ? 'block' : 'none';
-  });
-  document.querySelectorAll('.ptab').forEach(b => b.classList.remove('on'));
-  btn.classList.add('on');
-}
-
-async function saveSettings() {
-  const token = localStorage.getItem('pf_token');
-  if (!token) return;
-
-  const name = document.getElementById('settingsName').value.trim();
-  const password = document.getElementById('settingsPass').value;
-
-  const body = {};
-  if (name && name.length >= 2) body.name = name;
-  if (password && password.length >= 6) body.password = password;
-
-  if (Object.keys(body).length === 0) {
-    showToast('Değişiklik yapılmadı', 'info');
-    return;
-  }
-
-  try {
-    const res = await fetch(API + '/api/auth/update-profile', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + token
-      },
-      body: JSON.stringify(body)
-    });
-    if (res.ok) {
-      if (body.name) currentUser.name = body.name;
-      localStorage.setItem('pf_user', JSON.stringify(currentUser));
-      updateNav();
-      showToast('Ayarlar kaydedildi!', 'success');
-      document.getElementById('settingsPass').value = '';
-    } else {
-      const data = await res.json();
-      showToast(data.detail || 'Hata oluştu', 'error');
-    }
-  } catch (e) {
-    showToast('Sunucuya bağlanılamadı', 'error');
-  }
-}
-
-async function deleteModel(modelId, btn) {
-  if (!confirm('Bu modeli silmek istediğinize emin misiniz?')) return;
-  const token = localStorage.getItem('pf_token');
-  try {
-    const res = await fetch(API + '/api/my-models/' + modelId, {
-      method: 'DELETE',
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
-    if (res.ok) {
-      btn.closest('.mcard').remove();
-      showToast('Model silindi', 'success');
-    }
-  } catch (e) {}
-}
-
-// ═══════ ÖDEME ═══════
 let selectedPlan = 'pro';
 
-function showPayment(plan) {
-  selectedPlan = plan;
-  showPage('payment');
-  document.querySelectorAll('.popt').forEach(o => o.classList.remove('sel'));
-  const idx = { starter: 0, pro: 1, business: 2 }[plan] || 1;
-  document.querySelectorAll('.popt')[idx]?.classList.add('sel');
-  updateSummary(plan);
+// ═══════ TOAST SYSTEM ═══════
+function toast(message, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    const t = document.createElement('div');
+    t.className = 'toast ' + type;
+    t.textContent = message;
+    container.appendChild(t);
+    setTimeout(() => t.remove(), 4000);
 }
 
-function selectPlan(plan, el) {
-  selectedPlan = plan;
-  document.querySelectorAll('.popt').forEach(o => o.classList.remove('sel'));
-  el.classList.add('sel');
-  updateSummary(plan);
-}
-
-function updateSummary(plan) {
-  const plans = {
-    starter: { name: 'Başlangıç Plan', price: 0 },
-    pro: { name: 'Pro Plan', price: 299 },
-    business: { name: 'İşletme Plan', price: 899 }
-  };
-  const p = plans[plan] || plans.pro;
-  const tax = Math.round(p.price * 0.18 * 100) / 100;
-  document.getElementById('oPN').textContent = p.name;
-  document.getElementById('oPP').textContent = '₺' + p.price + '/ay';
-  document.getElementById('oTax').textContent = '₺' + tax.toFixed(2);
-  document.getElementById('oTotal').textContent = '₺' + (p.price + tax).toFixed(2);
-}
-
-function formatCard(el) {
-  let v = el.value.replace(/\D/g, '');
-  el.value = v.match(/.{1,4}/g)?.join(' ') || v;
-}
-
-function formatExp(el) {
-  let v = el.value.replace(/\D/g, '');
-  if (v.length >= 2) v = v.slice(0, 2) + '/' + v.slice(2);
-  el.value = v;
-}
-
-async function doPayment() {
-  if (!currentUser) {
-    showPage('auth');
-    switchAuth('login');
-    showToast('Önce giriş yapın', 'info');
-    return;
-  }
-
-  const btn = document.getElementById('payBtn');
-  btn.textContent = 'İŞLENİYOR...';
-  btn.disabled = true;
-
-  try {
+// ═══════ INIT — PAGE LOAD ═══════
+async function init() {
+    // Check for Google OAuth token in localStorage (set by callback)
     const token = localStorage.getItem('pf_token');
-    const res = await fetch(API + '/api/payment/upgrade', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
-
-    if (res.ok) {
-      currentUser.plan = selectedPlan === 'starter' ? 'free' : selectedPlan;
-      localStorage.setItem('pf_user', JSON.stringify(currentUser));
-      btn.textContent = '✓ ÖDEME TAMAMLANDI';
-      btn.style.background = 'var(--accent2)';
-      showToast('Planınız yükseltildi!', 'success');
-      setTimeout(() => {
-        showPage('profile');
-        switchPTab('billing', document.querySelectorAll('.ptab')[2]);
-        btn.textContent = 'ÖDEMEYI TAMAMLA →';
-        btn.style.background = '';
-        btn.disabled = false;
-      }, 1500);
+    if (token && token !== 'no-jwt') {
+        try {
+            const res = await fetch(API + '/api/auth/me', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                currentUser = data.user;
+                currentUser._usage = data.usage;
+                currentUser._stats = data.stats;
+                localStorage.setItem('pf_user', JSON.stringify(currentUser));
+            } else {
+                // Token expired or invalid
+                localStorage.removeItem('pf_token');
+                localStorage.removeItem('pf_user');
+                currentUser = null;
+            }
+        } catch (e) {
+            // Offline — try cached user
+            const cached = localStorage.getItem('pf_user');
+            if (cached) currentUser = JSON.parse(cached);
+        }
     } else {
-      throw new Error('Ödeme başarısız');
+        currentUser = null;
     }
-  } catch (e) {
-    showToast('Ödeme işlemi başarısız', 'error');
-    btn.textContent = 'ÖDEMEYI TAMAMLA →';
-    btn.disabled = false;
-  }
-}
-
-// ═══════ BAŞLANGIÇ ═══════
-function init() {
-  // Token ile oturum kontrolü
-  const savedUser = localStorage.getItem('pf_user');
-  const savedToken = localStorage.getItem('pf_token');
-
-  if (savedUser && savedToken) {
-    try {
-      currentUser = JSON.parse(savedUser);
-    } catch (e) {
-      currentUser = null;
-    }
-  }
-
-  // Google OAuth dönüşü kontrolü
-  if (savedToken && !currentUser) {
-    // Google callback token'ı kaydetti ama user bilgisi yok, API'den çek
-    fetch(API + '/api/auth/me', {
-      headers: { 'Authorization': 'Bearer ' + savedToken }
-    }).then(res => {
-      if (res.ok) return res.json();
-      throw new Error('Token geçersiz');
-    }).then(data => {
-      currentUser = data.user;
-      localStorage.setItem('pf_user', JSON.stringify(currentUser));
-      updateNav();
-      showToast('Hoş geldin, ' + currentUser.name + '!', 'success');
-    }).catch(() => {
-      localStorage.removeItem('pf_token');
-      localStorage.removeItem('pf_user');
-      updateNav();
-    });
-  }
-
-  updateNav();
-  renderLib();
-  revealAll();
-
-  // Gerçek galeri verilerini yükle
-  setTimeout(loadRealGallery, 1500);
+    updateNav();
+    revealAll();
 }
 
 init();
+
+// ═══════ NAV UPDATE ═══════
+function updateNav() {
+    const guest = document.getElementById('navGuest');
+    const userEl = document.getElementById('navUser');
+    if (currentUser) {
+        guest.style.display = 'none';
+        userEl.style.display = 'flex';
+        document.getElementById('navUN').textContent = currentUser.name;
+        document.getElementById('navAV').textContent = (currentUser.name || 'U')[0].toUpperCase();
+    } else {
+        guest.style.display = 'flex';
+        userEl.style.display = 'none';
+    }
+}
+
+// ═══════ MOBILE MENU ═══════
+function toggleMobileMenu() {
+    const links = document.getElementById('navLinks');
+    if (links.style.display === 'flex') {
+        links.style.display = 'none';
+    } else {
+        links.style.cssText = 'display:flex;position:fixed;top:60px;left:0;right:0;flex-direction:column;background:rgba(4,8,10,0.95);padding:20px;gap:16px;border-bottom:1px solid var(--border);z-index:999;backdrop-filter:blur(20px)';
+    }
+}
+
+// ═══════ PAGE NAVIGATION ═══════
+function showPage(page) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    const el = document.getElementById('page-' + page);
+    if (el) {
+        el.classList.add('active');
+        window.scrollTo(0, 0);
+        setTimeout(revealAll, 100);
+    }
+
+    if (page === 'library') loadGallery();
+    if (page === 'profile') {
+        if (!currentUser) { showPage('auth'); switchAuth('login'); return; }
+        loadProfile();
+    }
+}
+
+function goToApp() {
+    if (localStorage.getItem('pf_token')) {
+        window.location.href = '/app';
+    } else {
+        showPage('auth');
+        switchAuth('login');
+    }
+}
+
+// ═══════ AUTH FORMS ═══════
+function switchAuth(mode) {
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    const forgotForm = document.getElementById('forgotForm');
+    const tabs = document.getElementById('authTabs');
+    const errEl = document.getElementById('authError');
+    const okEl = document.getElementById('authOk');
+
+    // Clear messages
+    errEl.style.display = 'none';
+    okEl.style.display = 'none';
+
+    // Hide all forms
+    loginForm.style.display = 'none';
+    registerForm.style.display = 'none';
+    forgotForm.style.display = 'none';
+
+    // Update tabs
+    const tabBtns = tabs.querySelectorAll('.atab');
+    tabBtns[0].classList.remove('on');
+    tabBtns[1].classList.remove('on');
+
+    if (mode === 'login') {
+        loginForm.style.display = 'block';
+        tabBtns[0].classList.add('on');
+        tabs.style.display = 'flex';
+    } else if (mode === 'register') {
+        registerForm.style.display = 'block';
+        tabBtns[1].classList.add('on');
+        tabs.style.display = 'flex';
+    } else if (mode === 'forgot') {
+        forgotForm.style.display = 'block';
+        tabs.style.display = 'none';
+    }
+}
+
+function showAuthError(msg) {
+    const el = document.getElementById('authError');
+    el.textContent = msg;
+    el.style.display = 'block';
+    document.getElementById('authOk').style.display = 'none';
+}
+
+function showAuthOk(msg) {
+    const el = document.getElementById('authOk');
+    el.textContent = msg;
+    el.style.display = 'block';
+    document.getElementById('authError').style.display = 'none';
+}
+
+// ═══════ LOGIN ═══════
+async function doLogin() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPass').value;
+    const btn = document.getElementById('loginBtn');
+
+    if (!email || !password) {
+        showAuthError('E-posta ve sifre gerekli');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'GIRIS YAPILIYOR...';
+
+    try {
+        const res = await fetch(API + '/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.detail || 'Giris basarisiz');
+        }
+
+        // Save token and user
+        localStorage.setItem('pf_token', data.token);
+        localStorage.setItem('pf_user', JSON.stringify(data.user));
+        currentUser = data.user;
+
+        updateNav();
+        showAuthOk('Giris basarili! Yonlendiriliyorsunuz...');
+        toast('Hos geldiniz, ' + currentUser.name + '!', 'success');
+
+        setTimeout(() => {
+            showPage('landing');
+        }, 800);
+    } catch (err) {
+        showAuthError(err.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'GIRIS YAP →';
+    }
+}
+
+// ═══════ REGISTER ═══════
+async function doRegister() {
+    const name = document.getElementById('regName').value.trim();
+    const email = document.getElementById('regEmail').value.trim();
+    const password = document.getElementById('regPass').value;
+    const btn = document.getElementById('regBtn');
+
+    if (!name || !email || !password) {
+        showAuthError('Tum alanlari doldurun');
+        return;
+    }
+    if (name.length < 2) {
+        showAuthError('Isim en az 2 karakter olmali');
+        return;
+    }
+    if (password.length < 6) {
+        showAuthError('Sifre en az 6 karakter olmali');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'HESAP OLUSTURULUYOR...';
+
+    try {
+        const res = await fetch(API + '/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, password })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.detail || 'Kayit basarisiz');
+        }
+
+        // Save token and user — auto login after register
+        localStorage.setItem('pf_token', data.token);
+        localStorage.setItem('pf_user', JSON.stringify(data.user));
+        currentUser = data.user;
+
+        updateNav();
+
+        if (data.message) {
+            showAuthOk(data.message);
+            toast(data.message, 'info');
+        } else {
+            showAuthOk('Hesap olusturuldu! Yonlendiriliyorsunuz...');
+            toast('Hosgeldiniz, ' + currentUser.name + '!', 'success');
+        }
+
+        setTimeout(() => {
+            showPage('landing');
+        }, 1200);
+    } catch (err) {
+        showAuthError(err.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'HESAP OLUSTUR →';
+    }
+}
+
+// ═══════ FORGOT PASSWORD ═══════
+async function doForgotPassword() {
+    const email = document.getElementById('forgotEmail').value.trim();
+    const btn = document.getElementById('forgotBtn');
+
+    if (!email) {
+        showAuthError('E-posta adresinizi girin');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'GONDERILIYOR...';
+
+    try {
+        const res = await fetch(API + '/api/auth/forgot-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.detail || 'Hata olustu');
+        }
+
+        showAuthOk(data.message || 'Sifirlama maili gonderildi. E-postanizi kontrol edin.');
+        toast('Sifirlama maili gonderildi', 'success');
+    } catch (err) {
+        showAuthError(err.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'SIFIRLAMA LINKI GONDER →';
+    }
+}
+
+// ═══════ GOOGLE LOGIN ═══════
+function doGoogleLogin() {
+    window.location.href = API + '/api/auth/google';
+}
+
+// ═══════ LOGOUT ═══════
+function doLogout() {
+    localStorage.removeItem('pf_token');
+    localStorage.removeItem('pf_user');
+    currentUser = null;
+    updateNav();
+    toast('Cikis yapildi', 'info');
+    showPage('landing');
+}
+
+// ═══════ ENTER KEY SUPPORT ═══════
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        const active = document.activeElement;
+        if (active && (active.id === 'loginEmail' || active.id === 'loginPass')) {
+            doLogin();
+        } else if (active && (active.id === 'regName' || active.id === 'regEmail' || active.id === 'regPass')) {
+            doRegister();
+        } else if (active && active.id === 'forgotEmail') {
+            doForgotPassword();
+        }
+    }
+});
+
+// ═══════ GALLERY / LIBRARY ═══════
+let galleryFilter = 'all';
+
+function setFilter(filter, btn) {
+    galleryFilter = filter;
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
+    btn.classList.add('on');
+    loadGallery();
+}
+
+async function loadGallery() {
+    const grid = document.getElementById('libGrid');
+    if (!grid) return;
+
+    const search = document.getElementById('libSearch')?.value || '';
+    const sort = document.getElementById('libSort')?.value || 'newest';
+
+    grid.innerHTML = '<div class="lib-loading">⟳ Yukleniyor...</div>';
+
+    try {
+        let url = API + '/api/gallery?limit=20&sort=' + sort;
+        if (search) url += '&search=' + encodeURIComponent(search);
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (!data.models || data.models.length === 0) {
+            grid.innerHTML = '<div class="lib-empty"><div class="lib-empty-icon">⬡</div><p>Henuz model yok</p><p style="font-size:10px;margin-top:8px">Ilk modeli sen uret!</p></div>';
+            return;
+        }
+
+        let models = data.models;
+        if (galleryFilter !== 'all') {
+            models = models.filter(m => (m.gen_type || '') === galleryFilter);
+        }
+
+        if (models.length === 0) {
+            grid.innerHTML = '<div class="lib-empty"><div class="lib-empty-icon">⬡</div><p>Bu filtreye uygun model bulunamadi</p></div>';
+            return;
+        }
+
+        grid.innerHTML = models.map(m => {
+            const title = m.title || m.prompt || 'Model';
+            const author = m.author_name || 'Maker';
+            const date = (m.created_at || '').slice(0, 10);
+            const taskId = m.task_id || '';
+            return `
+                <div class="mcard">
+                    <div class="mthumb">
+                        <div style="font-size:48px;opacity:0.3">⬡</div>
+                        <div class="mstyle">${(m.gen_type || 'AI').toUpperCase()}</div>
+                        <div class="movr">
+                            ${taskId ? `<button class="obtn" onclick="event.stopPropagation();window.open('/app','_blank')">GORUNTULE</button>` : ''}
+                        </div>
+                    </div>
+                    <div class="mbody">
+                        <div class="mtitle">${title}</div>
+                        <div class="mmeta"><span class="mauthor">@${author}</span><span class="mdate">${date}</span></div>
+                        <div class="mstats">
+                            <span class="ms">❤ <span>${m.likes || 0}</span></span>
+                            <span class="ms">↓ <span>${m.downloads || 0}</span></span>
+                        </div>
+                        <div class="mbtns">
+                            ${taskId ? `<button class="mbtn dl" onclick="event.stopPropagation();window.open(API+'/api/model/${taskId}/glb','_blank')">↓ GLB</button>` : ''}
+                            <button class="mbtn" onclick="event.stopPropagation();toggleLike(${m.id},this)">♡</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+    } catch (e) {
+        // Fallback: show demo content
+        grid.innerHTML = '<div class="lib-empty"><div class="lib-empty-icon">⬡</div><p>Galeri yuklenemedi</p><p style="font-size:10px;margin-top:8px">Sunucuya baglanilamiyor</p></div>';
+    }
+}
+
+async function toggleLike(modelId, btn) {
+    const token = localStorage.getItem('pf_token');
+    if (!token) {
+        toast('Begenmek icin giris yapin', 'error');
+        showPage('auth');
+        switchAuth('login');
+        return;
+    }
+    try {
+        const res = await fetch(API + '/api/gallery/' + modelId + '/like', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        if (data.liked) {
+            btn.textContent = '❤';
+            btn.classList.add('lkd');
+            toast('Begenildi!', 'success');
+        } else {
+            btn.textContent = '♡';
+            btn.classList.remove('lkd');
+        }
+    } catch (e) {
+        toast('Hata olustu', 'error');
+    }
+}
+
+// ═══════ PROFILE ═══════
+async function loadProfile() {
+    if (!currentUser) return;
+
+    // Set basic info
+    document.getElementById('profAvatar').textContent = (currentUser.name || 'U')[0].toUpperCase();
+    document.getElementById('profName').textContent = currentUser.name || 'Kullanici';
+    document.getElementById('profEmail').textContent = currentUser.email || '';
+    document.getElementById('settingsName').value = currentUser.name || '';
+    document.getElementById('settingsEmail').value = currentUser.email || '';
+
+    const planNames = { free: 'FREE', pro: 'PRO', business: 'ISLETME' };
+    const planLabel = planNames[currentUser.plan] || 'FREE';
+    document.getElementById('profPlanBadge').textContent = planLabel;
+    document.getElementById('billingPlan').textContent = planLabel;
+
+    // Fetch fresh data from API
+    const token = localStorage.getItem('pf_token');
+    if (token) {
+        try {
+            const res = await fetch(API + '/api/auth/me', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                currentUser = data.user;
+                currentUser._usage = data.usage;
+                currentUser._stats = data.stats;
+
+                // Update stats
+                document.getElementById('profModelCount').textContent = data.stats?.models || 0;
+                document.getElementById('profLikeCount').textContent = data.stats?.likes || 0;
+                document.getElementById('profDownCount').textContent = data.stats?.downloads || 0;
+
+                // Usage bar
+                const used = data.usage?.used || 0;
+                const limit = data.usage?.limit || 5;
+                document.getElementById('usageText').textContent = used + ' / ' + limit;
+                document.getElementById('usageFill').style.width = Math.min(100, (used / limit) * 100) + '%';
+            }
+        } catch (e) {}
+
+        // Load user's models
+        loadMyModels();
+    }
+}
+
+async function loadMyModels() {
+    const grid = document.getElementById('profModelsGrid');
+    const token = localStorage.getItem('pf_token');
+    if (!token || !grid) return;
+
+    grid.innerHTML = '<div class="lib-loading">⟳ Yukleniyor...</div>';
+
+    try {
+        const res = await fetch(API + '/api/my-models', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+
+        if (!data.models || data.models.length === 0) {
+            grid.innerHTML = '<div class="lib-empty"><div class="lib-empty-icon">⬡</div><p>Henuz modeliniz yok</p><button class="btn-p" style="margin-top:16px" onclick="goToApp()">ILK MODELINI URET →</button></div>';
+            return;
+        }
+
+        grid.innerHTML = data.models.map(m => {
+            const title = m.title || m.prompt || 'Model';
+            const taskId = m.task_id || '';
+            return `
+                <div class="mcard">
+                    <div class="mthumb">
+                        <div style="font-size:48px;opacity:0.3">⬡</div>
+                        <div class="mstyle">${(m.gen_type || 'AI').toUpperCase()}</div>
+                    </div>
+                    <div class="mbody">
+                        <div class="mtitle">${title}</div>
+                        <div class="mstats">
+                            <span class="ms">❤ <span>${m.likes || 0}</span></span>
+                            <span class="ms">↓ <span>${m.downloads || 0}</span></span>
+                        </div>
+                        <div class="mbtns">
+                            ${taskId ? `<button class="mbtn dl" onclick="event.stopPropagation();window.open(API+'/api/model/${taskId}/glb','_blank')">↓ INDIR</button>` : ''}
+                            <button class="mbtn" style="color:var(--red);border-color:rgba(255,68,102,0.3)" onclick="event.stopPropagation();deleteModel(${m.id})">🗑</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (e) {
+        grid.innerHTML = '<div class="lib-empty"><div class="lib-empty-icon">⬡</div><p>Modeller yuklenemedi</p></div>';
+    }
+}
+
+async function deleteModel(modelId) {
+    if (!confirm('Bu modeli silmek istediginizden emin misiniz?')) return;
+
+    const token = localStorage.getItem('pf_token');
+    try {
+        await fetch(API + '/api/my-models/' + modelId, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        toast('Model silindi', 'success');
+        loadMyModels();
+    } catch (e) {
+        toast('Silme hatasi', 'error');
+    }
+}
+
+function switchProfileTab(tab, btn) {
+    document.getElementById('profTabModels').style.display = tab === 'models' ? 'block' : 'none';
+    document.getElementById('profTabSettings').style.display = tab === 'settings' ? 'block' : 'none';
+    document.getElementById('profTabBilling').style.display = tab === 'billing' ? 'block' : 'none';
+    document.querySelectorAll('.ptab').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+}
+
+async function saveSettings() {
+    const token = localStorage.getItem('pf_token');
+    if (!token) return;
+
+    const name = document.getElementById('settingsName').value.trim();
+    const password = document.getElementById('settingsPass').value;
+
+    const body = {};
+    if (name && name.length >= 2) body.name = name;
+    if (password && password.length >= 6) body.password = password;
+
+    if (Object.keys(body).length === 0) {
+        toast('Degisiklik yapilmadi', 'info');
+        return;
+    }
+
+    try {
+        const res = await fetch(API + '/api/auth/update-profile', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify(body)
+        });
+
+        if (res.ok) {
+            if (body.name) {
+                currentUser.name = body.name;
+                localStorage.setItem('pf_user', JSON.stringify(currentUser));
+                updateNav();
+            }
+            toast('Ayarlar kaydedildi!', 'success');
+            document.getElementById('settingsPass').value = '';
+        } else {
+            toast('Kaydetme hatasi', 'error');
+        }
+    } catch (e) {
+        toast('Sunucu hatasi', 'error');
+    }
+}
+
+// ═══════ PAYMENT ═══════
+function showPayment(plan) {
+    selectedPlan = plan;
+    showPage('payment');
+    document.querySelectorAll('.popt').forEach(o => o.classList.remove('sel'));
+    const idx = { starter: 0, pro: 1, business: 2 }[plan] || 1;
+    document.querySelectorAll('.popt')[idx]?.classList.add('sel');
+    updateOrderSummary(plan);
+}
+
+function selectPlan(plan, el) {
+    selectedPlan = plan;
+    document.querySelectorAll('.popt').forEach(o => o.classList.remove('sel'));
+    el.classList.add('sel');
+    updateOrderSummary(plan);
+}
+
+function updateOrderSummary(plan) {
+    const plans = {
+        starter: { name: 'Baslangic Plan', price: 0 },
+        pro: { name: 'Pro Plan', price: 299 },
+        business: { name: 'Isletme Plan', price: 899 }
+    };
+    const p = plans[plan] || plans.pro;
+    const tax = Math.round(p.price * 0.18 * 100) / 100;
+    document.getElementById('orderPlanName').textContent = p.name;
+    document.getElementById('orderPlanPrice').textContent = '₺' + p.price + '/ay';
+    document.getElementById('orderTax').textContent = '₺' + tax.toFixed(2);
+    document.getElementById('orderTotal').textContent = '₺' + (p.price + tax).toFixed(2);
+}
+
+function formatCard(el) {
+    let v = el.value.replace(/\D/g, '');
+    el.value = v.match(/.{1,4}/g)?.join(' ') || v;
+}
+
+function formatExp(el) {
+    let v = el.value.replace(/\D/g, '');
+    if (v.length >= 2) v = v.slice(0, 2) + '/' + v.slice(2);
+    el.value = v;
+}
+
+async function doPayment() {
+    if (!currentUser) {
+        showPage('auth');
+        switchAuth('login');
+        toast('Odeme icin giris yapin', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('payBtn');
+    btn.disabled = true;
+    btn.textContent = 'ISLENIYOR...';
+
+    const token = localStorage.getItem('pf_token');
+
+    try {
+        const res = await fetch(API + '/api/payment/upgrade', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (res.ok) {
+            currentUser.plan = selectedPlan === 'starter' ? 'free' : selectedPlan;
+            localStorage.setItem('pf_user', JSON.stringify(currentUser));
+
+            btn.textContent = '✓ ODEME TAMAMLANDI';
+            btn.style.background = 'var(--accent2)';
+            toast('Plan basariyla yukseltildi!', 'success');
+
+            setTimeout(() => {
+                btn.style.background = '';
+                btn.textContent = 'ODEMEYI TAMAMLA →';
+                btn.disabled = false;
+                showPage('profile');
+            }, 2000);
+        } else {
+            throw new Error('Odeme hatasi');
+        }
+    } catch (e) {
+        toast('Odeme islemi basarisiz', 'error');
+        btn.disabled = false;
+        btn.textContent = 'ODEMEYI TAMAMLA →';
+    }
+}
+
+// ═══════ SCROLL & ANIMATIONS ═══════
+window.addEventListener('scroll', () => {
+    const prog = document.getElementById('scrollProgress');
+    const h = document.documentElement.scrollHeight - window.innerHeight;
+    if (h > 0) prog.style.width = (window.scrollY / h * 100) + '%';
+    revealAll();
+});
+
+function revealAll() {
+    document.querySelectorAll('.reveal,.reveal-l,.reveal-r,.reveal-s').forEach(el => {
+        const rect = el.getBoundingClientRect();
+        if (rect.top < window.innerHeight * 0.88) el.classList.add('on');
+    });
+}
+
+setTimeout(revealAll, 100);
+
+// ═══════ BLOG ═══════
+async function loadBlog() {
+    const grid = document.getElementById('blogList');
+    if (!grid) return;
+    grid.style.display = 'grid';
+    document.getElementById('blogDetail').style.display = 'none';
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">⟳ Yukleniyor...</div>';
+    try {
+        const res = await fetch(API + '/api/blog');
+        const data = await res.json();
+        if (!data.posts || data.posts.length === 0) {
+            grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--muted)"><div style="font-size:40px;opacity:.3;margin-bottom:12px">📝</div><p>Henuz yazi yok</p></div>';
+            return;
+        }
+        grid.innerHTML = data.posts.map(p => {
+            const tags = (p.tags || '').split(',').filter(t => t.trim());
+            return `<div style="background:var(--card);border:1px solid var(--border);cursor:pointer;transition:all .25s;overflow:hidden" onclick="loadBlogPost('${p.slug}')" onmouseover="this.style.borderColor='rgba(0,229,255,.25)';this.style.transform='translateY(-3px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform=''">
+                <div style="height:160px;background:linear-gradient(135deg,rgba(0,229,255,.08),rgba(0,255,157,.05));display:flex;align-items:center;justify-content:center;font-size:48px;opacity:.3">📝</div>
+                <div style="padding:20px">
+                    <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:8px;line-height:1.4">${p.title}</div>
+                    <div style="font-size:11px;color:var(--muted);line-height:1.8;margin-bottom:12px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${p.excerpt}</div>
+                    <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted)">
+                        <span>${(p.created_at || '').slice(0,10)}</span>
+                        <span>👁 ${p.views || 0}</span>
+                    </div>
+                    ${tags.length ? '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">' + tags.map(t => '<span style="padding:3px 10px;border:1px solid rgba(0,229,255,.15);font-size:8px;letter-spacing:.1em;color:var(--accent)">' + t.trim() + '</span>').join('') + '</div>' : ''}
+                </div>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--muted)">Blog yuklenemedi</div>';
+    }
+}
+
+async function loadBlogPost(slug) {
+    document.getElementById('blogList').style.display = 'none';
+    const detail = document.getElementById('blogDetail');
+    detail.style.display = 'block';
+    try {
+        const res = await fetch(API + '/api/blog/' + slug);
+        const data = await res.json();
+        const p = data.post;
+        document.getElementById('blogDetailTitle').textContent = p.title;
+        document.getElementById('blogDetailMeta').innerHTML = `<span>📅 ${(p.created_at || '').slice(0,10)}</span><span>✍ ${p.author_name || 'PrintForge'}</span><span>👁 ${p.views || 0} goruntulenme</span>`;
+        // Simple markdown-like rendering
+        let content = p.content || '';
+        content = content.replace(/## (.*)/g, '<h2>$1</h2>');
+        content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        content = content.replace(/\n\n/g, '</p><p>');
+        content = content.replace(/\n- (.*)/g, '<li>$1</li>');
+        content = '<p>' + content + '</p>';
+        document.getElementById('blogDetailContent').innerHTML = content;
+        // Related posts
+        if (data.related && data.related.length > 0) {
+            document.getElementById('blogRelatedGrid').innerHTML = data.related.map(r =>
+                `<div style="background:var(--card);border:1px solid var(--border);padding:16px;cursor:pointer" onclick="loadBlogPost('${r.slug}')" onmouseover="this.style.borderColor='rgba(0,229,255,.25)'" onmouseout="this.style.borderColor='var(--border)'">
+                    <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;margin-bottom:6px">${r.title}</div>
+                    <div style="font-size:10px;color:var(--muted);line-height:1.6">${r.excerpt || ''}</div>
+                </div>`
+            ).join('');
+        }
+    } catch (e) {
+        document.getElementById('blogDetailContent').innerHTML = '<p style="color:var(--red)">Yazi yuklenemedi</p>';
+    }
+    window.scrollTo(0, 0);
+}
+
+function showBlogList() {
+    document.getElementById('blogList').style.display = 'grid';
+    document.getElementById('blogDetail').style.display = 'none';
+    window.scrollTo(0, 0);
+}
+
+// ═══════ PUBLIC PROFILE ═══════
+let pubProfileUsername = '';
+let isFollowing = false;
+
+async function loadPublicProfile(username) {
+    pubProfileUsername = username;
+    showPage('pubprofile');
+    try {
+        const res = await fetch(API + '/api/users/' + username);
+        const data = await res.json();
+        const u = data.user;
+        document.getElementById('pubAvatar').textContent = (u.name || 'U')[0].toUpperCase();
+        document.getElementById('pubName').textContent = u.name;
+        document.getElementById('pubUsername').textContent = '@' + u.username;
+        document.getElementById('pubBio').textContent = u.bio || '';
+        document.getElementById('pubModels').textContent = data.stats.models || 0;
+        document.getElementById('pubFollowers').textContent = data.stats.followers || 0;
+        document.getElementById('pubFollowing').textContent = data.stats.following || 0;
+        // Models
+        const grid = document.getElementById('pubModelsGrid');
+        if (data.models && data.models.length > 0) {
+            grid.innerHTML = data.models.map(m => `
+                <div class="mcard">
+                    <div class="mthumb"><div style="font-size:48px;opacity:0.3">⬡</div></div>
+                    <div class="mbody">
+                        <div class="mtitle">${m.title || 'Model'}</div>
+                        <div class="mstats"><span class="ms">❤ <span>${m.likes || 0}</span></span><span class="ms">↓ <span>${m.downloads || 0}</span></span></div>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Henuz model yok</div>';
+        }
+    } catch (e) {
+        toast('Profil yuklenemedi', 'error');
+    }
+}
+
+async function toggleFollow() {
+    const token = localStorage.getItem('pf_token');
+    if (!token) { showPage('auth'); switchAuth('login'); toast('Takip icin giris yapin', 'error'); return; }
+    try {
+        const res = await fetch(API + '/api/users/' + pubProfileUsername + '/follow', {
+            method: 'POST', headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        const btn = document.getElementById('pubFollowBtn');
+        if (data.followed) {
+            btn.textContent = 'TAKiP EDiLiYOR';
+            btn.style.background = 'var(--accent)';
+            btn.style.color = '#04080a';
+            toast('Takip edildi!', 'success');
+        } else {
+            btn.textContent = 'TAKiP ET';
+            btn.style.background = 'transparent';
+            btn.style.color = 'var(--accent)';
+        }
+    } catch (e) {
+        toast('Hata olustu', 'error');
+    }
+}
+
+// Override showPage for blog
+const origShowPage = showPage;
+showPage = function(page) {
+    origShowPage(page);
+    if (page === 'blog') loadBlog();
+    // Check URL for /u/ profile
+    const path = window.location.pathname;
+    if (path.startsWith('/u/')) {
+        loadPublicProfile(path.split('/u/')[1]);
+    }
+    if (path.startsWith('/blog/') && path.length > 6) {
+        showPage('blog');
+        loadBlogPost(path.split('/blog/')[1]);
+    }
+};
+
+// Check URL on load for /u/ and /blog/
+(function() {
+    const path = window.location.pathname;
+    if (path.startsWith('/u/') && path.length > 3) {
+        setTimeout(() => loadPublicProfile(path.split('/u/')[1]), 200);
+    }
+    if (path === '/blog') {
+        setTimeout(() => showPage('blog'), 200);
+    }
+    if (path.startsWith('/blog/') && path.length > 6) {
+        setTimeout(() => { showPage('blog'); loadBlogPost(path.split('/blog/')[1]); }, 200);
+    }
+})();
 </script>
 </body>
 </html>
