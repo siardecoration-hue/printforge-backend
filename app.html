@@ -23,8 +23,10 @@ body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text)}
 ::-webkit-scrollbar-thumb{background:var(--muted);border-radius:2px}
 input,select,textarea,button{outline:none;font-family:inherit}
 a{text-decoration:none;color:inherit}
+
 /* LAYOUT */
 .app-layout{display:flex;height:100vh;width:100vw}
+
 /* SIDEBAR */
 .sidebar{width:var(--sidebar-w);background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;transition:transform .3s}
 .sb-logo{padding:20px 22px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);cursor:pointer}
@@ -49,6 +51,7 @@ a{text-decoration:none;color:inherit}
 .sb-user-info{flex:1;min-width:0}
 .sb-user-name{font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sb-user-plan{font-size:9px;color:var(--accent);letter-spacing:.1em}
+
 /* MAIN */
 .main-content{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
 .main-header{padding:16px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;background:var(--bg);flex-shrink:0}
@@ -56,6 +59,7 @@ a{text-decoration:none;color:inherit}
 .header-badge{font-size:9px;letter-spacing:.12em;color:var(--accent);background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.15);padding:4px 12px;border-radius:4px}
 .main-body{flex:1;overflow-y:auto;padding:28px}
 .mobile-toggle{display:none;background:none;border:none;color:var(--accent);font-size:22px;cursor:pointer}
+
 /* AUTH OVERLAY */
 .auth-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
 .auth-overlay.hidden{display:none}
@@ -86,10 +90,12 @@ a{text-decoration:none;color:inherit}
 .msg-box{padding:10px 14px;font-size:11px;margin-bottom:14px;display:none;border-radius:2px;line-height:1.6}
 .msg-error{background:rgba(255,68,102,.08);border:1px solid rgba(255,68,102,.25);color:var(--red)}
 .msg-success{background:rgba(0,255,157,.08);border:1px solid rgba(0,255,157,.25);color:var(--accent2)}
+
 /* VERIFY BANNER */
 .verify-banner{background:rgba(255,152,0,.08);border-bottom:1px solid rgba(255,152,0,.2);padding:10px 28px;display:flex;align-items:center;gap:12px;font-size:11px;color:var(--orange)}
 .verify-banner.hidden{display:none}
 .verify-banner button{background:rgba(255,152,0,.15);border:1px solid rgba(255,152,0,.3);color:var(--orange);padding:4px 14px;font-family:'DM Mono',monospace;font-size:9px;cursor:pointer;letter-spacing:.1em;margin-left:auto}
+
 /* GENERATE PAGE */
 .gen-layout{display:grid;grid-template-columns:420px 1fr;gap:0;height:100%;min-height:0}
 .gen-panel{background:var(--bg2);border-right:1px solid var(--border);padding:24px;overflow-y:auto}
@@ -118,6 +124,7 @@ a{text-decoration:none;color:inherit}
 .gen-btn:disabled{opacity:.5;cursor:not-allowed}
 .gen-btn.generating{background:var(--bg3);color:var(--accent);border:1px solid var(--accent);animation:genPulse 2s infinite}
 @keyframes genPulse{0%,100%{box-shadow:0 0 0 0 rgba(0,229,255,.2)}50%{box-shadow:0 0 20px 4px rgba(0,229,255,.1)}}
+
 /* MULTI IMAGE UPLOAD */
 .img-slots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .img-slot{position:relative;aspect-ratio:1;border:2px dashed var(--border);background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;overflow:hidden;border-radius:6px;gap:4px}
@@ -147,12 +154,14 @@ a{text-decoration:none;color:inherit}
 .bulk-upload input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .bulk-upload-text{font-size:9px;color:var(--muted)}
 .bulk-upload-text b{color:var(--accent)}
+
 /* IMAGE PREVIEW MODAL */
 .preview-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:10000;display:none;align-items:center;justify-content:center;backdrop-filter:blur(8px)}
 .preview-modal.active{display:flex}
 .preview-modal img{max-width:90vw;max-height:85vh;object-fit:contain;border:1px solid var(--border);border-radius:4px}
 .preview-close{position:absolute;top:20px;right:24px;background:none;border:none;color:var(--text);font-size:28px;cursor:pointer}
 .preview-close:hover{color:var(--accent)}
+
 /* PROGRESS */
 .gen-progress{display:none;margin-top:16px}
 .gen-progress.active{display:block}
@@ -160,6 +169,7 @@ a{text-decoration:none;color:inherit}
 .progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:3px;transition:width .5s;width:0%}
 .progress-text{font-size:10px;color:var(--muted);display:flex;justify-content:space-between}
 .progress-step{color:var(--accent)}
+
 /* 3D VIEWER */
 .viewer-container{flex:1;display:flex;align-items:center;justify-content:center;position:relative;background:var(--bg);min-height:300px;transition:background .3s}
 .viewer-container model-viewer{width:100%;height:100%;min-height:400px;background:transparent;--poster-color:transparent}
@@ -179,6 +189,7 @@ a{text-decoration:none;color:inherit}
 .viewer-model-info{position:absolute;top:16px;left:16px;z-index:2;display:none;background:rgba(4,8,10,.75);border:1px solid var(--border);border-radius:6px;padding:10px 14px;font-size:9px;color:var(--muted);line-height:1.8;backdrop-filter:blur(4px)}
 .viewer-model-info.active{display:block}
 .viewer-model-info b{color:var(--accent)}
+
 /* TOOLBAR */
 .viewer-toolbar{border-top:1px solid var(--border);background:var(--bg2);display:none;flex-direction:column}
 .viewer-toolbar.active{display:flex}
@@ -190,6 +201,7 @@ a{text-decoration:none;color:inherit}
 .tb.primary:hover{background:var(--accent2)}
 .tb-sep{width:1px;height:22px;background:var(--border);margin:0 2px;flex-shrink:0}
 .tb-info{margin-left:auto;font-size:9px;color:var(--muted);white-space:nowrap}
+
 /* EDIT PANELS */
 .edit-panels{display:none;border-bottom:1px solid var(--border)}
 .edit-panels.active{display:block}
@@ -212,8 +224,10 @@ a{text-decoration:none;color:inherit}
 .cswatch.on{border-color:var(--accent);box-shadow:0 0 8px rgba(0,229,255,.3)}
 .cswatch input[type="color"]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
 .env-select{background:var(--card);border:1px solid var(--border);color:var(--text);padding:5px 8px;font-family:'DM Mono',monospace;font-size:9px;width:100%;border-radius:3px}
+
 /* DOWNLOAD BAR */
 .download-bar{padding:8px 16px;display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+
 /* GALLERY */
 .gallery-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)}
 .search-box{display:flex;align-items:center;gap:8px;border:1px solid var(--border);background:var(--card);padding:9px 14px;flex:1;max-width:320px;transition:border-color .2s}
@@ -245,6 +259,7 @@ a{text-decoration:none;color:inherit}
 .model-action-btn.liked{color:var(--red);border-color:rgba(255,68,102,.4)}
 .model-action-btn.delete{color:var(--red);border-color:rgba(255,68,102,.3)}
 .model-action-btn.delete:hover{background:rgba(255,68,102,.08)}
+
 /* SETTINGS */
 .settings-grid{display:grid;grid-template-columns:200px 1fr;gap:0;min-height:400px}
 .settings-nav{border-right:1px solid var(--border);padding:8px 0}
@@ -268,6 +283,7 @@ a{text-decoration:none;color:inherit}
 .usage-stat-card{padding:18px;border:1px solid var(--border);background:var(--card);text-align:center}
 .usage-stat-num{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--accent)}
 .usage-stat-label{font-size:9px;color:var(--muted);letter-spacing:.12em;margin-top:4px}
+
 /* PLANS */
 .plans-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:rgba(0,229,255,.06)}
 .plan-box{background:var(--card);padding:36px 28px;position:relative;transition:background .3s}
@@ -287,6 +303,7 @@ a{text-decoration:none;color:inherit}
 .plan-btn:hover{border-color:var(--accent);color:var(--accent)}
 .plan-btn.highlight{background:var(--accent);color:#04080a;border-color:var(--accent)}
 .plan-btn.highlight:hover{background:var(--accent2)}
+
 /* TOAST */
 .toast-container{position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px}
 .toast{padding:12px 18px;font-size:11px;border-radius:4px;animation:toastIn .3s ease;max-width:360px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
@@ -294,6 +311,7 @@ a{text-decoration:none;color:inherit}
 .toast.error{background:rgba(255,68,102,.12);border:1px solid rgba(255,68,102,.3);color:var(--red)}
 .toast.info{background:rgba(0,229,255,.12);border:1px solid rgba(0,229,255,.3);color:var(--accent)}
 @keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+
 /* EMPTY STATE */
 .empty-state{text-align:center;padding:60px 20px;color:var(--muted)}
 .empty-state .empty-icon{font-size:48px;opacity:.2;margin-bottom:16px}
@@ -302,6 +320,7 @@ a{text-decoration:none;color:inherit}
 .empty-state button{padding:10px 24px;background:var(--accent);color:#04080a;border:none;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.15em;cursor:pointer}
 .skeleton{background:linear-gradient(90deg,var(--bg2) 25%,var(--bg3) 50%,var(--bg2) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite}
 @keyframes shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+
 /* RESPONSIVE */
 @media(max-width:900px){
   .gen-layout{grid-template-columns:1fr}
@@ -327,12 +346,15 @@ a{text-decoration:none;color:inherit}
 </style>
 </head>
 <body>
+
 <div class="toast-container" id="toastContainer"></div>
+
 <!-- Image Preview Modal -->
 <div class="preview-modal" id="previewModal" onclick="closePreview()">
   <button class="preview-close" onclick="closePreview()">✕</button>
   <img id="previewImg" src="" alt="Preview">
 </div>
+
 <!-- AUTH -->
 <div class="auth-overlay" id="authOverlay">
   <div class="auth-bg-glow"></div>
@@ -390,6 +412,7 @@ a{text-decoration:none;color:inherit}
     </div>
   </div>
 </div>
+
 <!-- APP LAYOUT -->
 <div class="app-layout" id="appLayout" style="display:none">
   <!-- Sidebar -->
@@ -425,6 +448,7 @@ a{text-decoration:none;color:inherit}
       </div>
     </div>
   </aside>
+
   <!-- Main -->
   <div class="main-content">
     <div class="main-header">
@@ -436,6 +460,7 @@ a{text-decoration:none;color:inherit}
       ⚠️ E-posta adresinizi doğrulayın.
       <button onclick="resendVerification()">Tekrar Gönder</button>
     </div>
+
     <!-- PAGE: Generate -->
     <div class="main-body" id="page-generate" style="padding:0;overflow:hidden">
       <div class="gen-layout" style="height:100%">
@@ -445,6 +470,7 @@ a{text-decoration:none;color:inherit}
             <button class="gen-tab active" onclick="switchGenTab('text',this)">✍ METİN</button>
             <button class="gen-tab" onclick="switchGenTab('image',this)">🖼 GÖRSEL</button>
           </div>
+
           <!-- TEXT TO 3D -->
           <div id="genText">
             <div class="gen-section">
@@ -469,6 +495,7 @@ a{text-decoration:none;color:inherit}
             </div>
             <button class="gen-btn" id="genTextBtn" onclick="generateText()">⬡ MODEL ÜRET</button>
           </div>
+
           <!-- IMAGE TO 3D - ENHANCED MULTI UPLOAD -->
           <div id="genImage" style="display:none">
             <div class="gen-section">
@@ -482,6 +509,7 @@ a{text-decoration:none;color:inherit}
             </div>
             <button class="gen-btn" id="genImageBtn" onclick="generateImage()">⬡ GÖRSELDEN MODEL ÜRET</button>
           </div>
+
           <!-- Progress -->
           <div class="gen-progress" id="genProgress">
             <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
@@ -491,6 +519,7 @@ a{text-decoration:none;color:inherit}
             </div>
           </div>
         </div>
+
         <!-- 3D Viewer + Editor -->
         <div class="gen-viewer">
           <div class="viewer-container" id="viewerContainer">
@@ -507,6 +536,7 @@ a{text-decoration:none;color:inherit}
               <div class="ve-sub">Sol panelden metin girin veya<br>görsel yükleyerek model üretin</div>
             </div>
           </div>
+
           <!-- Enhanced Toolbar -->
           <div class="viewer-toolbar" id="viewerToolbar">
             <div class="toolbar-row">
@@ -522,6 +552,7 @@ a{text-decoration:none;color:inherit}
               <button class="tb" onclick="toggleFullscreen()">⛶</button>
               <span class="tb-info" id="viewerInfoText"></span>
             </div>
+
             <!-- Edit Panels -->
             <div class="edit-panels" id="editPanels">
               <div class="edit-panel-tabs">
@@ -531,6 +562,7 @@ a{text-decoration:none;color:inherit}
                 <button class="ept" onclick="switchEditTab('camera',this)">📷 KAMERA</button>
                 <button class="ept" onclick="switchEditTab('material',this)">🎨 MATERYAL</button>
               </div>
+
               <!-- Lighting -->
               <div class="edit-panel-body" id="epLighting">
                 <div class="ep-grid">
@@ -572,6 +604,7 @@ a{text-decoration:none;color:inherit}
                   </div>
                 </div>
               </div>
+
               <!-- Transform -->
               <div class="edit-panel-body" id="epTransform" style="display:none">
                 <div class="ep-grid">
@@ -621,6 +654,7 @@ a{text-decoration:none;color:inherit}
                   </div>
                 </div>
               </div>
+
               <!-- Background -->
               <div class="edit-panel-body" id="epBackground" style="display:none">
                 <div class="ep-grid">
@@ -654,6 +688,7 @@ a{text-decoration:none;color:inherit}
                   </div>
                 </div>
               </div>
+
               <!-- Camera -->
               <div class="edit-panel-body" id="epCamera" style="display:none">
                 <div class="ep-grid">
@@ -686,6 +721,7 @@ a{text-decoration:none;color:inherit}
                   </div>
                 </div>
               </div>
+
               <!-- Material (visual simulation) -->
               <div class="edit-panel-body" id="epMaterial" style="display:none">
                 <div class="ep-grid">
@@ -731,6 +767,7 @@ a{text-decoration:none;color:inherit}
                 </div>
               </div>
             </div>
+
             <!-- Download bar -->
             <div class="download-bar">
               <button class="tb primary" onclick="downloadModel('glb')">↓ GLB</button>
@@ -742,6 +779,7 @@ a{text-decoration:none;color:inherit}
         </div>
       </div>
     </div>
+
     <!-- PAGE: Gallery -->
     <div class="main-body" id="page-gallery" style="display:none">
       <div class="gallery-toolbar">
@@ -754,10 +792,12 @@ a{text-decoration:none;color:inherit}
       </div>
       <div class="models-grid" id="galleryGrid"></div>
     </div>
+
     <!-- PAGE: My Models -->
     <div class="main-body" id="page-mymodels" style="display:none">
       <div class="models-grid" id="myModelsGrid"></div>
     </div>
+
     <!-- PAGE: Settings -->
     <div class="main-body" id="page-settings" style="display:none">
       <div class="settings-grid">
@@ -797,6 +837,7 @@ a{text-decoration:none;color:inherit}
         </div>
       </div>
     </div>
+
     <!-- PAGE: Plans -->
     <div class="main-body" id="page-plans" style="display:none">
       <div style="text-align:center;margin-bottom:32px">
@@ -830,6 +871,7 @@ a{text-decoration:none;color:inherit}
     </div>
   </div>
 </div>
+
 <script>
 // ===== CONFIG =====
 const API = window.location.origin;
@@ -839,11 +881,13 @@ let currentTaskId = null;
 let currentStyle = 'realistic';
 let gallerySort = 'newest';
 let pollInterval = null;
+
 // ===== MULTI IMAGE STATE =====
 const MAX_IMAGES = 6;
 const SLOT_LABELS = ['ÖN GÖRÜNÜM', 'SAĞ YAN', 'ARKA GÖRÜNÜM', 'SOL YAN', 'ÜST GÖRÜNÜM', 'DETAY'];
 let imageSlots = new Array(MAX_IMAGES).fill(null); // {file, dataUrl}
 let primarySlot = 0;
+
 // ===== EDITOR STATE =====
 let editorState = {
   autoRotate: true, shadow: false, grid: false, axes: false, modelInfo: false,
@@ -852,6 +896,7 @@ let editorState = {
   bgColor: '#04080a', rotSpeed: 30, fov: 30,
   brightness: 100, contrast: 100, saturate: 100, hueRotate: 0, sepia: 0, invert: 0
 };
+
 // ===== TOAST =====
 function toast(msg, type='info') {
   const c = document.getElementById('toastContainer');
@@ -862,6 +907,7 @@ function toast(msg, type='info') {
   c.appendChild(t);
   setTimeout(() => { t.style.opacity='0'; t.style.transform='translateX(40px)'; setTimeout(()=>t.remove(),300); }, 4000);
 }
+
 // ===== AUTH =====
 function switchAuth(tab) {
   document.getElementById('loginForm').style.display = tab==='login' ? 'block' : 'none';
@@ -948,6 +994,7 @@ function doLogout() {
   document.getElementById('appLayout').style.display='none';
   switchAuth('login'); toast('Çıkış yapıldı','info');
 }
+
 // ===== APP =====
 function enterApp() {
   document.getElementById('authOverlay').classList.add('hidden');
@@ -997,6 +1044,7 @@ async function loadUserData() {
     updateSidebar(); checkVerification();
   } catch(e) { console.log('Load error', e); }
 }
+
 // ===== NAVIGATION =====
 function navigateTo(page) {
   document.querySelectorAll('.main-body').forEach(p=>p.style.display='none');
@@ -1011,6 +1059,7 @@ function navigateTo(page) {
   document.getElementById('sidebar').classList.remove('open');
 }
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+
 // ===== GENERATE TABS =====
 function switchGenTab(tab, btn) {
   document.getElementById('genText').style.display = tab==='text'?'block':'none';
@@ -1026,6 +1075,7 @@ function selectStyle(el, style) {
 function updateCharCount() {
   document.getElementById('charCount').textContent = document.getElementById('promptInput').value.length;
 }
+
 // ===== MULTI IMAGE UPLOAD =====
 function initImageSlots() {
   renderImageSlots();
@@ -1040,6 +1090,7 @@ function initImageSlots() {
     });
   }
 }
+
 function renderImageSlots() {
   const container = document.getElementById('imgSlots');
   let html = '';
@@ -1083,9 +1134,11 @@ function renderImageSlots() {
   const count = imageSlots.filter(s=>s!==null).length;
   document.getElementById('uploadInfo').innerHTML = `<span>${count}</span> / ${MAX_IMAGES} görsel · ★ işaretli görsel model üretiminde kullanılır`;
 }
+
 function clickSlot(i) {
   document.getElementById('fInput'+i).click();
 }
+
 function handleSlotFile(i, event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -1099,6 +1152,7 @@ function handleSlotFile(i, event) {
   };
   reader.readAsDataURL(file);
 }
+
 function handleBulkUpload(event) {
   const files = Array.from(event.target.files||[]);
   let added = 0;
@@ -1120,6 +1174,7 @@ function handleBulkUpload(event) {
   if (added>0) toast(`${added} görsel eklendi`,'success');
   else if (files.length>0) toast('Tüm slotlar dolu','info');
 }
+
 function removeImage(i, event) {
   event.stopPropagation();
   imageSlots[i] = null;
@@ -1131,12 +1186,14 @@ function removeImage(i, event) {
   }
   renderImageSlots();
 }
+
 function makePrimary(i, event) {
   event.stopPropagation();
   primarySlot = i;
   renderImageSlots();
   toast('Ana görsel değiştirildi','info');
 }
+
 function previewImage(i, event) {
   event.stopPropagation();
   if (!imageSlots[i]) return;
@@ -1146,6 +1203,7 @@ function previewImage(i, event) {
 function closePreview() {
   document.getElementById('previewModal').classList.remove('active');
 }
+
 // ===== GENERATE =====
 async function generateText() {
   const prompt = document.getElementById('promptInput').value.trim();
@@ -1164,6 +1222,7 @@ async function generateText() {
     toast('Model üretimi başlatıldı!','success');
   } catch(err) { toast(err.message,'error'); resetGenBtn(); }
 }
+
 async function generateImage() {
   const count = imageSlots.filter(s=>s).length;
   if (count===0) { toast('En az 1 görsel yükleyin','error'); return; }
@@ -1184,6 +1243,7 @@ async function generateImage() {
     toast(`Model üretimi başlatıldı! (${count} referans)`,'success');
   } catch(err) { toast(err.message,'error'); resetGenBtn(); }
 }
+
 function showProgress() {
   document.getElementById('genProgress').classList.add('active');
   document.getElementById('progressFill').style.width='0%';
@@ -1219,8 +1279,10 @@ function startPolling() {
     } catch(e) { console.log('Poll error',e); }
   }, 2000);
 }
+
 // ===== 3D VIEWER =====
 function getViewer() { return document.querySelector('#viewerContainer model-viewer'); }
+
 function showModel(taskId, isDemo) {
   const container = document.getElementById('viewerContainer');
   const empty = document.getElementById('viewerEmpty');
@@ -1256,6 +1318,7 @@ function showModel(taskId, isDemo) {
     }
   });
 }
+
 // ===== EDITING TOOLS =====
 function toggleAutoRotate() {
   editorState.autoRotate = !editorState.autoRotate;
@@ -1296,6 +1359,7 @@ function switchEditTab(tab, btn) {
   document.querySelectorAll('.ept').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
 }
+
 // Lighting
 function setExposure(val) {
   editorState.exposure=parseFloat(val);
@@ -1319,6 +1383,7 @@ function setEnvironment(val) {
 function setToneMapping(val) {
   const v=getViewer(); if(v) v.setAttribute('tone-mapping',val);
 }
+
 // Transform
 function setScale(val) {
   editorState.scale=parseFloat(val);
@@ -1340,6 +1405,7 @@ function buildTransform() {
   const s=editorState;
   return `scale(${s.scale}) translate(${s.posX*50}px,${s.posY*-50}px) rotateX(${s.rotX}deg) rotateY(${s.rotY}deg) rotateZ(${s.rotZ}deg)`;
 }
+
 // Background
 function setBg(color, el) {
   editorState.bgColor=color;
@@ -1353,6 +1419,7 @@ function setBgGrad(c1, c2, el) {
   document.querySelectorAll('.cswatch').forEach(s=>s.classList.remove('on'));
   if(el) el.classList.add('on');
 }
+
 // Camera
 function setRotSpeed(val) {
   editorState.rotSpeed=parseInt(val);
@@ -1393,6 +1460,7 @@ function resetCamera() {
   resetFilters();
   toast('Kamera sıfırlandı','info');
 }
+
 // Material / Filters
 function setFilter(prop, val) {
   editorState[prop==='hue-rotate'?'hueRotate':prop]=parseInt(val);
@@ -1423,6 +1491,7 @@ function resetFilters() {
   });
   toast('Filtreler sıfırlandı','info');
 }
+
 // Screenshot
 function takeScreenshot() {
   const v = getViewer();
@@ -1438,18 +1507,21 @@ function takeScreenshot() {
     toast('Screenshot alınamadı','error');
   }
 }
+
 // Fullscreen
 function toggleFullscreen() {
   const c = document.getElementById('viewerContainer');
   if (document.fullscreenElement) document.exitFullscreen();
   else c.requestFullscreen().catch(()=>toast('Tam ekran kullanılamıyor','error'));
 }
+
 // Download
 function downloadModel(format) {
   if (!currentTaskId) { toast('İndirilecek model yok','error'); return; }
   window.open(API+'/api/model/'+currentTaskId+'/'+format,'_blank');
   toast(format.toUpperCase()+' indiriliyor...','info');
 }
+
 // ===== GALLERY =====
 function setGallerySort(sort, btn) {
   gallerySort=sort;
@@ -1506,6 +1578,7 @@ async function likeModel(id, btn) {
     btn.classList.toggle('liked',d.liked);
   } catch(e) { toast('Giriş yapın','error'); }
 }
+
 // ===== MY MODELS =====
 async function loadMyModels() {
   const grid = document.getElementById('myModelsGrid');
@@ -1547,6 +1620,7 @@ async function deleteModel(id, btn) {
     if (res.ok) { btn.closest('.model-card').remove(); toast('Model silindi','success'); loadUserData(); }
   } catch(e) { toast('Silme başarısız','error'); }
 }
+
 // ===== SETTINGS =====
 function switchSettingsTab(tab, btn) {
   document.getElementById('settingsProfile').style.display = tab==='profile'?'block':'none';
@@ -1571,6 +1645,7 @@ async function saveProfile() {
     document.getElementById('settingsPass').value='';
   } catch(e) { toast(e.message,'error'); }
 }
+
 // ===== PLANS =====
 async function upgradePlan(plan) {
   if (!confirm(plan.toUpperCase()+' planına geçmek istiyor musunuz?')) return;
@@ -1585,6 +1660,7 @@ async function upgradePlan(plan) {
     }
   } catch(e) { toast('Plan yükseltme başarısız','error'); }
 }
+
 // ===== INIT =====
 async function init() {
   const params = new URLSearchParams(window.location.search);
