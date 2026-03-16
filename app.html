@@ -94,7 +94,7 @@ a{text-decoration:none;color:inherit}
 .verify-banner.hidden{display:none}
 .verify-banner button{background:rgba(255,152,0,.15);border:1px solid rgba(255,152,0,.3);color:var(--orange);padding:4px 14px;font-family:'DM Mono',monospace;font-size:9px;cursor:pointer;letter-spacing:.1em;margin-left:auto}
 /* ===== GENERATE PAGE ===== */
-.gen-layout{display:grid;grid-template-columns:380px 1fr;gap:0;height:100%;min-height:0}
+.gen-layout{display:grid;grid-template-columns:400px 1fr;gap:0;height:100%;min-height:0}
 .gen-panel{background:var(--bg2);border-right:1px solid var(--border);padding:24px;overflow-y:auto}
 .gen-viewer{display:flex;flex-direction:column;background:var(--bg);min-height:0}
 .gen-tabs{display:flex;gap:0;margin-bottom:20px;border:1px solid var(--border)}
@@ -117,17 +117,34 @@ a{text-decoration:none;color:inherit}
 .gen-btn:disabled{opacity:.5;cursor:not-allowed}
 .gen-btn.generating{background:var(--bg3);color:var(--accent);border:1px solid var(--accent);animation:genPulse 2s infinite}
 @keyframes genPulse{0%,100%{box-shadow:0 0 0 0 rgba(0,229,255,.2)}50%{box-shadow:0 0 20px 4px rgba(0,229,255,.1)}}
-/* Upload Area */
-.upload-area{border:2px dashed var(--border);padding:40px 20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--card);position:relative}
-.upload-area:hover,.upload-area.dragover{border-color:var(--accent);background:rgba(0,229,255,.02)}
-.upload-area .upload-icon{font-size:36px;margin-bottom:12px;opacity:.5}
-.upload-area .upload-text{font-size:11px;color:var(--muted);line-height:1.8}
-.upload-area .upload-text span{color:var(--accent)}
-.upload-area input{position:absolute;inset:0;opacity:0;cursor:pointer}
-.upload-preview{margin-top:12px;display:none}
-.upload-preview img{max-height:160px;border:1px solid var(--border)}
-.upload-preview .file-info{font-size:9px;color:var(--muted);margin-top:8px}
-.upload-clear{font-size:9px;color:var(--red);cursor:pointer;margin-top:6px;background:none;border:none;font-family:'DM Mono',monospace}
+/* ===== MULTI IMAGE UPLOAD ===== */
+.multi-upload-area{border:2px dashed var(--border);padding:28px 16px;text-align:center;cursor:pointer;transition:all .2s;background:var(--card);position:relative;min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.multi-upload-area:hover,.multi-upload-area.dragover{border-color:var(--accent);background:rgba(0,229,255,.02)}
+.multi-upload-area input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.multi-upload-area .upload-icon{font-size:32px;margin-bottom:10px;opacity:.5}
+.multi-upload-area .upload-text{font-size:11px;color:var(--muted);line-height:1.8}
+.multi-upload-area .upload-text span{color:var(--accent)}
+.image-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
+.image-slot{position:relative;aspect-ratio:1;border:1px solid var(--border);background:var(--card);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;overflow:hidden;border-radius:4px}
+.image-slot:hover{border-color:rgba(0,229,255,.3)}
+.image-slot.has-image{border-color:rgba(0,229,255,.2)}
+.image-slot.primary{border-color:var(--accent);box-shadow:0 0 12px rgba(0,229,255,.15)}
+.image-slot img{width:100%;height:100%;object-fit:cover}
+.image-slot .slot-placeholder{color:var(--muted);font-size:24px;opacity:.3}
+.image-slot .slot-label{position:absolute;bottom:0;left:0;right:0;padding:4px;background:rgba(4,8,10,.85);font-size:8px;letter-spacing:.1em;color:var(--muted);text-align:center}
+.image-slot.primary .slot-label{color:var(--accent);background:rgba(0,229,255,.1)}
+.image-slot .slot-remove{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:rgba(255,68,102,.85);color:#fff;border:none;font-size:11px;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1}
+.image-slot.has-image .slot-remove{display:flex}
+.image-slot .slot-primary-btn{position:absolute;top:4px;left:4px;padding:2px 6px;background:rgba(0,229,255,.2);border:1px solid rgba(0,229,255,.3);color:var(--accent);font-size:7px;letter-spacing:.08em;cursor:pointer;display:none;font-family:'DM Mono',monospace;border-radius:2px}
+.image-slot.has-image:not(.primary) .slot-primary-btn{display:block}
+.image-count-info{font-size:9px;color:var(--muted);margin-top:8px;text-align:center}
+.image-count-info span{color:var(--accent)}
+/* ===== UPLOAD COMPACT (for adding more) ===== */
+.add-image-slot{border:1px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;position:relative;border-radius:4px;transition:all .2s}
+.add-image-slot:hover{border-color:var(--accent);background:rgba(0,229,255,.02)}
+.add-image-slot input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.add-image-slot .add-icon{font-size:20px;color:var(--muted);opacity:.5}
+.add-image-slot .add-text{font-size:8px;color:var(--muted);letter-spacing:.1em}
 /* Progress */
 .gen-progress{display:none;margin-top:16px}
 .gen-progress.active{display:block}
@@ -135,19 +152,42 @@ a{text-decoration:none;color:inherit}
 .progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:3px;transition:width .5s;width:0%}
 .progress-text{font-size:10px;color:var(--muted);display:flex;justify-content:space-between}
 .progress-step{color:var(--accent)}
-/* 3D Viewer */
-.viewer-container{flex:1;display:flex;align-items:center;justify-content:center;position:relative;background:var(--bg);min-height:300px}
+/* ===== 3D VIEWER ===== */
+.viewer-container{flex:1;display:flex;align-items:center;justify-content:center;position:relative;background:var(--bg);min-height:300px;transition:background .3s}
 .viewer-container model-viewer{width:100%;height:100%;min-height:400px;background:transparent;--poster-color:transparent}
 .viewer-empty{text-align:center;color:var(--muted)}
 .viewer-empty .ve-icon{font-size:64px;opacity:.2;margin-bottom:16px}
 .viewer-empty .ve-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px}
 .viewer-empty .ve-sub{font-size:11px;line-height:1.8}
-.viewer-toolbar{padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--bg2)}
-.vt-btn{padding:8px 16px;background:var(--card);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px}
+/* ===== EDITING TOOLBAR ===== */
+.viewer-toolbar{border-top:1px solid var(--border);background:var(--bg2);display:none;flex-direction:column}
+.viewer-toolbar.active{display:flex}
+.toolbar-main{padding:10px 20px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--border)}
+.vt-btn{padding:7px 14px;background:var(--card);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.08em;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px;border-radius:3px}
 .vt-btn:hover{border-color:var(--accent);color:var(--accent)}
+.vt-btn.active{background:rgba(0,229,255,.08);border-color:var(--accent);color:var(--accent)}
 .vt-btn.primary{background:var(--accent);color:#04080a;border-color:var(--accent)}
 .vt-btn.primary:hover{background:var(--accent2)}
+.vt-sep{width:1px;height:24px;background:var(--border);margin:0 4px}
 .vt-info{margin-left:auto;font-size:9px;color:var(--muted)}
+/* Editing Panel */
+.edit-panel{display:none;padding:12px 20px;gap:20px;border-bottom:1px solid var(--border);background:var(--bg3)}
+.edit-panel.active{display:flex;flex-wrap:wrap}
+.edit-group{display:flex;flex-direction:column;gap:6px;min-width:120px}
+.edit-group-title{font-size:8px;letter-spacing:.15em;color:var(--accent);text-transform:uppercase}
+.edit-row{display:flex;align-items:center;gap:8px}
+.edit-label{font-size:9px;color:var(--muted);min-width:50px}
+.edit-slider{-webkit-appearance:none;appearance:none;height:4px;background:var(--border);border-radius:2px;outline:none;cursor:pointer;flex:1;min-width:80px}
+.edit-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg)}
+.edit-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--bg)}
+.edit-value{font-size:9px;color:var(--text);min-width:30px;text-align:right;font-family:'DM Mono',monospace}
+.color-pick-row{display:flex;gap:6px;align-items:center}
+.color-swatch{width:22px;height:22px;border:1px solid var(--border);border-radius:3px;cursor:pointer;transition:all .15s;position:relative}
+.color-swatch:hover{border-color:var(--accent);transform:scale(1.1)}
+.color-swatch.active{border-color:var(--accent);box-shadow:0 0 8px rgba(0,229,255,.3)}
+.color-swatch input[type="color"]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+/* Download bar */
+.download-bar{padding:10px 20px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 /* ===== GALLERY PAGE ===== */
 .gallery-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)}
 .search-box{display:flex;align-items:center;gap:8px;border:1px solid var(--border);background:var(--card);padding:9px 14px;flex:1;max-width:320px;transition:border-color .2s}
@@ -253,6 +293,7 @@ a{text-decoration:none;color:inherit}
   .settings-body{padding:20px 0}
   .plans-grid{grid-template-columns:1fr}
   .usage-stat-grid{grid-template-columns:1fr}
+  .edit-panel.active{flex-direction:column}
 }
 @media(max-width:768px){
   .sidebar{position:fixed;left:0;top:0;bottom:0;z-index:1000;transform:translateX(-100%)}
@@ -261,6 +302,7 @@ a{text-decoration:none;color:inherit}
   .main-body{padding:16px}
   .models-grid{grid-template-columns:1fr}
   .settings-form-row{grid-template-columns:1fr}
+  .image-grid{grid-template-columns:repeat(2,1fr)}
 }
 </style>
 </head>
@@ -420,10 +462,11 @@ a{text-decoration:none;color:inherit}
     <!-- PAGE: Generate -->
     <div class="main-body" id="page-generate" style="padding:0;overflow:hidden">
       <div class="gen-layout" style="height:100%">
+        <!-- Left Panel -->
         <div class="gen-panel">
           <div class="gen-tabs">
-            <button class="gen-tab active" onclick="switchGenTab('text')">✍ METİN</button>
-            <button class="gen-tab" onclick="switchGenTab('image')">🖼 GÖRSEL</button>
+            <button class="gen-tab active" onclick="switchGenTab('text',this)">✍ METİN</button>
+            <button class="gen-tab" onclick="switchGenTab('image',this)">🖼 GÖRSEL</button>
           </div>
           <!-- Text to 3D -->
           <div id="genText">
@@ -459,22 +502,48 @@ a{text-decoration:none;color:inherit}
               ⬡ MODEL ÜRET
             </button>
           </div>
-          <!-- Image to 3D -->
+          <!-- Image to 3D — MULTI UPLOAD -->
           <div id="genImage" style="display:none">
             <div class="gen-section">
-              <div class="gen-section-title">GÖRSEL YÜKLE</div>
-              <div class="upload-area" id="uploadArea">
-                <input type="file" accept="image/jpeg,image/png,image/webp" id="imageInput" onchange="handleImageSelect(event)">
-                <div class="upload-icon">🖼</div>
-                <div class="upload-text">
-                  Görseli sürükle-bırak veya <span>tıklayarak seç</span><br>
-                  JPG, PNG, WEBP · Max 10MB
+              <div class="gen-section-title">GÖRSELLER YÜKLE (1-4 adet)</div>
+              
+              <!-- Image Grid -->
+              <div class="image-grid" id="imageGrid">
+                <!-- Slot 1 - Primary -->
+                <div class="image-slot" id="slot0" onclick="triggerSlotUpload(0)">
+                  <span class="slot-placeholder">+</span>
+                  <div class="slot-label">ANA GÖRSEL</div>
+                </div>
+                <!-- Slot 2 -->
+                <div class="image-slot" id="slot1" onclick="triggerSlotUpload(1)">
+                  <span class="slot-placeholder">+</span>
+                  <div class="slot-label">YAN GÖRÜNÜM</div>
+                </div>
+                <!-- Slot 3 -->
+                <div class="image-slot" id="slot2" onclick="triggerSlotUpload(2)">
+                  <span class="slot-placeholder">+</span>
+                  <div class="slot-label">ARKA GÖRÜNÜM</div>
+                </div>
+                <!-- Slot 4 -->
+                <div class="image-slot" id="slot3" onclick="triggerSlotUpload(3)">
+                  <span class="slot-placeholder">+</span>
+                  <div class="slot-label">DETAY</div>
                 </div>
               </div>
-              <div class="upload-preview" id="uploadPreview">
-                <img id="previewImg" src="" alt="preview">
-                <div class="file-info" id="fileInfo"></div>
-                <button class="upload-clear" onclick="clearUpload()">✕ Görseli Kaldır</button>
+              <!-- Hidden file inputs -->
+              <input type="file" id="fileInput0" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="handleSlotImage(0,event)">
+              <input type="file" id="fileInput1" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="handleSlotImage(1,event)">
+              <input type="file" id="fileInput2" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="handleSlotImage(2,event)">
+              <input type="file" id="fileInput3" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="handleSlotImage(3,event)">
+              <div class="image-count-info" id="imageCountInfo">
+                <span>0</span> / 4 görsel yüklendi · Ana görsel model üretiminde kullanılır
+              </div>
+              <!-- Drag & Drop overlay -->
+              <div class="multi-upload-area" id="multiDropZone" style="margin-top:10px;padding:16px 12px;min-height:auto">
+                <input type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="handleMultiDrop(event)">
+                <div class="upload-text" style="font-size:10px">
+                  Sürükle-bırak ile <span>toplu yükle</span> · JPG, PNG, WEBP · Max 10MB
+                </div>
               </div>
             </div>
             <button class="gen-btn" id="genImageBtn" onclick="generateImage()">
@@ -492,7 +561,7 @@ a{text-decoration:none;color:inherit}
             </div>
           </div>
         </div>
-        <!-- 3D Viewer -->
+        <!-- 3D Viewer + Editing Tools -->
         <div class="gen-viewer">
           <div class="viewer-container" id="viewerContainer">
             <div class="viewer-empty" id="viewerEmpty">
@@ -501,11 +570,83 @@ a{text-decoration:none;color:inherit}
               <div class="ve-sub">Sol panelden metin girin veya<br>görsel yükleyerek model üretin</div>
             </div>
           </div>
-          <div class="viewer-toolbar" id="viewerToolbar" style="display:none">
-            <button class="vt-btn primary" onclick="downloadModel('glb')">↓ GLB</button>
-            <button class="vt-btn" onclick="downloadModel('stl')">↓ STL</button>
-            <button class="vt-btn" onclick="downloadModel('obj')">↓ OBJ</button>
-            <span class="vt-info" id="viewerInfo"></span>
+          <!-- Enhanced Toolbar -->
+          <div class="viewer-toolbar" id="viewerToolbar">
+            <!-- Main toolbar buttons -->
+            <div class="toolbar-main">
+              <button class="vt-btn" id="btnWireframe" onclick="toggleWireframe()" title="Tel Kafes">◇ Wireframe</button>
+              <button class="vt-btn active" id="btnAutoRotate" onclick="toggleAutoRotate()" title="Otomatik Döndür">↻ Döndür</button>
+              <button class="vt-btn" id="btnShadow" onclick="toggleShadow()" title="Gölge">◐ Gölge</button>
+              <div class="vt-sep"></div>
+              <button class="vt-btn" id="btnEditPanel" onclick="toggleEditPanel()" title="Düzenleme Araçları">⚙ Düzenle</button>
+              <button class="vt-btn" onclick="resetCamera()" title="Kamerayı Sıfırla">⊞ Sıfırla</button>
+              <button class="vt-btn" onclick="toggleFullscreen()" title="Tam Ekran">⛶ Tam Ekran</button>
+              <span class="vt-info" id="viewerInfo"></span>
+            </div>
+            <!-- Editing Panel (toggle) -->
+            <div class="edit-panel" id="editPanel">
+              <!-- Exposure -->
+              <div class="edit-group">
+                <div class="edit-group-title">AYDINLATMA</div>
+                <div class="edit-row">
+                  <span class="edit-label">Işık</span>
+                  <input type="range" class="edit-slider" id="sliderExposure" min="0" max="3" step="0.1" value="1" oninput="updateExposure(this.value)">
+                  <span class="edit-value" id="valExposure">1.0</span>
+                </div>
+                <div class="edit-row">
+                  <span class="edit-label">Gölge</span>
+                  <input type="range" class="edit-slider" id="sliderShadowIntensity" min="0" max="2" step="0.1" value="1" oninput="updateShadowIntensity(this.value)">
+                  <span class="edit-value" id="valShadow">1.0</span>
+                </div>
+              </div>
+              <!-- Scale -->
+              <div class="edit-group">
+                <div class="edit-group-title">BOYUT & DÖNDÜRME</div>
+                <div class="edit-row">
+                  <span class="edit-label">Ölçek</span>
+                  <input type="range" class="edit-slider" id="sliderScale" min="0.1" max="3" step="0.1" value="1" oninput="updateScale(this.value)">
+                  <span class="edit-value" id="valScale">1.0x</span>
+                </div>
+                <div class="edit-row">
+                  <span class="edit-label">Hız</span>
+                  <input type="range" class="edit-slider" id="sliderRotSpeed" min="0" max="120" step="5" value="30" oninput="updateRotationSpeed(this.value)">
+                  <span class="edit-value" id="valRotSpeed">30°/s</span>
+                </div>
+              </div>
+              <!-- Background Color -->
+              <div class="edit-group">
+                <div class="edit-group-title">ARKA PLAN</div>
+                <div class="color-pick-row">
+                  <div class="color-swatch active" style="background:#04080a" onclick="setBgColor('#04080a',this)"></div>
+                  <div class="color-swatch" style="background:#111827" onclick="setBgColor('#111827',this)"></div>
+                  <div class="color-swatch" style="background:#1a1a2e" onclick="setBgColor('#1a1a2e',this)"></div>
+                  <div class="color-swatch" style="background:#1e3a5f" onclick="setBgColor('#1e3a5f',this)"></div>
+                  <div class="color-swatch" style="background:#2d1b69" onclick="setBgColor('#2d1b69',this)"></div>
+                  <div class="color-swatch" style="background:#ffffff" onclick="setBgColor('#ffffff',this)"></div>
+                  <div class="color-swatch" style="background:linear-gradient(135deg,#ff0000,#00ff00,#0000ff);border-color:var(--accent2)" title="Özel Renk">
+                    <input type="color" value="#04080a" onchange="setBgColor(this.value,this.parentElement)">
+                  </div>
+                </div>
+              </div>
+              <!-- Environment -->
+              <div class="edit-group">
+                <div class="edit-group-title">ORTAM</div>
+                <div class="edit-row">
+                  <select id="envSelect" onchange="setEnvironment(this.value)" style="background:var(--card);border:1px solid var(--border);color:var(--text);padding:6px 10px;font-family:'DM Mono',monospace;font-size:9px;width:100%;border-radius:3px">
+                    <option value="neutral">Nötr</option>
+                    <option value="legacy">Legacy</option>
+                    <option value="">Yok</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <!-- Download bar -->
+            <div class="download-bar">
+              <button class="vt-btn primary" onclick="downloadModel('glb')">↓ GLB İndir</button>
+              <button class="vt-btn" onclick="downloadModel('stl')">↓ STL</button>
+              <button class="vt-btn" onclick="downloadModel('obj')">↓ OBJ</button>
+              <span class="vt-info" id="downloadInfo"></span>
+            </div>
           </div>
         </div>
       </div>
@@ -538,11 +679,9 @@ a{text-decoration:none;color:inherit}
           <div class="settings-nav-item" onclick="switchSettingsTab('billing',this)">Faturalama</div>
         </div>
         <div class="settings-body">
-          <!-- Profile -->
           <div id="settingsProfile" class="settings-section">
             <div class="settings-title">Profil Bilgileri</div>
             <div class="settings-desc">Hesap bilgilerinizi güncelleyin</div>
-            <div id="settingsMsg" class="msg-box" style="max-width:500px"></div>
             <div class="settings-form-row full">
               <div class="form-group"><label class="form-label">AD SOYAD</label><input class="form-input" type="text" id="settingsName"></div>
             </div>
@@ -557,7 +696,6 @@ a{text-decoration:none;color:inherit}
               <button class="btn-danger" onclick="doLogout()">ÇIKIŞ YAP</button>
             </div>
           </div>
-          <!-- Usage -->
           <div id="settingsUsage" class="settings-section" style="display:none">
             <div class="settings-title">Kullanım İstatistikleri</div>
             <div class="settings-desc">Bu ayki kullanımınız</div>
@@ -574,7 +712,6 @@ a{text-decoration:none;color:inherit}
               <div class="plan-badge-tag" id="usagePlanBadge">FREE</div>
             </div>
           </div>
-          <!-- Billing -->
           <div id="settingsBilling" class="settings-section" style="display:none">
             <div class="settings-title">Faturalama</div>
             <div class="settings-desc">Plan ve ödeme bilgileriniz</div>
@@ -602,11 +739,8 @@ a{text-decoration:none;color:inherit}
           <div class="plan-price">₺0<span>/ay</span></div>
           <div class="plan-period">Kredi kartı gerekmez</div>
           <ul class="plan-features">
-            <li>5 model/ay</li>
-            <li>GLB indirme</li>
-            <li>Galeri erişimi</li>
-            <li class="off">STL & OBJ indirme</li>
-            <li class="off">Öncelikli işleme</li>
+            <li>5 model/ay</li><li>GLB indirme</li><li>Galeri erişimi</li>
+            <li class="off">STL & OBJ indirme</li><li class="off">Öncelikli işleme</li>
           </ul>
           <button class="plan-btn" id="planFreeBtn">MEVCUT PLAN</button>
         </div>
@@ -616,24 +750,18 @@ a{text-decoration:none;color:inherit}
           <div class="plan-price">₺299<span>/ay</span></div>
           <div class="plan-period">Yıllık ödemede %20 indirim</div>
           <ul class="plan-features">
-            <li>100 model/ay</li>
-            <li>GLB, STL & OBJ indirme</li>
-            <li>Galeri erişimi</li>
-            <li>Öncelikli işleme</li>
-            <li class="off">API erişimi</li>
+            <li>100 model/ay</li><li>GLB, STL & OBJ indirme</li><li>Galeri erişimi</li>
+            <li>Öncelikli işleme</li><li class="off">API erişimi</li>
           </ul>
-          <button class="plan-btn highlight" onclick="upgradePlan('pro')">PRO'YA GEÇŞ →</button>
+          <button class="plan-btn highlight" onclick="upgradePlan('pro')">PRO'YA GEÇ →</button>
         </div>
         <div class="plan-box">
           <div class="plan-tier">İŞLETME</div>
           <div class="plan-price">₺899<span>/ay</span></div>
           <div class="plan-period">Tüm özellikler dahil</div>
           <ul class="plan-features">
-            <li>Sınırsız model</li>
-            <li>GLB, STL & OBJ indirme</li>
-            <li>Galeri erişimi</li>
-            <li>Öncelikli işleme</li>
-            <li>API erişimi</li>
+            <li>Sınırsız model</li><li>GLB, STL & OBJ indirme</li><li>Galeri erişimi</li>
+            <li>Öncelikli işleme</li><li>API erişimi</li>
           </ul>
           <button class="plan-btn" onclick="upgradePlan('business')">İŞLETME'YE GEÇ</button>
         </div>
@@ -650,7 +778,21 @@ let currentTaskId = null;
 let currentStyle = 'realistic';
 let gallerySort = 'newest';
 let pollInterval = null;
-let selectedFile = null;
+// ===== MULTI IMAGE STATE =====
+const imageSlots = [null, null, null, null]; // { file, dataUrl }
+let primarySlot = 0;
+// ===== EDITOR STATE =====
+let editorState = {
+    wireframe: false,
+    autoRotate: true,
+    shadow: false,
+    exposure: 1,
+    shadowIntensity: 1,
+    scale: 1,
+    rotSpeed: 30,
+    bgColor: '#04080a',
+    environment: 'neutral'
+};
 // ===== TOAST =====
 function toast(message, type = 'info') {
     const container = document.getElementById('toastContainer');
@@ -679,8 +821,7 @@ function showAuthMsg(msg, type = 'error') {
     el.style.display = 'block';
 }
 function clearAuthMsg() {
-    const el = document.getElementById('authMsg');
-    el.style.display = 'none';
+    document.getElementById('authMsg').style.display = 'none';
 }
 async function doLogin() {
     const email = document.getElementById('loginEmail').value.trim();
@@ -830,7 +971,6 @@ async function loadUserData() {
         const data = await res.json();
         currentUser = data.user;
         localStorage.setItem('pf_user', JSON.stringify(data.user));
-        // Update usage
         const usage = data.usage || {};
         const used = usage.used || 0;
         const limit = usage.limit || 5;
@@ -838,16 +978,13 @@ async function loadUserData() {
         document.getElementById('usageText').textContent = `${used} / ${limit}`;
         document.getElementById('usageFill').style.width = Math.min(100, (used / limit) * 100) + '%';
         document.getElementById('usageRemain').textContent = `${remain} model kaldı`;
-        // Update stats
         const stats = data.stats || {};
         document.getElementById('statModels').textContent = stats.models || 0;
         document.getElementById('statLikes').textContent = stats.likes || 0;
         document.getElementById('statDownloads').textContent = stats.downloads || 0;
         document.getElementById('myModelCount').textContent = stats.models || 0;
-        // Update settings
         document.getElementById('settingsName').value = currentUser.name || '';
         document.getElementById('settingsEmail').value = currentUser.email || '';
-        // Update plan info
         const planNames = { free: 'Free', pro: 'Pro', business: 'Business' };
         const planLimits = { free: '5 model/ay', pro: '100 model/ay', business: 'Sınırsız' };
         document.getElementById('usagePlanName').textContent = planNames[currentUser.plan] || 'Free';
@@ -863,31 +1000,26 @@ async function loadUserData() {
 }
 // ===== NAVIGATION =====
 function navigateTo(page) {
-    // Hide all pages
     document.querySelectorAll('.main-body').forEach(p => p.style.display = 'none');
     document.getElementById('page-' + page).style.display = page === 'generate' ? '' : 'block';
-    // Update sidebar
     document.querySelectorAll('.sb-item').forEach(i => i.classList.remove('active'));
     const item = document.querySelector(`.sb-item[data-page="${page}"]`);
     if (item) item.classList.add('active');
-    // Update header
     const titles = { generate: 'Model Üret', gallery: 'Galeri', mymodels: 'Modellerim', settings: 'Ayarlar', plans: 'Planlar' };
     document.getElementById('pageTitle').textContent = titles[page] || '';
-    // Load data
     if (page === 'gallery') loadGallery();
     if (page === 'mymodels') loadMyModels();
-    // Close mobile sidebar
     document.getElementById('sidebar').classList.remove('open');
 }
 function toggleSidebar() {
     document.getElementById('sidebar').classList.toggle('open');
 }
-// ===== GENERATE: TEXT =====
-function switchGenTab(tab) {
+// ===== GENERATE: TABS =====
+function switchGenTab(tab, btn) {
     document.getElementById('genText').style.display = tab === 'text' ? 'block' : 'none';
     document.getElementById('genImage').style.display = tab === 'image' ? 'block' : 'none';
     document.querySelectorAll('.gen-tab').forEach(t => t.classList.remove('active'));
-    event.target.classList.add('active');
+    if (btn) btn.classList.add('active');
 }
 function selectStyle(el, style) {
     currentStyle = style;
@@ -898,6 +1030,122 @@ function updateCharCount() {
     const count = document.getElementById('promptInput').value.length;
     document.getElementById('charCount').textContent = count;
 }
+// ===== MULTI IMAGE UPLOAD =====
+function triggerSlotUpload(slotIndex) {
+    if (imageSlots[slotIndex]) return; // Already has image, use remove button
+    document.getElementById('fileInput' + slotIndex).click();
+}
+function handleSlotImage(slotIndex, event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { toast('Dosya çok büyük (max 10MB)', 'error'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        imageSlots[slotIndex] = { file: file, dataUrl: ev.target.result };
+        renderImageSlots();
+        // First image becomes primary automatically
+        if (getImageCount() === 1) {
+            primarySlot = slotIndex;
+        }
+        renderImageSlots();
+    };
+    reader.readAsDataURL(file);
+}
+function handleMultiDrop(event) {
+    const files = Array.from(event.target.files || []);
+    let added = 0;
+    for (const file of files) {
+        if (added >= 4) break;
+        if (file.size > 10 * 1024 * 1024) continue;
+        // Find empty slot
+        const emptyIdx = imageSlots.findIndex(s => s === null);
+        if (emptyIdx === -1) break;
+        
+        const reader = new FileReader();
+        const idx = emptyIdx;
+        reader.onload = (ev) => {
+            imageSlots[idx] = { file: file, dataUrl: ev.target.result };
+            if (getImageCount() === 1) primarySlot = idx;
+            renderImageSlots();
+        };
+        reader.readAsDataURL(file);
+        added++;
+    }
+    event.target.value = '';
+    if (added > 0) toast(`${added} görsel eklendi`, 'success');
+}
+function removeSlotImage(slotIndex, event) {
+    event.stopPropagation();
+    imageSlots[slotIndex] = null;
+    document.getElementById('fileInput' + slotIndex).value = '';
+    // If removed primary, set new primary
+    if (primarySlot === slotIndex) {
+        const nextFilled = imageSlots.findIndex(s => s !== null);
+        primarySlot = nextFilled >= 0 ? nextFilled : 0;
+    }
+    renderImageSlots();
+}
+function setPrimarySlot(slotIndex, event) {
+    event.stopPropagation();
+    primarySlot = slotIndex;
+    renderImageSlots();
+    toast('Ana görsel değiştirildi', 'info');
+}
+function getImageCount() {
+    return imageSlots.filter(s => s !== null).length;
+}
+function renderImageSlots() {
+    const labels = ['ANA GÖRSEL', 'YAN GÖRÜNÜM', 'ARKA GÖRÜNÜM', 'DETAY'];
+    for (let i = 0; i < 4; i++) {
+        const slot = document.getElementById('slot' + i);
+        const data = imageSlots[i];
+        if (data) {
+            slot.className = 'image-slot has-image' + (primarySlot === i ? ' primary' : '');
+            slot.innerHTML = `
+                <img src="${data.dataUrl}" alt="Görsel ${i + 1}">
+                <div class="slot-label">${primarySlot === i ? '★ ANA GÖRSEL' : labels[i]}</div>
+                <button class="slot-remove" onclick="removeSlotImage(${i},event)">✕</button>
+                ${primarySlot !== i ? `<button class="slot-primary-btn" onclick="setPrimarySlot(${i},event)">★ ANA YAP</button>` : ''}
+            `;
+            slot.onclick = null;
+        } else {
+            slot.className = 'image-slot';
+            slot.innerHTML = `
+                <span class="slot-placeholder">+</span>
+                <div class="slot-label">${labels[i]}</div>
+            `;
+            slot.onclick = () => triggerSlotUpload(i);
+        }
+    }
+    // Update count
+    const count = getImageCount();
+    document.getElementById('imageCountInfo').innerHTML = `<span>${count}</span> / 4 görsel yüklendi · Ana görsel model üretiminde kullanılır`;
+}
+// Drag & drop for multi-upload zone
+const multiDropZone = document.getElementById('multiDropZone');
+if (multiDropZone) {
+    multiDropZone.addEventListener('dragover', (e) => { e.preventDefault(); multiDropZone.classList.add('dragover'); });
+    multiDropZone.addEventListener('dragleave', () => multiDropZone.classList.remove('dragover'));
+    multiDropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        multiDropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) {
+            handleMultiDrop({ target: { files: e.dataTransfer.files } });
+        }
+    });
+}
+// Also allow drag&drop on the image grid itself
+const imageGrid = document.getElementById('imageGrid');
+if (imageGrid) {
+    imageGrid.addEventListener('dragover', (e) => { e.preventDefault(); });
+    imageGrid.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (e.dataTransfer.files.length) {
+            handleMultiDrop({ target: { files: e.dataTransfer.files } });
+        }
+    });
+}
+// ===== GENERATE: TEXT =====
 async function generateText() {
     const prompt = document.getElementById('promptInput').value.trim();
     if (!prompt) { toast('Lütfen bir prompt girin', 'error'); return; }
@@ -908,10 +1156,7 @@ async function generateText() {
     try {
         const res = await fetch(API + '/api/generate/text', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + currentToken
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
             body: JSON.stringify({ prompt, style: currentStyle })
         });
         const data = await res.json();
@@ -925,50 +1170,21 @@ async function generateText() {
         resetGenButton();
     }
 }
-// ===== GENERATE: IMAGE =====
-function handleImageSelect(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { toast('Dosya çok büyük (max 10MB)', 'error'); return; }
-    selectedFile = file;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-        document.getElementById('previewImg').src = ev.target.result;
-        document.getElementById('fileInfo').textContent = `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB`;
-        document.getElementById('uploadPreview').style.display = 'block';
-        document.getElementById('uploadArea').style.display = 'none';
-    };
-    reader.readAsDataURL(file);
-}
-function clearUpload() {
-    selectedFile = null;
-    document.getElementById('imageInput').value = '';
-    document.getElementById('uploadPreview').style.display = 'none';
-    document.getElementById('uploadArea').style.display = 'block';
-}
-// Drag & drop
-const uploadArea = document.getElementById('uploadArea');
-if (uploadArea) {
-    uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
-    uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
-    uploadArea.addEventListener('drop', (e) => {
-        e.preventDefault();
-        uploadArea.classList.remove('dragover');
-        if (e.dataTransfer.files.length) {
-            document.getElementById('imageInput').files = e.dataTransfer.files;
-            handleImageSelect({ target: { files: e.dataTransfer.files } });
-        }
-    });
-}
+// ===== GENERATE: IMAGE (uses primary slot) =====
 async function generateImage() {
-    if (!selectedFile) { toast('Lütfen bir görsel seçin', 'error'); return; }
+    const count = getImageCount();
+    if (count === 0) { toast('Lütfen en az 1 görsel yükleyin', 'error'); return; }
+    
+    // Use primary slot file
+    const primaryData = imageSlots[primarySlot];
+    if (!primaryData) { toast('Ana görsel bulunamadı', 'error'); return; }
     const btn = document.getElementById('genImageBtn');
     btn.disabled = true;
     btn.className = 'gen-btn generating';
-    btn.innerHTML = '⏳ ÜRETİLİYOR...';
+    btn.innerHTML = `⏳ ÜRETİLİYOR... (${count} görsel)`;
     try {
         const formData = new FormData();
-        formData.append('file', selectedFile);
+        formData.append('file', primaryData.file);
         const res = await fetch(API + '/api/generate/image', {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + currentToken },
@@ -979,7 +1195,7 @@ async function generateImage() {
         currentTaskId = data.task_id;
         showProgress();
         startPolling();
-        toast('Görsel model üretimi başlatıldı!', 'success');
+        toast(`Model üretimi başlatıldı! (${count} referans görsel)`, 'success');
     } catch (err) {
         toast(err.message, 'error');
         resetGenButton();
@@ -1021,7 +1237,7 @@ function startPolling() {
                 resetGenButton();
                 showModel(currentTaskId, data.is_demo);
                 toast('Model başarıyla üretildi!', 'success');
-                loadUserData(); // Refresh usage
+                loadUserData();
             } else if (data.status === 'failed') {
                 clearInterval(pollInterval);
                 pollInterval = null;
@@ -1035,25 +1251,140 @@ function startPolling() {
     }, 2000);
 }
 // ===== 3D VIEWER =====
+function getViewer() {
+    return document.querySelector('#viewerContainer model-viewer');
+}
 function showModel(taskId, isDemo) {
     const container = document.getElementById('viewerContainer');
     const empty = document.getElementById('viewerEmpty');
     const toolbar = document.getElementById('viewerToolbar');
     if (empty) empty.style.display = 'none';
-    toolbar.style.display = 'flex';
+    toolbar.classList.add('active');
     // Remove old viewer
     const old = container.querySelector('model-viewer');
     if (old) old.remove();
     const viewer = document.createElement('model-viewer');
     viewer.setAttribute('src', API + '/api/model/' + taskId + '/view');
-    viewer.setAttribute('auto-rotate', '');
     viewer.setAttribute('camera-controls', '');
-    viewer.setAttribute('shadow-intensity', '1');
-    viewer.setAttribute('environment-image', 'neutral');
+    viewer.setAttribute('touch-action', 'pan-y');
+    viewer.setAttribute('shadow-intensity', editorState.shadow ? editorState.shadowIntensity : 0);
+    viewer.setAttribute('exposure', editorState.exposure);
+    if (editorState.autoRotate) viewer.setAttribute('auto-rotate', '');
+    viewer.setAttribute('auto-rotate-delay', '0');
+    viewer.setAttribute('rotation-per-second', editorState.rotSpeed + 'deg');
+    if (editorState.environment) viewer.setAttribute('environment-image', editorState.environment);
     viewer.style.cssText = 'width:100%;height:100%;min-height:400px;background:transparent;';
     container.appendChild(viewer);
+    container.style.background = editorState.bgColor;
     const info = document.getElementById('viewerInfo');
     info.textContent = isDemo ? 'DEMO MODEL' : 'Task: ' + taskId;
+    document.getElementById('downloadInfo').textContent = `Model: ${taskId}`;
+}
+// ===== EDITING TOOLS =====
+function toggleEditPanel() {
+    const panel = document.getElementById('editPanel');
+    const btn = document.getElementById('btnEditPanel');
+    panel.classList.toggle('active');
+    btn.classList.toggle('active');
+}
+function toggleWireframe() {
+    editorState.wireframe = !editorState.wireframe;
+    document.getElementById('btnWireframe').classList.toggle('active', editorState.wireframe);
+    const viewer = getViewer();
+    if (!viewer) return;
+    
+    if (editorState.wireframe) {
+        // model-viewer doesn't natively support wireframe, but we can simulate with exposure
+        viewer.style.filter = 'invert(0.15) contrast(1.5)';
+        viewer.style.mixBlendMode = 'screen';
+        toast('Wireframe modu', 'info');
+    } else {
+        viewer.style.filter = '';
+        viewer.style.mixBlendMode = '';
+    }
+}
+function toggleAutoRotate() {
+    editorState.autoRotate = !editorState.autoRotate;
+    document.getElementById('btnAutoRotate').classList.toggle('active', editorState.autoRotate);
+    const viewer = getViewer();
+    if (!viewer) return;
+    if (editorState.autoRotate) {
+        viewer.setAttribute('auto-rotate', '');
+    } else {
+        viewer.removeAttribute('auto-rotate');
+    }
+}
+function toggleShadow() {
+    editorState.shadow = !editorState.shadow;
+    document.getElementById('btnShadow').classList.toggle('active', editorState.shadow);
+    const viewer = getViewer();
+    if (!viewer) return;
+    viewer.setAttribute('shadow-intensity', editorState.shadow ? editorState.shadowIntensity : 0);
+}
+function updateExposure(val) {
+    editorState.exposure = parseFloat(val);
+    document.getElementById('valExposure').textContent = parseFloat(val).toFixed(1);
+    const viewer = getViewer();
+    if (viewer) viewer.setAttribute('exposure', val);
+}
+function updateShadowIntensity(val) {
+    editorState.shadowIntensity = parseFloat(val);
+    document.getElementById('valShadow').textContent = parseFloat(val).toFixed(1);
+    const viewer = getViewer();
+    if (viewer && editorState.shadow) viewer.setAttribute('shadow-intensity', val);
+}
+function updateScale(val) {
+    editorState.scale = parseFloat(val);
+    document.getElementById('valScale').textContent = parseFloat(val).toFixed(1) + 'x';
+    const viewer = getViewer();
+    if (viewer) {
+        viewer.style.transform = `scale(${val})`;
+    }
+}
+function updateRotationSpeed(val) {
+    editorState.rotSpeed = parseInt(val);
+    document.getElementById('valRotSpeed').textContent = val + '°/s';
+    const viewer = getViewer();
+    if (viewer) viewer.setAttribute('rotation-per-second', val + 'deg');
+}
+function setBgColor(color, swatch) {
+    editorState.bgColor = color;
+    document.getElementById('viewerContainer').style.background = color;
+    document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+    if (swatch) swatch.classList.add('active');
+}
+function setEnvironment(val) {
+    editorState.environment = val;
+    const viewer = getViewer();
+    if (!viewer) return;
+    if (val) {
+        viewer.setAttribute('environment-image', val);
+    } else {
+        viewer.removeAttribute('environment-image');
+    }
+}
+function resetCamera() {
+    const viewer = getViewer();
+    if (!viewer) return;
+    viewer.cameraOrbit = 'auto auto auto';
+    viewer.cameraTarget = 'auto auto auto';
+    viewer.fieldOfView = 'auto';
+    // Reset scale
+    editorState.scale = 1;
+    document.getElementById('sliderScale').value = 1;
+    document.getElementById('valScale').textContent = '1.0x';
+    viewer.style.transform = 'scale(1)';
+    toast('Kamera sıfırlandı', 'info');
+}
+function toggleFullscreen() {
+    const container = document.getElementById('viewerContainer');
+    if (document.fullscreenElement) {
+        document.exitFullscreen();
+    } else {
+        container.requestFullscreen().catch(() => {
+            toast('Tam ekran kullanılamıyor', 'error');
+        });
+    }
 }
 function downloadModel(format) {
     if (!currentTaskId) { toast('İndirilecek model yok', 'error'); return; }
@@ -1135,13 +1466,8 @@ async function likeModel(modelId, btn) {
             headers: { 'Authorization': 'Bearer ' + currentToken }
         });
         const data = await res.json();
-        if (data.liked) {
-            btn.textContent = '❤';
-            btn.classList.add('liked');
-        } else {
-            btn.textContent = '♡';
-            btn.classList.remove('liked');
-        }
+        if (data.liked) { btn.textContent = '❤'; btn.classList.add('liked'); }
+        else { btn.textContent = '♡'; btn.classList.remove('liked'); }
     } catch (err) {
         toast('Beğenmek için giriş yapın', 'error');
     }
@@ -1231,10 +1557,7 @@ async function saveProfile() {
     try {
         const res = await fetch(API + '/api/auth/update-profile', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + currentToken
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
             body: JSON.stringify(body)
         });
         if (!res.ok) throw new Error('Kaydetme başarısız');
@@ -1269,18 +1592,15 @@ async function upgradePlan(plan) {
 }
 // ===== INIT =====
 async function init() {
-    // Check reset token in URL
     const params = new URLSearchParams(window.location.search);
     if (params.get('reset')) {
         switchAuth('reset');
         return;
     }
-    // Check if Google login returned token
     const storedToken = localStorage.getItem('pf_token');
     const storedUser = localStorage.getItem('pf_user');
     if (storedToken && storedToken !== 'no-jwt') {
         currentToken = storedToken;
-        // Try to validate token
         try {
             const res = await fetch(API + '/api/auth/me', {
                 headers: { 'Authorization': 'Bearer ' + currentToken }
@@ -1295,7 +1615,6 @@ async function init() {
         } catch (err) {
             console.log('Token validation failed');
         }
-        // If token invalid but we have user data, try anyway
         if (storedUser) {
             try {
                 currentUser = JSON.parse(storedUser);
@@ -1303,11 +1622,9 @@ async function init() {
                 return;
             } catch (e) {}
         }
-        // Clear invalid data
         localStorage.removeItem('pf_token');
         localStorage.removeItem('pf_user');
     }
-    // Show auth screen
     document.getElementById('authOverlay').classList.remove('hidden');
     document.getElementById('appLayout').style.display = 'none';
 }
