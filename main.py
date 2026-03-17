@@ -633,21 +633,24 @@ async def register(req: RegisterReq, request: Request):
     try:
         conn.execute(
             "INSERT INTO users(email,name,password_hash,salt,verify_token,verified) VALUES(%s,%s,%s,%s,%s,%s)",
-            (req.email.lower().strip(), sanitize(req.name.strip()), h, salt, verify_token,
-             0 if RESEND_API_KEY else 1))
+            (req.email.lower().strip(), sanitize(req.name.strip()), h, salt, verify_token, 0 if RESEND_API_KEY else 1)
+        )
         conn.commit()
-        uid = conn.execute("SELECT id FROM users WHERE email=%s", (req.email.lower().strip(),)).fetchone()[0]
+
+        uid = conn.execute("SELECT id FROM users WHERE email=%s", (req.email.lower().strip(),)).fetchone()["id"]
         username = generate_username(req.name, uid)
-        conn.execute("UPDATE users SET username=? WHERE id=%s", (username, uid))
+        conn.execute("UPDATE users SET username=%s WHERE id=%s", (username, uid))
         conn.commit()
         conn.close()
-        except Exception as e:
+    except Exception as e:
         conn.rollback()
         conn.close()
         msg = str(e).lower()
         if "unique" in msg or "duplicate" in msg:
             raise HTTPException(400, "Bu e-posta zaten kayitli")
         raise HTTPException(500, "Kayit sirasinda hata olustu")
+
+    log_security(uid, "register", ip)
 
     if RESEND_API_KEY:
         await send_verification_email(req.email.lower().strip(), verify_token)
@@ -656,8 +659,14 @@ async def register(req: RegisterReq, request: Request):
     token = create_token(uid, req.email, req.name, "free")
     result = {
         "token": token,
-        "user": {"id": uid, "name": req.name, "email": req.email, "username": username, "plan": "free",
-                 "verified": 0 if RESEND_API_KEY else 1}
+        "user": {
+            "id": uid,
+            "name": req.name,
+            "email": req.email,
+            "username": username,
+            "plan": "free",
+            "verified": 0 if RESEND_API_KEY else 1,
+        },
     }
     if RESEND_API_KEY:
         result["message"] = "Dogrulama maili gonderildi. E-postanizi kontrol edin."
@@ -996,7 +1005,7 @@ async def add_to_collection(collection_id: int, req: CollectionItemReq, authoriz
         conn.execute("INSERT INTO collection_items(collection_id,model_id) VALUES(%s,%s)", (collection_id, req.model_id))
         conn.execute("UPDATE collections SET model_count=model_count+1 WHERE id=%s", (collection_id,))
         conn.commit()
-        except Exception as e:
+    except Exception as e:
         conn.rollback()
         conn.close()
         msg = str(e).lower()
