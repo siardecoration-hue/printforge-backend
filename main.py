@@ -1207,22 +1207,39 @@ async def ensure_cached(tid):
 async def model_view(task_id: str):
     # 1. Cache'de varsa hemen dön
     if task_id in model_cache:
+        print(f"[VIEW] Cache hit: {task_id} ({len(model_cache[task_id])} bytes)")
         return Response(content=model_cache[task_id], media_type="model/gltf-binary",
-            headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=3600"})
+            headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=3600",
+                      "Access-Control-Allow-Headers": "*"})
     
     # 2. URL'yi bul
     url = get_model_url(task_id)
     if not url:
-        raise HTTPException(404, "Model bulunamadi")
+        raise HTTPException(404, "Model bulunamadi - URL yok")
     
     # 3. Cache'lemeyi dene
+    print(f"[VIEW] Cache miss, indiriliyor: {url[:80]}")
     if await cache_model(task_id, url):
         return Response(content=model_cache[task_id], media_type="model/gltf-binary",
-            headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=3600"})
+            headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=3600",
+                      "Access-Control-Allow-Headers": "*"})
     
-    # 4. Cache basarisiz → orijinal URL'ye redirect (FALLBACK!)
-    print(f"[MODEL] Cache basarisiz, redirect: {url[:80]}")
-    return RedirectResponse(url=url, status_code=302)
+    # 4. Cache basarisiz → dogrudan proxy (redirect CORS sorunu yaratir!)
+    print(f"[VIEW] Cache basarisiz, dogrudan proxy deneniyor: {url[:80]}")
+    try:
+        async with httpx.AsyncClient(timeout=60, follow_redirects=True) as c:
+            r = await c.get(url)
+            if r.status_code == 200 and len(r.content) > 100:
+                # Cache'e de ekle
+                if len(model_cache) < MAX_CACHE:
+                    model_cache[task_id] = r.content
+                return Response(content=r.content, media_type="model/gltf-binary",
+                    headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=3600",
+                              "Access-Control-Allow-Headers": "*"})
+    except Exception as e:
+        print(f"[VIEW] Proxy hata: {e}")
+    
+    raise HTTPException(503, "Model gecici olarak yuklenemiyor, lutfen tekrar deneyin")
 
 @app.get("/api/model/{task_id}/glb")
 async def download_glb(task_id: str):
