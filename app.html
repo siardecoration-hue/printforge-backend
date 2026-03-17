@@ -941,12 +941,216 @@ var originalModelUrl = '';
 var proxyModelUrl = '';
 var glbModelUrl = '';
 var activeModelBlobUrl = '';
+var threeModulesPromise = null;
+var threeFallbackState = null;
 
 function revokeModelBlobUrl() {
     if (activeModelBlobUrl) {
         URL.revokeObjectURL(activeModelBlobUrl);
         activeModelBlobUrl = '';
     }
+}
+
+function clearThreeFallback() {
+    if (!threeFallbackState) return;
+    if (threeFallbackState.rafId) cancelAnimationFrame(threeFallbackState.rafId);
+    if (threeFallbackState.onResize) window.removeEventListener('resize', threeFallbackState.onResize);
+    if (threeFallbackState.controls && threeFallbackState.controls.dispose) threeFallbackState.controls.dispose();
+    if (threeFallbackState.renderer) threeFallbackState.renderer.dispose();
+    if (threeFallbackState.container && threeFallbackState.container.parentNode) {
+        threeFallbackState.container.parentNode.removeChild(threeFallbackState.container);
+    }
+    threeFallbackState = null;
+}
+
+function ensureThreeFallbackContainer() {
+    var viewerContainer = document.getElementById('viewerContainer');
+    var fallback = document.getElementById('threeFallbackContainer');
+    if (!fallback) {
+        fallback = document.createElement('div');
+        fallback.id = 'threeFallbackContainer';
+        fallback.style.position = 'absolute';
+        fallback.style.inset = '0';
+        fallback.style.zIndex = '3';
+        fallback.style.display = 'none';
+        viewerContainer.appendChild(fallback);
+    }
+    return fallback;
+}
+
+function getThreeModules() {
+    if (!threeModulesPromise) {
+        threeModulesPromise = Promise.all([
+            import('https://unpkg.com/three@0.161.0/build/three.module.js'),
+            import('https://unpkg.com/three@0.161.0/examples/jsm/controls/OrbitControls.js'),
+            import('https://unpkg.com/three@0.161.0/examples/jsm/loaders/GLTFLoader.js'),
+            import('https://unpkg.com/three@0.161.0/examples/jsm/loaders/STLLoader.js'),
+            import('https://unpkg.com/three@0.161.0/examples/jsm/loaders/OBJLoader.js')
+        ]).then(function(mods) {
+            return {
+                THREE: mods[0],
+                OrbitControls: mods[1].OrbitControls,
+                GLTFLoader: mods[2].GLTFLoader,
+                STLLoader: mods[3].STLLoader,
+                OBJLoader: mods[4].OBJLoader
+            };
+        });
+    }
+    return threeModulesPromise;
+}
+
+function detectModelFormat(arrayBuffer) {
+    if (!arrayBuffer || arrayBuffer.byteLength < 8) return 'unknown';
+    var bytes = new Uint8Array(arrayBuffer);
+
+    // GLB magic: glTF
+    if (bytes[0] === 0x67 && bytes[1] === 0x6c && bytes[2] === 0x54 && bytes[3] === 0x46) return 'glb';
+
+    // Binary STL heuristic
+    if (arrayBuffer.byteLength > 84) {
+        var dv = new DataView(arrayBuffer);
+        var triCount = dv.getUint32(80, true);
+        if (84 + (triCount * 50) === arrayBuffer.byteLength) return 'stl';
+    }
+
+    var head = new TextDecoder().decode(bytes.slice(0, 1024)).trim().toLowerCase();
+    if (head.indexOf('{') === 0 || head.indexOf('asset') >= 0) return 'gltf';
+    if (head.indexOf('solid') === 0 || head.indexOf('facet normal') >= 0) return 'stl';
+    if (head.indexOf('v ') >= 0 && head.indexOf('f ') >= 0) return 'obj';
+    return 'unknown';
+}
+
+function fitCameraToObject(THREE, camera, controls, object) {
+    var box = new THREE.Box3().setFromObject(object);
+    var size = box.getSize(new THREE.Vector3());
+    var center = box.getCenter(new THREE.Vector3());
+    var maxDim = Math.max(size.x, size.y, size.z) || 1;
+    var fov = camera.fov * (Math.PI / 180);
+    var cameraZ = Math.abs(maxDim / (2 * Math.tan(fov / 2))) * 1.8;
+
+    camera.position.set(center.x + cameraZ * 0.35, center.y + cameraZ * 0.2, center.z + cameraZ);
+    camera.near = Math.max(0.01, cameraZ / 100);
+    camera.far = cameraZ * 100;
+    camera.updateProjectionMatrix();
+    controls.target.copy(center);
+    controls.update();
+}
+
+function fetchModelArrayBuffer(url) {
+    var normalized = normalizeModelUrl(url);
+    if (!normalized) return Promise.reject(new Error('Model URL yok'));
+    var headers = { 'Accept': 'model/gltf-binary,model/gltf+json,application/octet-stream,*/*' };
+    if (currentToken) headers.Authorization = 'Bearer ' + currentToken;
+
+    return fetch(normalized, { headers: headers, cache: 'no-store' })
+    .then(function(res) {
+        if (!res.ok) throw new Error('Model dosyasi alinamadi (' + res.status + ')');
+        return res.arrayBuffer();
+    })
+    .then(function(buffer) {
+        if (!buffer || !buffer.byteLength) throw new Error('Model dosyasi bos');
+        return { buffer: buffer, sourceUrl: normalized };
+    });
+}
+
+function renderThreePreview(url) {
+    return fetchModelArrayBuffer(url).then(function(payload) {
+        var detected = detectModelFormat(payload.buffer);
+        var debug = document.getElementById('viewerDebugInfo');
+        if (debug) debug.textContent = 'Fallback format algilandi: ' + detected;
+
+        return getThreeModules().then(function(mod) {
+            var THREE = mod.THREE;
+            var fallbackContainer = ensureThreeFallbackContainer();
+            clearThreeFallback();
+
+            fallbackContainer.innerHTML = '';
+            fallbackContainer.style.display = 'block';
+
+            var width = fallbackContainer.clientWidth || 800;
+            var height = fallbackContainer.clientHeight || 600;
+
+            var scene = new THREE.Scene();
+            scene.background = null;
+
+            var camera = new THREE.PerspectiveCamera(45, width / height, 0.01, 1000);
+            var renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+            renderer.setSize(width, height);
+            fallbackContainer.appendChild(renderer.domElement);
+
+            var controls = new mod.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            var hemi = new THREE.HemisphereLight(0xffffff, 0x222233, 1.0);
+            var dir = new THREE.DirectionalLight(0xffffff, 1.1);
+            dir.position.set(4, 8, 5);
+            scene.add(hemi);
+            scene.add(dir);
+
+            var objectPromise;
+            if (detected === 'stl') {
+                var stlLoader = new mod.STLLoader();
+                var geometry = stlLoader.parse(payload.buffer);
+                geometry.computeVertexNormals();
+                var mat = new THREE.MeshStandardMaterial({ color: 0xb8b2ff, metalness: 0.05, roughness: 0.65 });
+                var mesh = new THREE.Mesh(geometry, mat);
+                objectPromise = Promise.resolve(mesh);
+            } else if (detected === 'obj') {
+                var objLoader = new mod.OBJLoader();
+                var text = new TextDecoder().decode(payload.buffer);
+                objectPromise = Promise.resolve(objLoader.parse(text));
+            } else {
+                var gltfLoader = new mod.GLTFLoader();
+                var blobType = detected === 'gltf' ? 'model/gltf+json' : 'model/gltf-binary';
+                var blob = new Blob([payload.buffer], { type: blobType });
+                var blobUrl = URL.createObjectURL(blob);
+                objectPromise = new Promise(function(resolve, reject) {
+                    gltfLoader.load(blobUrl, function(gltf) {
+                        URL.revokeObjectURL(blobUrl);
+                        resolve(gltf.scene || gltf.scenes[0]);
+                    }, undefined, function(err) {
+                        URL.revokeObjectURL(blobUrl);
+                        reject(err || new Error('GLTF yuklenemedi'));
+                    });
+                });
+            }
+
+            return objectPromise.then(function(object) {
+                if (!object) throw new Error('Fallback model olusturulamadi');
+                scene.add(object);
+                fitCameraToObject(THREE, camera, controls, object);
+
+                var state = {
+                    renderer: renderer,
+                    controls: controls,
+                    container: fallbackContainer,
+                    rafId: 0,
+                    onResize: null
+                };
+
+                state.onResize = function() {
+                    if (!state.container || !state.renderer) return;
+                    var w = state.container.clientWidth || 800;
+                    var h = state.container.clientHeight || 600;
+                    camera.aspect = w / h;
+                    camera.updateProjectionMatrix();
+                    state.renderer.setSize(w, h);
+                };
+                window.addEventListener('resize', state.onResize);
+
+                function animate() {
+                    state.rafId = requestAnimationFrame(animate);
+                    controls.update();
+                    renderer.render(scene, camera);
+                }
+                animate();
+
+                threeFallbackState = state;
+                return true;
+            });
+        });
+    });
 }
 
 function normalizeModelUrl(url) {
@@ -1038,6 +1242,14 @@ function resolveModelSource(url, depth) {
         revokeModelBlobUrl();
         activeModelBlobUrl = URL.createObjectURL(blob);
         return activeModelBlobUrl;
+    })
+    .catch(function(err) {
+        // Ayni origin endpoint dis kaynaga redirect olup CORS nedeniyle kiriliyorsa
+        // kullaniciya daha net hata gostermek icin mesaji iyilestir.
+        if (err && err.message && err.message.toLowerCase().indexOf('failed to fetch') >= 0 && normalized.indexOf(API + '/api/model/') === 0) {
+            throw new Error('API model endpointi dis kaynaga CORS uygun olmayan redirect donuyor olabilir');
+        }
+        throw err;
     });
 }
 
@@ -1066,6 +1278,7 @@ function showModel(taskId, isDemo, directUrl) {
     originalModelUrl = directUrl || '';
     modelRetryCount = 0;
     revokeModelBlobUrl();
+    clearThreeFallback();
 
     var container = document.getElementById('viewerContainer');
     var empty = document.getElementById('viewerEmpty');
@@ -1085,10 +1298,16 @@ function showModel(taskId, isDemo, directUrl) {
     if (old) old.remove();
 
     var urls = [];
-    if (originalModelUrl) urls.push(originalModelUrl);
+    // CORS hatasi almamak icin dis kaynak model_url once denenmiyor.
+    // Sadece ayni origin API endpoint'leri denenir.
     urls.push(proxyModelUrl);
     urls.push(glbModelUrl);
     urls.push(proxyModelUrl + '?download=1');
+    // Backend'in olasi stream/proxy varyantlari
+    urls.push(proxyModelUrl + '?proxy=1');
+    urls.push(glbModelUrl + '?proxy=1');
+    urls.push(proxyModelUrl + '?stream=1');
+    urls.push(glbModelUrl + '?stream=1');
 
     // Yinelenen URL denemelerini temizle.
     urls = urls.filter(function(item, idx) { return item && urls.indexOf(item) === idx; });
@@ -1115,27 +1334,57 @@ function tryLoadFromList(urls, index, taskId, isDemo) {
                     var freshUrls = [];
                     if (st.model_url) {
                         originalModelUrl = st.model_url;
-                        freshUrls.push(st.model_url);
                     }
                     freshUrls.push(proxyModelUrl + '?t=' + Date.now());
                     freshUrls.push(glbModelUrl + '?t=' + Date.now());
+                    freshUrls.push(proxyModelUrl + '?proxy=1&t=' + Date.now());
+                    freshUrls.push(glbModelUrl + '?proxy=1&t=' + Date.now());
+                    freshUrls.push(proxyModelUrl + '?stream=1&t=' + Date.now());
+                    freshUrls.push(glbModelUrl + '?stream=1&t=' + Date.now());
                     tryLoadFromList(freshUrls, 0, taskId, st.is_demo);
                 })
                 .catch(function() {
                     tryLoadFromList([
                         proxyModelUrl + '?t=' + Date.now(),
-                        glbModelUrl + '?t=' + Date.now()
+                        glbModelUrl + '?t=' + Date.now(),
+                        proxyModelUrl + '?proxy=1&t=' + Date.now(),
+                        glbModelUrl + '?proxy=1&t=' + Date.now(),
+                        proxyModelUrl + '?stream=1&t=' + Date.now(),
+                        glbModelUrl + '?stream=1&t=' + Date.now()
                     ], 0, taskId, false);
                 });
             }, waitTime);
             return;
         }
 
-        loading.classList.add('hidden');
-        error.classList.remove('hidden');
-        document.getElementById('viewerErrorMsg').textContent = 'Model görüntülenemiyor. Model indirilebilir durumda — aşağıdaki butonlarla indirebilirsiniz.';
-        var dbtn = document.getElementById('btnDirectUrl');
-        if (dbtn) dbtn.style.display = 'inline-block';
+        loading.querySelector('.viewer-loading-text').textContent = 'Alternatif önizleyici deneniyor...';
+        var fallbackSource = glbModelUrl || proxyModelUrl || originalModelUrl;
+        renderThreePreview(fallbackSource)
+        .then(function(rendered) {
+            if (rendered) {
+                loading.classList.add('hidden');
+                error.classList.add('hidden');
+                document.getElementById('viewerInfo').textContent = taskId + ' • fallback';
+                document.getElementById('downloadInfo').textContent = taskId;
+                toast('Önizleme fallback görüntüleyici ile açıldı', 'info');
+                return;
+            }
+
+            loading.classList.add('hidden');
+            error.classList.remove('hidden');
+            document.getElementById('viewerErrorMsg').textContent = 'Model görüntülenemiyor. Model indirilebilir durumda — aşağıdaki butonlarla indirebilirsiniz.';
+            var dbtn = document.getElementById('btnDirectUrl');
+            if (dbtn) dbtn.style.display = 'inline-block';
+        })
+        .catch(function(err) {
+            var debug = document.getElementById('viewerDebugInfo');
+            if (debug && err && err.message) debug.textContent = 'Fallback hatasi: ' + err.message;
+            loading.classList.add('hidden');
+            error.classList.remove('hidden');
+            document.getElementById('viewerErrorMsg').textContent = 'Model görüntülenemiyor. Model indirilebilir durumda — aşağıdaki butonlarla indirebilirsiniz.';
+            var dbtn = document.getElementById('btnDirectUrl');
+            if (dbtn) dbtn.style.display = 'inline-block';
+        });
         return;
     }
 
@@ -1173,6 +1422,7 @@ function tryLoadFromList(urls, index, taskId, isDemo) {
             if (settled) return;
             settled = true;
             clearTimeout(loadTimeout);
+            clearThreeFallback();
             loading.classList.add('hidden');
             error.classList.add('hidden');
             document.getElementById('viewerInfo').textContent = taskId;
