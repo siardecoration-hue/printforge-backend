@@ -964,17 +964,26 @@ async def create_collection(req: CollectionReq, authorization: Optional[str] = H
     user = await get_user(authorization)
     if not user:
         raise HTTPException(401, "Giris yapin")
+
     conn = get_db()
-    count = conn.execute("SELECT COUNT(*) FROM collections WHERE user_id=%s", (user["id"],)).fetchone()[0]
+
+    row = conn.execute(
+        "SELECT COUNT(*) AS c FROM collections WHERE user_id=%s",
+        (user["id"],)
+    ).fetchone()
+    count = row["c"]
+
     if count >= 50:
         conn.close()
         raise HTTPException(400, "Maksimum 50 koleksiyon olusturabilirsiniz")
+
     cur = conn.execute(
-    "INSERT INTO collections(user_id,name,description,is_public) VALUES(%s,%s,%s,%s) RETURNING id",
-    (user["id"], sanitize(req.name)[:100], sanitize(req.description)[:500], req.is_public)
-)
-cid = cur.fetchone()["id"]
-conn.commit()
+        "INSERT INTO collections(user_id,name,description,is_public) VALUES(%s,%s,%s,%s) RETURNING id",
+        (user["id"], sanitize(req.name)[:100], sanitize(req.description)[:500], req.is_public)
+    )
+    cid = cur.fetchone()["id"]
+
+    conn.commit()
     conn.close()
     return {"id": cid, "message": "Koleksiyon olusturuldu"}
 
