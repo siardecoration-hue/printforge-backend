@@ -1,1510 +1,1610 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PrintForge — AI 3D Model Üretici</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
-<style>
-:root{
-  --bg:#0a0a1a;--bg2:#0f0f24;--bg3:#14142e;
-  --surface:rgba(22,22,42,0.6);--surface2:rgba(30,30,55,0.5);
-  --border:rgba(108,92,231,0.15);--border2:rgba(108,92,231,0.25);
-  --primary:#6c5ce7;--primary2:#a29bfe;
-  --cyan:#00cec9;--green:#00b894;--pink:#fd79a8;--orange:#e17055;
-  --red:#ff6b6b;--yellow:#ffeaa7;
-  --text:#e8e6f0;--text2:#a0a0c0;--text3:#6b6b8d;
-  --grad1:linear-gradient(135deg,#6c5ce7,#00cec9);
-  --grad2:linear-gradient(135deg,#fd79a8,#6c5ce7);
-  --grad3:linear-gradient(135deg,#00b894,#00cec9);
-  --sidebar-w:260px;
-  --radius:12px;--radius-sm:8px;--radius-xs:6px;
-}
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{height:100%;overflow:hidden}
-body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text)}
-::-webkit-scrollbar{width:5px}
-::-webkit-scrollbar-track{background:var(--bg)}
-::-webkit-scrollbar-thumb{background:var(--primary);border-radius:3px}
-input,select,textarea,button{outline:none;font-family:inherit}
-a{text-decoration:none;color:inherit}
+from fastapi import FastAPI, HTTPException, UploadFile, File, Header, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, FileResponse, Response, RedirectResponse
+from pydantic import BaseModel
+import asyncio, uuid, httpx, base64, random, json, os, io, re
+import hashlib, secrets, sqlite3, hmac, time
+from datetime import datetime, timedelta
+from typing import Optional, List
+from urllib.parse import urlencode
 
-.app-layout{display:flex;height:100vh;width:100vw}
+try:
+    import jwt as pyjwt
+    HAS_JWT = True
+except ImportError:
+    HAS_JWT = False
 
-/* SIDEBAR */
-.sidebar{width:var(--sidebar-w);background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;transition:transform .3s}
-.sb-logo{padding:20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);cursor:pointer}
-.sb-logo-icon{width:36px;height:36px;border-radius:10px;background:var(--grad1);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;color:#fff}
-.sb-logo-text{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:700;background:var(--grad1);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.sb-section{padding:16px 12px 8px}
-.sb-label{font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--text3);margin-bottom:8px;padding:0 8px;text-transform:uppercase}
-.sb-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);cursor:pointer;transition:all .15s;font-size:13px;color:var(--text2);margin-bottom:2px;border:1px solid transparent}
-.sb-item:hover{background:rgba(108,92,231,.06);color:var(--text)}
-.sb-item.active{background:rgba(108,92,231,.1);color:var(--primary2);border-color:var(--border2)}
-.sb-item .icon{font-size:16px;width:22px;text-align:center;flex-shrink:0}
-.sb-item .badge{margin-left:auto;background:rgba(108,92,231,.15);color:var(--primary2);padding:2px 8px;border-radius:10px;font-size:10px}
-.sb-usage{margin:auto 14px 0;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;backdrop-filter:blur(10px)}
-.sb-usage-title{font-size:10px;font-weight:600;color:var(--text3);margin-bottom:10px;display:flex;justify-content:space-between}
-.sb-usage-bar{height:4px;background:var(--bg);border-radius:2px;overflow:hidden;margin-bottom:8px}
-.sb-usage-fill{height:100%;background:var(--grad1);border-radius:2px;transition:width .5s}
-.sb-usage-text{font-size:10px;color:var(--text3)}
-.sb-user{padding:14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .15s}
-.sb-user:hover{background:rgba(108,92,231,.05)}
-.sb-avatar{width:34px;height:34px;border-radius:50%;background:var(--grad1);display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:#fff;flex-shrink:0}
-.sb-user-info{flex:1;min-width:0}
-.sb-user-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sb-user-plan{font-size:10px;color:var(--primary2);font-weight:500}
+try:
+    import trimesh, numpy
+    HAS_TRIMESH = True
+except ImportError:
+    HAS_TRIMESH = False
 
-/* MAIN */
-.main-content{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
-.main-header{padding:16px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;background:var(--bg);flex-shrink:0}
-.main-header h2{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;flex:1}
-.header-badge{font-size:10px;font-weight:600;color:var(--primary2);background:rgba(108,92,231,.1);border:1px solid var(--border2);padding:4px 14px;border-radius:20px}
-.main-body{flex:1;overflow-y:auto;padding:28px}
-.mobile-toggle{display:none;background:none;border:none;color:var(--primary2);font-size:22px;cursor:pointer}
-.mobile-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999}
-.mobile-overlay.active{display:block}
+app = FastAPI(title="PrintForge", docs_url=None, redoc_url=None)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-/* AUTH */
-.auth-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
-.auth-overlay.hidden{display:none}
-.auth-bg-glow{position:absolute;inset:0;background:radial-gradient(ellipse 600px 500px at 40% 40%,rgba(108,92,231,.08),transparent),radial-gradient(ellipse 400px 400px at 70% 70%,rgba(0,206,201,.05),transparent)}
-.auth-card{position:relative;z-index:1;width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);padding:40px 36px;border-radius:var(--radius);backdrop-filter:blur(20px)}
-.auth-card-logo{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:28px}
-.auth-tabs{display:flex;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:24px;overflow:hidden}
-.auth-tab{flex:1;padding:11px;background:transparent;border:none;color:var(--text3);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
-.auth-tab.active{background:rgba(108,92,231,.12);color:var(--primary2)}
-.auth-title{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;text-align:center;margin-bottom:6px}
-.auth-sub{font-size:13px;color:var(--text3);text-align:center;margin-bottom:24px}
-.form-group{margin-bottom:14px}
-.form-label{font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px;display:block}
-.form-input{width:100%;background:rgba(15,15,36,.8);border:1px solid var(--border);color:var(--text);padding:12px 14px;font-size:13px;border-radius:var(--radius-sm);transition:border-color .2s}
-.form-input:focus{border-color:var(--primary)}
-.form-input::placeholder{color:var(--text3)}
-.btn-primary{width:100%;padding:13px;background:var(--grad1);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;border-radius:var(--radius-sm);transition:all .2s;margin-top:6px}
-.btn-primary:hover{opacity:.9;transform:translateY(-1px)}
-.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
-.auth-divider{display:flex;align-items:center;gap:14px;margin:20px 0;color:var(--text3);font-size:11px}
-.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border)}
-.btn-google{width:100%;padding:12px;background:transparent;color:var(--text);border:1px solid var(--border);font-size:12px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:all .2s;border-radius:var(--radius-sm)}
-.btn-google:hover{border-color:var(--primary);background:rgba(108,92,231,.05)}
-.auth-footer{text-align:center;margin-top:20px;font-size:12px;color:var(--text3)}
-.auth-footer a{color:var(--primary2);cursor:pointer;font-weight:600}
-.auth-link{color:var(--primary2);cursor:pointer;font-size:11px;font-weight:500}
-.msg-box{padding:10px 14px;font-size:12px;margin-bottom:14px;display:none;border-radius:var(--radius-xs);line-height:1.6}
-.msg-error{background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.25);color:var(--red)}
-.msg-success{background:rgba(0,184,148,.1);border:1px solid rgba(0,184,148,.25);color:var(--green)}
+TRIPO_API_KEY = os.getenv("TRIPO_API_KEY", "")
+MESHY_API_KEY = os.getenv("MESHY_API_KEY", "")
+SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_hex(32))
+DB_PATH = os.getenv("DB_PATH", "printforge.db")
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+EMAIL_FROM = os.getenv("EMAIL_FROM", "onboarding@resend.dev")
+TRIPO_BASE = "https://api.tripo3d.ai/v2/openapi"
+MESHY_BASE = "https://api.meshy.ai/openapi/v2"
 
-/* VERIFY BANNER */
-.verify-banner{background:rgba(225,112,85,.08);border-bottom:1px solid rgba(225,112,85,.2);padding:10px 28px;display:flex;align-items:center;gap:12px;font-size:12px;color:var(--orange)}
-.verify-banner.hidden{display:none}
-.verify-banner button{background:rgba(225,112,85,.15);border:1px solid rgba(225,112,85,.3);color:var(--orange);padding:4px 14px;font-size:11px;cursor:pointer;border-radius:var(--radius-xs);margin-left:auto}
+def get_site_url():
+    d = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
+    return f"https://{d}" if d else "http://localhost:8000"
 
-/* GENERATE */
-.gen-layout{display:grid;grid-template-columns:380px 1fr;gap:0;height:100%;min-height:0}
-.gen-panel{background:var(--bg2);border-right:1px solid var(--border);padding:24px;overflow-y:auto}
-.gen-viewer{display:flex;flex-direction:column;background:var(--bg);min-height:0;position:relative}
-.gen-tabs{display:flex;gap:0;margin-bottom:20px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
-.gen-tab{flex:1;padding:10px;text-align:center;font-size:12px;font-weight:600;cursor:pointer;background:transparent;border:none;color:var(--text3);transition:all .15s}
-.gen-tab.active{background:rgba(108,92,231,.1);color:var(--primary2)}
-.gen-section{margin-bottom:20px}
-.gen-section-title{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--primary2);margin-bottom:10px;text-transform:uppercase}
-.gen-textarea{width:100%;background:rgba(15,15,36,.6);border:1px solid var(--border);color:var(--text);padding:14px;font-size:13px;border-radius:var(--radius-sm);resize:vertical;min-height:100px;transition:border-color .2s;line-height:1.7;font-family:'Inter',sans-serif}
-.gen-textarea:focus{border-color:var(--primary)}
-.gen-textarea::placeholder{color:var(--text3)}
-.char-count{font-size:10px;color:var(--text3);text-align:right;margin-top:4px}
-.style-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.style-card{padding:14px 8px;border:1px solid var(--border);background:var(--surface);text-align:center;cursor:pointer;transition:all .15s;font-size:11px;font-weight:500;color:var(--text3);border-radius:var(--radius-xs)}
-.style-card:hover{border-color:var(--border2);color:var(--text)}
-.style-card.active{border-color:var(--primary);color:var(--primary2);background:rgba(108,92,231,.08)}
-.style-card .style-icon{font-size:20px;margin-bottom:6px}
-.gen-btn{width:100%;padding:14px;background:var(--grad1);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;border-radius:var(--radius-sm);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
-.gen-btn:hover{opacity:.9;transform:translateY(-1px)}
-.gen-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
-.gen-btn.generating{background:var(--bg3);color:var(--primary2);border:1px solid var(--primary);animation:genPulse 2s infinite}
-@keyframes genPulse{0%,100%{box-shadow:0 0 0 0 rgba(108,92,231,.2)}50%{box-shadow:0 0 20px 4px rgba(108,92,231,.15)}}
+tasks = {}
+model_cache = {}
+MAX_CACHE = 50
+PLAN_LIMITS = {"free": 5, "pro": 100, "business": 999999}
 
-/* IMAGE UPLOAD */
-.image-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
-.image-slot{position:relative;aspect-ratio:1;border:2px dashed var(--border);background:var(--surface);display:flex;align-items:center;justify-content:center;flex-direction:column;cursor:pointer;transition:all .2s;overflow:hidden;border-radius:var(--radius-sm)}
-.image-slot:hover{border-color:var(--primary)}
-.image-slot.has-image{border-style:solid;border-color:var(--border2)}
-.image-slot.primary{border-color:var(--primary);box-shadow:0 0 16px rgba(108,92,231,.2)}
-.image-slot img{width:100%;height:100%;object-fit:cover;border-radius:var(--radius-xs)}
-.slot-placeholder{font-size:24px;opacity:.3;color:var(--text3)}
-.slot-label{position:absolute;bottom:0;left:0;right:0;padding:4px;background:rgba(10,10,26,.85);font-size:9px;font-weight:600;color:var(--text3);text-align:center;letter-spacing:.05em}
-.image-slot.primary .slot-label{color:var(--primary2);background:rgba(108,92,231,.15)}
-.slot-remove{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:rgba(255,107,107,.85);color:#fff;border:none;font-size:10px;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1}
-.image-slot.has-image .slot-remove{display:flex}
-.slot-primary-btn{position:absolute;top:4px;left:4px;padding:2px 6px;background:rgba(108,92,231,.3);border:1px solid rgba(108,92,231,.4);color:var(--primary2);font-size:9px;cursor:pointer;display:none;border-radius:3px;font-weight:600}
-.image-slot.has-image:not(.primary) .slot-primary-btn{display:block}
-.image-count-info{font-size:10px;color:var(--text3);margin-top:8px;text-align:center}
-.image-count-info span{color:var(--primary2);font-weight:600}
-.multi-drop-zone{border:2px dashed var(--border);padding:14px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface);border-radius:var(--radius-sm);margin-top:10px;position:relative}
-.multi-drop-zone:hover,.multi-drop-zone.dragover{border-color:var(--primary);background:rgba(108,92,231,.04)}
-.multi-drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer}
-.multi-drop-zone .drop-text{font-size:11px;color:var(--text3)}
-.multi-drop-zone .drop-text span{color:var(--primary2);font-weight:600}
+DEMO_MODELS = [
+    {"name": "Damaged Helmet", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb"},
+    {"name": "Avocado", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Avocado/glTF-Binary/Avocado.glb"},
+    {"name": "Duck", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/glTF-Binary/Duck.glb"},
+    {"name": "Lantern", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Lantern/glTF-Binary/Lantern.glb"},
+    {"name": "Water Bottle", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/WaterBottle/glTF-Binary/WaterBottle.glb"},
+]
 
-/* PROGRESS */
-.gen-progress{display:none;margin-top:16px}
-.gen-progress.active{display:block}
-.progress-bar-bg{height:6px;background:var(--bg);border-radius:3px;overflow:hidden;margin-bottom:10px}
-.progress-bar-fill{height:100%;background:var(--grad1);border-radius:3px;transition:width .5s;width:0%}
-.progress-text{font-size:11px;color:var(--text3);display:flex;justify-content:space-between}
-.progress-step{color:var(--primary2);font-weight:500}
+# ════════ RATE LIMITING ════════
+rate_limits = {}
+login_attempts = {}
 
-/* 3D VIEWER */
-.viewer-container{flex:1;display:flex;align-items:center;justify-content:center;position:relative;background:var(--bg);min-height:300px}
-.viewer-container model-viewer{width:100%;height:100%;min-height:400px;background:transparent;--poster-color:transparent}
-.viewer-empty{text-align:center;color:var(--text3)}
-.viewer-empty .ve-icon{font-size:64px;opacity:.15;margin-bottom:16px}
-.viewer-empty .ve-title{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px}
-.viewer-empty .ve-sub{font-size:12px;line-height:1.8}
-.viewer-loading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,10,26,.85);z-index:10}
-.viewer-loading.hidden{display:none}
-.loading-spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:12px}
-@keyframes spin{to{transform:rotate(360deg)}}
-.viewer-loading-text{font-size:12px;color:var(--text3);font-weight:500}
-.viewer-error{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,10,26,.85);z-index:10;gap:12px}
-.viewer-error.hidden{display:none}
-.viewer-error button{padding:8px 20px;background:var(--grad1);color:#fff;border:none;border-radius:var(--radius-xs);cursor:pointer;font-size:12px;font-weight:600}
+def check_rate_limit(ip, action="general", max_req=60, window=60):
+    key = f"{ip}:{action}"
+    now = time.time()
+    if key not in rate_limits:
+        rate_limits[key] = []
+    rate_limits[key] = [t for t in rate_limits[key] if now - t < window]
+    if len(rate_limits[key]) >= max_req:
+        return False
+    rate_limits[key].append(now)
+    return True
 
-/* VIEWER TOOLBAR */
-.viewer-toolbar{border-top:1px solid var(--border);background:var(--bg2);display:none;flex-direction:column}
-.viewer-toolbar.active{display:flex}
-.toolbar-row{padding:10px 16px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--border)}
-.toolbar-row:last-child{border-bottom:none}
-.vt-btn{padding:7px 12px;background:var(--surface);border:1px solid var(--border);color:var(--text2);font-size:11px;font-weight:500;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px;border-radius:var(--radius-xs)}
-.vt-btn:hover{border-color:var(--primary);color:var(--primary2)}
-.vt-btn.active{background:rgba(108,92,231,.12);border-color:var(--primary);color:var(--primary2)}
-.vt-btn.primary-btn{background:var(--grad1);color:#fff;border-color:transparent}
-.vt-btn.primary-btn:hover{opacity:.9}
-.vt-sep{width:1px;height:24px;background:var(--border);margin:0 2px}
-.vt-info{margin-left:auto;font-size:10px;color:var(--text3);font-weight:500}
+def check_login_attempt(ip):
+    now = time.time()
+    if ip not in login_attempts:
+        login_attempts[ip] = []
+    login_attempts[ip] = [t for t in login_attempts[ip] if now - t < 900]
+    return len(login_attempts[ip]) < 5
 
-/* EDIT PANEL */
-.edit-panel{display:none;padding:14px 16px;border-bottom:1px solid var(--border);background:rgba(15,15,36,.5);flex-wrap:wrap;gap:20px}
-.edit-panel.active{display:flex}
-.edit-group{display:flex;flex-direction:column;gap:6px;min-width:130px}
-.edit-group-title{font-size:9px;font-weight:700;letter-spacing:.1em;color:var(--primary2);text-transform:uppercase}
-.edit-row{display:flex;align-items:center;gap:8px}
-.edit-label{font-size:10px;color:var(--text3);min-width:55px;font-weight:500}
-.edit-slider{-webkit-appearance:none;appearance:none;height:4px;background:var(--border);border-radius:2px;cursor:pointer;flex:1;min-width:80px}
-.edit-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--primary);cursor:pointer;border:2px solid var(--bg)}
-.edit-value{font-size:10px;color:var(--text);min-width:35px;text-align:right;font-weight:500}
-.color-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.color-sw{width:22px;height:22px;border:2px solid transparent;border-radius:4px;cursor:pointer;transition:all .15s}
-.color-sw:hover{transform:scale(1.15)}
-.color-sw.active{border-color:var(--primary);box-shadow:0 0 8px rgba(108,92,231,.4)}
+def record_login_fail(ip):
+    if ip not in login_attempts:
+        login_attempts[ip] = []
+    login_attempts[ip].append(time.time())
 
-/* GALLERY / MODELS */
-.gallery-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)}
-.search-box{display:flex;align-items:center;gap:8px;border:1px solid var(--border);background:var(--surface);padding:9px 14px;flex:1;max-width:320px;border-radius:var(--radius-sm)}
-.search-box:focus-within{border-color:var(--primary)}
-.search-box input{background:transparent;border:none;color:var(--text);font-size:12px;width:100%}
-.search-box input::placeholder{color:var(--text3)}
-.filter-chip{padding:6px 14px;border:1px solid var(--border);background:transparent;color:var(--text3);font-size:11px;font-weight:500;cursor:pointer;transition:all .15s;border-radius:20px}
-.filter-chip:hover,.filter-chip.active{border-color:var(--primary);color:var(--primary2);background:rgba(108,92,231,.08)}
-.models-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
-.model-card{background:var(--surface);border:1px solid var(--border);transition:all .25s;cursor:pointer;overflow:hidden;border-radius:var(--radius);backdrop-filter:blur(10px)}
-.model-card:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow:0 12px 32px rgba(0,0,0,.3)}
-.model-thumb{height:180px;background:var(--bg2);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0}
-.model-thumb .thumb-placeholder{font-size:48px;opacity:.1;color:var(--primary2)}
-.thumb-overlay{position:absolute;inset:0;background:rgba(0,0,0,0);transition:background .2s;display:flex;align-items:center;justify-content:center;gap:8px;opacity:0}
-.model-card:hover .thumb-overlay{opacity:1;background:rgba(0,0,0,.4)}
-.thumb-overlay button{background:var(--grad1);color:#fff;border:none;padding:8px 16px;font-size:11px;font-weight:600;cursor:pointer;border-radius:var(--radius-xs)}
-.model-style-tag{position:absolute;top:8px;left:8px;background:rgba(10,10,26,.8);border:1px solid var(--border);padding:3px 10px;font-size:9px;font-weight:600;color:var(--primary2);border-radius:4px}
-.model-body{padding:14px}
-.model-title{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.model-meta{display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:10px}
-.model-stats{display:flex;gap:14px;margin-bottom:10px}
-.model-stat{font-size:10px;color:var(--text3)}
-.model-stat span{color:var(--green);font-weight:600}
-.model-actions{display:flex;gap:6px}
-.model-action-btn{flex:1;padding:7px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:10px;font-weight:500;cursor:pointer;transition:all .15s;border-radius:var(--radius-xs)}
-.model-action-btn:hover{border-color:var(--primary);color:var(--primary2)}
-.model-action-btn.download{background:var(--grad1);color:#fff;border-color:transparent}
-.model-action-btn.liked{color:var(--pink);border-color:rgba(253,121,168,.4)}
-.model-action-btn.delete{color:var(--red);border-color:rgba(255,107,107,.3)}
+def get_client_ip(request: Request):
+    forwarded = request.headers.get("x-forwarded-for", "")
+    return forwarded.split(",")[0].strip() if forwarded else request.client.host
 
-/* SETTINGS */
-.settings-grid{display:grid;grid-template-columns:200px 1fr;gap:0;min-height:400px}
-.settings-nav{border-right:1px solid var(--border);padding:8px 0}
-.settings-nav-item{padding:10px 20px;font-size:12px;font-weight:500;color:var(--text3);cursor:pointer;transition:all .15s;border-left:2px solid transparent}
-.settings-nav-item:hover{color:var(--text);background:rgba(108,92,231,.04)}
-.settings-nav-item.active{color:var(--primary2);border-left-color:var(--primary);background:rgba(108,92,231,.06)}
-.settings-body{padding:0 28px}
-.settings-section{max-width:500px}
-.settings-title{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;margin-bottom:8px}
-.settings-desc{font-size:12px;color:var(--text3);margin-bottom:24px;line-height:1.8}
-.btn-save{padding:10px 28px;background:var(--grad1);color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-xs);transition:all .2s}
-.btn-save:hover{opacity:.9}
-.btn-danger{padding:10px 28px;background:transparent;border:1px solid rgba(255,107,107,.3);color:var(--red);font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-xs)}
-.btn-danger:hover{background:rgba(255,107,107,.08)}
-.plan-card{padding:20px;border:1px solid var(--border);background:var(--surface);margin-bottom:16px;display:flex;align-items:center;gap:16px;border-radius:var(--radius)}
-.plan-card .plan-name{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700}
-.plan-card .plan-detail{font-size:11px;color:var(--text3);margin-top:4px}
-.plan-card .plan-badge-tag{margin-left:auto;padding:4px 14px;border:1px solid var(--border2);color:var(--primary2);font-size:10px;font-weight:600;border-radius:20px}
-.usage-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
-.usage-stat-card{padding:18px;border:1px solid var(--border);background:var(--surface);text-align:center;border-radius:var(--radius)}
-.usage-stat-num{font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:800;background:var(--grad1);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.usage-stat-label{font-size:10px;color:var(--text3);font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:.05em}
+# ════════ GUVENLIK ════════
+def hash_pw(pw):
+    salt = secrets.token_hex(16)
+    h = hashlib.pbkdf2_hmac('sha512', pw.encode(), salt.encode(), 310000).hex()
+    return salt, h
 
-/* PLANS */
-.plans-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-.plan-box{background:var(--surface);border:1px solid var(--border);padding:36px 28px;position:relative;transition:all .3s;border-radius:var(--radius);backdrop-filter:blur(10px)}
-.plan-box:hover{border-color:var(--border2);transform:translateY(-2px)}
-.plan-box.popular{border-color:var(--primary);box-shadow:0 0 40px rgba(108,92,231,.1)}
-.popular-tag{position:absolute;top:16px;right:16px;background:var(--grad1);color:#fff;padding:4px 12px;font-size:9px;font-weight:700;border-radius:20px}
-.plan-box .plan-tier{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--text3);margin-bottom:16px;text-transform:uppercase}
-.plan-box .plan-price{font-family:'Space Grotesk',sans-serif;font-size:44px;font-weight:800;line-height:1;margin-bottom:6px}
-.plan-box .plan-price span{font-size:14px;font-weight:400;color:var(--text3)}
-.plan-box .plan-period{font-size:11px;color:var(--text3);margin-bottom:24px}
-.plan-features{list-style:none;margin-bottom:28px}
-.plan-features li{font-size:12px;padding:8px 0;border-bottom:1px solid rgba(108,92,231,.08);display:flex;align-items:center;gap:8px;font-weight:500}
-.plan-features li::before{content:'✓';font-size:11px;color:var(--green);font-weight:700}
-.plan-features li.off{color:var(--text3)}
-.plan-features li.off::before{content:'—';color:var(--text3)}
-.plan-btn{width:100%;padding:12px;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;border:1px solid var(--border);background:transparent;color:var(--text);border-radius:var(--radius-sm)}
-.plan-btn:hover{border-color:var(--primary);color:var(--primary2)}
-.plan-btn.highlight{background:var(--grad1);color:#fff;border-color:transparent}
-.plan-btn.highlight:hover{opacity:.9}
+def verify_pw(pw, salt, h):
+    computed = hashlib.pbkdf2_hmac('sha512', pw.encode(), salt.encode(), 310000).hex()
+    return hmac.compare_digest(computed, h)
 
-/* TOAST */
-.toast-container{position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px}
-.toast{padding:12px 18px;font-size:12px;border-radius:var(--radius-sm);animation:toastIn .3s ease;max-width:360px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 32px rgba(0,0,0,.4);backdrop-filter:blur(12px);font-weight:500}
-.toast.success{background:rgba(0,184,148,.15);border:1px solid rgba(0,184,148,.3);color:var(--green)}
-.toast.error{background:rgba(255,107,107,.15);border:1px solid rgba(255,107,107,.3);color:var(--red)}
-.toast.info{background:rgba(108,92,231,.15);border:1px solid rgba(108,92,231,.3);color:var(--primary2)}
-@keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+def create_token(uid, email, name, plan):
+    if not HAS_JWT:
+        return "no-jwt"
+    return pyjwt.encode(
+        {"user_id": uid, "email": email, "name": name, "plan": plan,
+         "exp": datetime.utcnow() + timedelta(days=7)},
+        SECRET_KEY, algorithm="HS256"
+    )
 
-/* EMPTY STATE */
-.empty-state{text-align:center;padding:60px 20px;color:var(--text3)}
-.empty-state .empty-icon{font-size:48px;opacity:.15;margin-bottom:16px}
-.empty-state .empty-title{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:700;color:var(--text);margin-bottom:8px}
-.empty-state .empty-desc{font-size:12px;line-height:1.8;margin-bottom:20px}
-.empty-state button{padding:10px 24px;background:var(--grad1);color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-xs)}
+def decode_token(t):
+    if not HAS_JWT:
+        return None
+    try:
+        return pyjwt.decode(t, SECRET_KEY, algorithms=["HS256"])
+    except:
+        return None
 
-.skeleton{background:linear-gradient(90deg,var(--bg2) 25%,var(--bg3) 50%,var(--bg2) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:var(--radius)}
-@keyframes shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+def sanitize(text):
+    if not text:
+        return ""
+    text = re.sub(r'<[^>]+>', '', str(text))
+    text = text.replace('&', '&amp;').replace('"', '&quot;')
+    return text.strip()[:500]
 
-/* RESPONSIVE */
-@media(max-width:900px){
-  .gen-layout{grid-template-columns:1fr}
-  .gen-panel{max-height:50vh;border-right:none;border-bottom:1px solid var(--border)}
-  .settings-grid{grid-template-columns:1fr}
-  .settings-nav{display:flex;overflow-x:auto;border-right:none;border-bottom:1px solid var(--border)}
-  .settings-nav-item{border-left:none;border-bottom:2px solid transparent;white-space:nowrap;padding:10px 16px}
-  .settings-nav-item.active{border-bottom-color:var(--primary);border-left-color:transparent}
-  .settings-body{padding:20px 0}
-  .plans-grid{grid-template-columns:1fr}
-  .usage-stat-grid{grid-template-columns:1fr}
-  .edit-panel.active{flex-direction:column}
-}
-@media(max-width:768px){
-  .sidebar{position:fixed;left:0;top:0;bottom:0;z-index:1000;transform:translateX(-100%)}
-  .sidebar.open{transform:translateX(0)}
-  .mobile-toggle{display:block}
-  .main-body{padding:16px}
-  .models-grid{grid-template-columns:1fr}
-  .image-grid{grid-template-columns:repeat(2,1fr)}
-  .toolbar-row{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
-}
-</style>
-</head>
-<body>
-<div class="toast-container" id="toastContainer"></div>
-<div class="mobile-overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
+def validate_password(pw):
+    if len(pw) < 8:
+        return False, "Sifre en az 8 karakter olmali"
+    if not re.search(r'[a-zA-Z]', pw):
+        return False, "Sifre en az 1 harf icermeli"
+    if not re.search(r'[0-9]', pw):
+        return False, "Sifre en az 1 rakam icermeli"
+    return True, "OK"
 
-<!-- AUTH -->
-<div class="auth-overlay" id="authOverlay">
-  <div class="auth-bg-glow"></div>
-  <div class="auth-card">
-    <div class="auth-card-logo">
-      <div style="width:36px;height:36px;border-radius:10px;background:var(--grad1);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;color:#fff">P</div>
-      <span style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;background:var(--grad1);-webkit-background-clip:text;-webkit-text-fill-color:transparent">PRINTFORGE</span>
-    </div>
-    <div class="auth-tabs">
-      <button class="auth-tab active" onclick="switchAuth('login')">Giriş Yap</button>
-      <button class="auth-tab" onclick="switchAuth('register')">Kayıt Ol</button>
-    </div>
-    <div id="authMsg" class="msg-box"></div>
-    <div id="loginForm">
-      <h3 class="auth-title">Tekrar Hoş Geldin</h3>
-      <p class="auth-sub">Hesabına giriş yap</p>
-      <div class="form-group"><label class="form-label">E-POSTA</label><input class="form-input" type="email" id="loginEmail" placeholder="ornek@mail.com" onkeydown="if(event.key==='Enter')doLogin()"></div>
-      <div class="form-group"><label class="form-label">ŞİFRE</label><input class="form-input" type="password" id="loginPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
-      <div style="text-align:right;margin-bottom:12px"><a class="auth-link" onclick="switchAuth('forgot')">Şifremi Unuttum</a></div>
-      <button class="btn-primary" id="loginBtn" onclick="doLogin()">Giriş Yap →</button>
-      <div class="auth-divider">veya</div>
-      <button class="btn-google" onclick="doGoogleLogin()">
-        <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.07 5.07 0 01-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-        Google ile Devam Et
-      </button>
-      <div class="auth-footer">Hesabın yok mu? <a onclick="switchAuth('register')">Kayıt ol</a></div>
-    </div>
-    <div id="registerForm" style="display:none">
-      <h3 class="auth-title">Hesap Oluştur</h3>
-      <p class="auth-sub">Ücretsiz başla, hemen model üret</p>
-      <div class="form-group"><label class="form-label">AD SOYAD</label><input class="form-input" type="text" id="regName" placeholder="Adın Soyadın" onkeydown="if(event.key==='Enter')doRegister()"></div>
-      <div class="form-group"><label class="form-label">E-POSTA</label><input class="form-input" type="email" id="regEmail" placeholder="ornek@mail.com" onkeydown="if(event.key==='Enter')doRegister()"></div>
-      <div class="form-group"><label class="form-label">ŞİFRE</label><input class="form-input" type="password" id="regPass" placeholder="En az 6 karakter" onkeydown="if(event.key==='Enter')doRegister()"></div>
-      <button class="btn-primary" id="regBtn" onclick="doRegister()">Hesap Oluştur →</button>
-      <div class="auth-divider">veya</div>
-      <button class="btn-google" onclick="doGoogleLogin()">
-        <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.07 5.07 0 01-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-        Google ile Devam Et
-      </button>
-      <div class="auth-footer">Zaten hesabın var mı? <a onclick="switchAuth('login')">Giriş yap</a></div>
-    </div>
-    <div id="forgotForm" style="display:none">
-      <h3 class="auth-title">Şifremi Unuttum</h3>
-      <p class="auth-sub">E-posta adresine sıfırlama linki göndereceğiz</p>
-      <div class="form-group"><label class="form-label">E-POSTA</label><input class="form-input" type="email" id="forgotEmail" placeholder="ornek@mail.com" onkeydown="if(event.key==='Enter')doForgotPassword()"></div>
-      <button class="btn-primary" onclick="doForgotPassword()">Sıfırlama Linki Gönder</button>
-      <div class="auth-footer" style="margin-top:16px"><a onclick="switchAuth('login')">← Giriş'e dön</a></div>
-    </div>
-    <div id="resetForm" style="display:none">
-      <h3 class="auth-title">Yeni Şifre Belirle</h3>
-      <p class="auth-sub">Yeni şifrenizi girin</p>
-      <div class="form-group"><label class="form-label">YENİ ŞİFRE</label><input class="form-input" type="password" id="resetPass" placeholder="En az 6 karakter"></div>
-      <div class="form-group"><label class="form-label">ŞİFRE TEKRAR</label><input class="form-input" type="password" id="resetPassConfirm" placeholder="Tekrar girin"></div>
-      <button class="btn-primary" onclick="doResetPassword()">Şifreyi Değiştir</button>
-    </div>
-  </div>
-</div>
+BLOCKED_DOMAINS = set([
+    "tempmail.com","throwaway.email","guerrillamail.com","mailinator.com",
+    "yopmail.com","sharklasers.com","guerrillamailblock.com","grr.la",
+    "dispostable.com","trashmail.com","10minutemail.com","temp-mail.org",
+])
 
-<!-- APP LAYOUT -->
-<div class="app-layout" id="appLayout" style="display:none">
-  <aside class="sidebar" id="sidebar">
-    <div class="sb-logo" onclick="window.location.href='/'">
-      <div class="sb-logo-icon">P</div>
-      <span class="sb-logo-text">PRINTFORGE</span>
-    </div>
-    <div class="sb-section">
-      <div class="sb-label">Oluştur</div>
-      <div class="sb-item active" onclick="navigateTo('generate')" data-page="generate"><span class="icon">✦</span> Model Üret</div>
-    </div>
-    <div class="sb-section">
-      <div class="sb-label">Kütüphane</div>
-      <div class="sb-item" onclick="navigateTo('gallery')" data-page="gallery"><span class="icon">◎</span> Galeri</div>
-      <div class="sb-item" onclick="navigateTo('mymodels')" data-page="mymodels"><span class="icon">◇</span> Modellerim <span class="badge" id="myModelCount">0</span></div>
-    </div>
-    <div class="sb-section">
-      <div class="sb-label">Hesap</div>
-      <div class="sb-item" onclick="navigateTo('settings')" data-page="settings"><span class="icon">⚙</span> Ayarlar</div>
-      <div class="sb-item" onclick="navigateTo('plans')" data-page="plans"><span class="icon">◆</span> Planlar</div>
-    </div>
-    <div class="sb-usage">
-      <div class="sb-usage-title"><span>KULLANIM</span><span id="usageText">0 / 5</span></div>
-      <div class="sb-usage-bar"><div class="sb-usage-fill" id="usageFill" style="width:0%"></div></div>
-      <div class="sb-usage-text" id="usageRemain">5 model kaldı</div>
-    </div>
-    <div class="sb-user" onclick="navigateTo('settings')">
-      <div class="sb-avatar" id="sidebarAvatar">U</div>
-      <div class="sb-user-info">
-        <div class="sb-user-name" id="sidebarName">Kullanıcı</div>
-        <div class="sb-user-plan" id="sidebarPlan">FREE</div>
-      </div>
-    </div>
-  </aside>
+async def validate_email(email):
+    email = email.lower().strip()
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9._%+-]*@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
+        return False, "Gecerli bir e-posta girin"
+    local, domain = email.split("@", 1)
+    if len(local) < 2:
+        return False, "E-posta cok kisa"
+    if domain in BLOCKED_DOMAINS:
+        return False, "Gecici e-posta kabul edilmiyor"
+    return True, "OK"
 
-  <div class="main-content">
-    <div class="main-header">
-      <button class="mobile-toggle" onclick="toggleSidebar()">☰</button>
-      <h2 id="pageTitle">Model Üret</h2>
-      <span class="header-badge" id="headerBadge">AI POWERED</span>
-    </div>
-    <div class="verify-banner hidden" id="verifyBanner">
-      ⚠️ E-posta adresinizi doğrulayın.
-      <button onclick="resendVerification()">Tekrar Gönder</button>
-    </div>
+def generate_username(name, uid):
+    base = re.sub(r'[^a-z0-9]', '', name.lower().replace(' ', ''))[:15]
+    if not base:
+        base = "user"
+    return f"{base}{uid}"
 
-    <!-- PAGE: GENERATE -->
-    <div class="main-body" id="page-generate" style="padding:0;overflow:hidden">
-      <div class="gen-layout" style="height:100%">
-        <div class="gen-panel">
-          <div class="gen-tabs">
-            <button class="gen-tab active" onclick="switchGenTab('text',this)">✍ Metin</button>
-            <button class="gen-tab" onclick="switchGenTab('image',this)">🖼 Görsel</button>
-          </div>
-          <div id="genText">
-            <div class="gen-section">
-              <div class="gen-section-title">Prompt</div>
-              <textarea class="gen-textarea" id="promptInput" placeholder="Modelinizi tanımlayın...&#10;&#10;Örnek: A medieval castle with towers" oninput="updateCharCount()"></textarea>
-              <div class="char-count"><span id="charCount">0</span> / 500</div>
-            </div>
-            <div class="gen-section">
-              <div class="gen-section-title">Stil</div>
-              <div class="style-grid">
-                <div class="style-card active" onclick="selectStyle(this,'realistic')"><div class="style-icon">🎯</div>Gerçekçi</div>
-                <div class="style-card" onclick="selectStyle(this,'cartoon')"><div class="style-icon">🎨</div>Cartoon</div>
-                <div class="style-card" onclick="selectStyle(this,'lowpoly')"><div class="style-icon">💎</div>Low Poly</div>
-                <div class="style-card" onclick="selectStyle(this,'sculpture')"><div class="style-icon">🗿</div>Heykel</div>
-                <div class="style-card" onclick="selectStyle(this,'mechanical')"><div class="style-icon">⚙️</div>Mekanik</div>
-                <div class="style-card" onclick="selectStyle(this,'miniature')"><div class="style-icon">🏰</div>Minyatür</div>
-              </div>
-            </div>
-            <button class="gen-btn" id="genTextBtn" onclick="generateText()">✦ Model Üret</button>
-          </div>
-          <div id="genImage" style="display:none">
-            <div class="gen-section">
-              <div class="gen-section-title">Görseller Yükle (1-6 adet)</div>
-              <div class="image-grid" id="imageGrid"></div>
-              <div class="image-count-info" id="imageCountInfo"><span>0</span> / 6 görsel · ★ Ana görsel kullanılır</div>
-              <div class="multi-drop-zone" id="multiDropZone">
-                <input type="file" accept="image/*" multiple onchange="handleMultiDrop(event)">
-                <div class="drop-text">Sürükle-bırak ile <span>toplu yükle</span> · JPG, PNG, WEBP · Max 10MB</div>
-              </div>
-            </div>
-            <button class="gen-btn" id="genImageBtn" onclick="generateImage()">✦ Görselden Model Üret</button>
-          </div>
-          <div class="gen-progress" id="genProgress">
-            <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
-            <div class="progress-text"><span class="progress-step" id="progressStep">Başlatılıyor...</span><span id="progressPercent">0%</span></div>
-          </div>
+
+# ════════ E-POSTA ════════
+async def send_email(to, subject, html_content):
+    if not RESEND_API_KEY:
+        print(f"[MAIL] API key yok: {to}")
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.post("https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+                json={"from": EMAIL_FROM, "to": [to], "subject": subject, "html": html_content})
+            return r.status_code in (200, 201)
+    except:
+        return False
+
+async def send_verification_email(email, token):
+    link = f"{get_site_url()}/api/auth/verify?token={token}"
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:30px;background:#04080a;border:1px solid #0e2028;border-radius:12px">
+        <div style="text-align:center;margin-bottom:24px">
+            <span style="font-size:24px;font-weight:800;color:#00e5ff;letter-spacing:0.1em">PRINTFORGE</span>
         </div>
-
-        <div class="gen-viewer">
-          <div class="viewer-container" id="viewerContainer">
-            <div class="viewer-empty" id="viewerEmpty">
-              <div class="ve-icon">✦</div>
-              <div class="ve-title">3D Görüntüleyici</div>
-              <div class="ve-sub">Sol panelden metin girin veya<br>görsel yükleyerek model üretin</div>
-            </div>
-            <div class="viewer-loading hidden" id="viewerLoading">
-              <div class="loading-spinner"></div>
-              <div class="viewer-loading-text">Model yükleniyor...</div>
-            </div>
-            <div class="viewer-error hidden" id="viewerError">
-              <div style="font-size:36px;opacity:.3">⚠</div>
-              <div style="font-size:13px;color:var(--red);font-weight:600;margin:8px 0">Model yüklenemedi</div>
-              <div style="font-size:11px;color:var(--text3);max-width:300px;line-height:1.6;margin-bottom:16px" id="viewerErrorMsg"></div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
-                <button onclick="retryLoadModel()" style="padding:10px 20px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-family:inherit;font-size:11px;cursor:pointer">↻ Tekrar Dene</button>
-                <button onclick="tryDirectUrl()" id="btnDirectUrl" style="padding:10px 20px;background:transparent;color:var(--cyan);border:1px solid var(--cyan);border-radius:8px;font-family:inherit;font-size:11px;cursor:pointer;display:none">↗ Doğrudan Aç</button>
-              </div>
-              <div style="font-size:9px;color:var(--text3);margin-top:12px;opacity:.6" id="viewerDebugInfo"></div>
-            </div>
-          </div>
-          <div class="viewer-toolbar" id="viewerToolbar">
-            <div class="toolbar-row">
-              <button class="vt-btn active" id="btnAutoRotate" onclick="toggleAutoRotate()">↻ Döndür</button>
-              <button class="vt-btn" id="btnShadow" onclick="toggleShadow()">◐ Gölge</button>
-              <div class="vt-sep"></div>
-              <button class="vt-btn" id="btnEditPanel" onclick="toggleEditPanel()">⚙ Düzenle</button>
-              <button class="vt-btn" onclick="resetCamera()">⊞ Sıfırla</button>
-              <button class="vt-btn" onclick="takeScreenshot()">📷</button>
-              <button class="vt-btn" onclick="toggleFullscreen()">⛶</button>
-              <span class="vt-info" id="viewerInfo"></span>
-            </div>
-            <div class="edit-panel" id="editPanel">
-              <div class="edit-group">
-                <div class="edit-group-title">Aydınlatma</div>
-                <div class="edit-row"><span class="edit-label">Pozlama</span><input type="range" class="edit-slider" id="slExposure" min="0" max="3" step="0.1" value="1" oninput="setViewerAttr('exposure',this.value);document.getElementById('valExposure').textContent=parseFloat(this.value).toFixed(1)"><span class="edit-value" id="valExposure">1.0</span></div>
-                <div class="edit-row"><span class="edit-label">Gölge</span><input type="range" class="edit-slider" id="slShadow" min="0" max="2" step="0.1" value="0" oninput="setViewerAttr('shadow-intensity',this.value);document.getElementById('valShadow').textContent=parseFloat(this.value).toFixed(1)"><span class="edit-value" id="valShadow">0.0</span></div>
-              </div>
-              <div class="edit-group">
-                <div class="edit-group-title">Döndürme</div>
-                <div class="edit-row"><span class="edit-label">Hız</span><input type="range" class="edit-slider" id="slRotSpeed" min="0" max="120" step="5" value="30" oninput="setRotSpeed(this.value);document.getElementById('valRotSpeed').textContent=this.value+'°'"><span class="edit-value" id="valRotSpeed">30°</span></div>
-              </div>
-              <div class="edit-group">
-                <div class="edit-group-title">Arka Plan</div>
-                <div class="color-row">
-                  <div class="color-sw active" style="background:#0a0a1a" onclick="setBgColor('#0a0a1a',this)"></div>
-                  <div class="color-sw" style="background:#1a1a2e" onclick="setBgColor('#1a1a2e',this)"></div>
-                  <div class="color-sw" style="background:#16213e" onclick="setBgColor('#16213e',this)"></div>
-                  <div class="color-sw" style="background:#0f3460" onclick="setBgColor('#0f3460',this)"></div>
-                  <div class="color-sw" style="background:#2d1b69" onclick="setBgColor('#2d1b69',this)"></div>
-                  <div class="color-sw" style="background:#ffffff" onclick="setBgColor('#ffffff',this)"></div>
-                </div>
-              </div>
-            </div>
-            <div class="toolbar-row">
-              <button class="vt-btn primary-btn" onclick="downloadModel('glb')">↓ GLB İndir</button>
-              <button class="vt-btn" onclick="downloadModel('stl')">↓ STL</button>
-              <button class="vt-btn" onclick="downloadModel('obj')">↓ OBJ</button>
-              <span class="vt-info" id="downloadInfo"></span>
-            </div>
-          </div>
+        <h2 style="color:#c8dde5;font-size:18px;margin-bottom:12px">Hesabinizi Dogrulayin</h2>
+        <p style="color:#2a4a5a;font-size:14px;line-height:1.8;margin-bottom:24px">
+            PrintForge'a hosgeldiniz! Hesabinizi aktif etmek icin asagidaki butona tiklayin.
+        </p>
+        <div style="text-align:center;margin-bottom:24px">
+            <a href="{link}" style="display:inline-block;padding:14px 36px;background:#00e5ff;color:#04080a;text-decoration:none;font-weight:700;font-size:14px;border-radius:8px">
+                Hesabi Dogrula
+            </a>
         </div>
-      </div>
-    </div>
+        <p style="color:#2a4a5a;font-size:11px">Bu link 24 saat gecerlidir.</p>
+    </div>"""
+    return await send_email(email, "PrintForge - Hesap Dogrulama", html)
 
-    <!-- PAGE: GALLERY -->
-    <div class="main-body" id="page-gallery" style="display:none">
-      <div class="gallery-toolbar">
-        <div class="search-box"><span style="color:var(--text3)">🔍</span><input type="text" placeholder="Model ara..." id="gallerySearch" oninput="loadGallery()"></div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="filter-chip active" onclick="setGallerySort('newest',this)">Yeni</button>
-          <button class="filter-chip" onclick="setGallerySort('popular',this)">Popüler</button>
-          <button class="filter-chip" onclick="setGallerySort('downloads',this)">İndirilen</button>
+async def send_reset_email(email, token):
+    link = f"{get_site_url()}/app?reset={token}"
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:30px;background:#04080a;border:1px solid #0e2028;border-radius:12px">
+        <div style="text-align:center;margin-bottom:24px">
+            <span style="font-size:24px;font-weight:800;color:#00e5ff;letter-spacing:0.1em">PRINTFORGE</span>
         </div>
-      </div>
-      <div class="models-grid" id="galleryGrid"></div>
-    </div>
-
-    <!-- PAGE: MY MODELS -->
-    <div class="main-body" id="page-mymodels" style="display:none">
-      <div class="models-grid" id="myModelsGrid"></div>
-    </div>
-
-    <!-- PAGE: SETTINGS -->
-    <div class="main-body" id="page-settings" style="display:none">
-      <div class="settings-grid">
-        <div class="settings-nav">
-          <div class="settings-nav-item active" onclick="switchSettingsTab('profile',this)">Profil</div>
-          <div class="settings-nav-item" onclick="switchSettingsTab('usage',this)">Kullanım</div>
-          <div class="settings-nav-item" onclick="switchSettingsTab('billing',this)">Faturalama</div>
+        <h2 style="color:#c8dde5;font-size:18px;margin-bottom:12px">Sifre Sifirlama</h2>
+        <p style="color:#2a4a5a;font-size:14px;line-height:1.8;margin-bottom:24px">
+            Sifrenizi sifirlamak icin asagidaki butona tiklayin.
+        </p>
+        <div style="text-align:center;margin-bottom:24px">
+            <a href="{link}" style="display:inline-block;padding:14px 36px;background:#00e5ff;color:#04080a;text-decoration:none;font-weight:700;font-size:14px;border-radius:8px">
+                Sifremi Sifirla
+            </a>
         </div>
-        <div class="settings-body">
-          <div id="settingsProfile" class="settings-section">
-            <div class="settings-title">Profil Bilgileri</div>
-            <div class="settings-desc">Hesap bilgilerinizi güncelleyin</div>
-            <div class="form-group"><label class="form-label">AD SOYAD</label><input class="form-input" type="text" id="settingsName"></div>
-            <div class="form-group"><label class="form-label">E-POSTA</label><input class="form-input" type="email" id="settingsEmail" disabled style="opacity:.6"></div>
-            <div class="form-group"><label class="form-label">YENİ ŞİFRE</label><input class="form-input" type="password" id="settingsPass" placeholder="Değiştirmek için doldurun"></div>
-            <div style="display:flex;gap:10px;margin-top:12px">
-              <button class="btn-save" onclick="saveProfile()">Kaydet</button>
-              <button class="btn-danger" onclick="doLogout()">Çıkış Yap</button>
-            </div>
-          </div>
-          <div id="settingsUsage" class="settings-section" style="display:none">
-            <div class="settings-title">Kullanım İstatistikleri</div>
-            <div class="settings-desc">Bu ayki kullanımınız</div>
-            <div class="usage-stat-grid">
-              <div class="usage-stat-card"><div class="usage-stat-num" id="statModels">0</div><div class="usage-stat-label">Model</div></div>
-              <div class="usage-stat-card"><div class="usage-stat-num" id="statLikes">0</div><div class="usage-stat-label">Beğeni</div></div>
-              <div class="usage-stat-card"><div class="usage-stat-num" id="statDownloads">0</div><div class="usage-stat-label">İndirme</div></div>
-            </div>
-            <div class="plan-card"><div><div class="plan-name" id="usagePlanName">Free</div><div class="plan-detail" id="usagePlanDetail">5 model/ay</div></div><div class="plan-badge-tag" id="usagePlanBadge">FREE</div></div>
-          </div>
-          <div id="settingsBilling" class="settings-section" style="display:none">
-            <div class="settings-title">Faturalama</div>
-            <div class="settings-desc">Plan ve ödeme bilgileriniz</div>
-            <div class="plan-card"><div><div class="plan-name" id="billingPlan">Free</div><div class="plan-detail">Mevcut planınız</div></div><div class="plan-badge-tag" id="billingBadge">FREE</div></div>
-            <button class="btn-save" onclick="navigateTo('plans')" style="margin-top:12px">Planı Yükselt →</button>
-          </div>
+        <p style="color:#2a4a5a;font-size:11px">Bu link 1 saat gecerlidir.</p>
+    </div>"""
+    return await send_email(email, "PrintForge - Sifre Sifirlama", html)
+
+async def send_welcome_email(email, name):
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:30px;background:#04080a;border:1px solid #0e2028;border-radius:12px">
+        <div style="text-align:center;margin-bottom:24px">
+            <span style="font-size:24px;font-weight:800;color:#00e5ff;letter-spacing:0.1em">PRINTFORGE</span>
         </div>
-      </div>
-    </div>
-
-    <!-- PAGE: PLANS -->
-    <div class="main-body" id="page-plans" style="display:none">
-      <div style="text-align:center;margin-bottom:32px">
-        <h2 style="font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:800;margin-bottom:8px">Sana Uygun <span style="background:var(--grad1);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Plan</span></h2>
-        <p style="font-size:13px;color:var(--text3)">Ücretsiz başla, ihtiyacına göre büyüt</p>
-      </div>
-      <div class="plans-grid">
-        <div class="plan-box">
-          <div class="plan-tier">Başlangıç</div>
-          <div class="plan-price">₺0<span>/ay</span></div>
-          <div class="plan-period">Kredi kartı gerekmez</div>
-          <ul class="plan-features"><li>5 model/ay</li><li>GLB indirme</li><li>Galeri erişimi</li><li class="off">STL & OBJ indirme</li><li class="off">Öncelikli işleme</li></ul>
-          <button class="plan-btn">Mevcut Plan</button>
+        <h2 style="color:#c8dde5;font-size:18px;margin-bottom:12px">Hosgeldin {name}! 🎉</h2>
+        <p style="color:#2a4a5a;font-size:14px;line-height:1.8;margin-bottom:24px">
+            PrintForge'a katildigin icin tesekkurler! Artik AI ile 3D model uretebilirsin.
+        </p>
+        <ul style="color:#c8dde5;font-size:13px;line-height:2;margin-bottom:24px">
+            <li>✅ Ayda 5 ucretsiz model uret</li>
+            <li>✅ GLB, STL, OBJ formatinda indir</li>
+            <li>✅ Topluluk galerisin kesfet</li>
+            <li>✅ Koleksiyonlar olustur</li>
+        </ul>
+        <div style="text-align:center">
+            <a href="{get_site_url()}/app" style="display:inline-block;padding:14px 36px;background:#00e5ff;color:#04080a;text-decoration:none;font-weight:700;font-size:14px;border-radius:8px">
+                Hemen Basla →
+            </a>
         </div>
-        <div class="plan-box popular">
-          <div class="popular-tag">EN POPÜLER</div>
-          <div class="plan-tier">Pro</div>
-          <div class="plan-price">₺299<span>/ay</span></div>
-          <div class="plan-period">Yıllık ödemede %20 indirim</div>
-          <ul class="plan-features"><li>100 model/ay</li><li>GLB, STL & OBJ indirme</li><li>Galeri erişimi</li><li>Öncelikli işleme</li><li class="off">API erişimi</li></ul>
-          <button class="plan-btn highlight" onclick="upgradePlan('pro')">Pro'ya Geç →</button>
+    </div>"""
+    return await send_email(email, f"PrintForge'a Hosgeldin, {name}!", html)
+
+async def send_follow_email(follower_name, target_email, target_name):
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:30px;background:#04080a;border:1px solid #0e2028;border-radius:12px">
+        <div style="text-align:center;margin-bottom:24px">
+            <span style="font-size:24px;font-weight:800;color:#00e5ff;letter-spacing:0.1em">PRINTFORGE</span>
         </div>
-        <div class="plan-box">
-          <div class="plan-tier">İşletme</div>
-          <div class="plan-price">₺899<span>/ay</span></div>
-          <div class="plan-period">Tüm özellikler dahil</div>
-          <ul class="plan-features"><li>Sınırsız model</li><li>GLB, STL & OBJ indirme</li><li>Galeri erişimi</li><li>Öncelikli işleme</li><li>API erişimi</li></ul>
-          <button class="plan-btn" onclick="upgradePlan('business')">İşletme'ye Geç</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+        <h2 style="color:#c8dde5;font-size:18px;margin-bottom:12px">Yeni Takipci! 🎉</h2>
+        <p style="color:#2a4a5a;font-size:14px;line-height:1.8">
+            <strong style="color:#00e5ff">{follower_name}</strong> seni takip etmeye basladi!
+        </p>
+    </div>"""
+    return await send_email(target_email, f"{follower_name} seni takip ediyor!", html)
 
-<!-- NORMAL SCRIPT - Three.js YOK, her zaman çalışır -->
-<script>
-const API = window.location.origin;
-let currentUser = null;
-let currentToken = localStorage.getItem('pf_token') || '';
-let currentTaskId = null;
-let lastModelUrl = null;
-let currentStyle = 'realistic';
-let gallerySort = 'newest';
-let pollInterval = null;
 
-// Image upload state
-const MAX_SLOTS = 6;
-const imageSlots = Array(MAX_SLOTS).fill(null);
-let primarySlot = 0;
-const slotLabels = ['Ön', 'Sağ Yan', 'Arka', 'Sol Yan', 'Üst', 'Detay'];
+# ════════ MODELS ════════
+class TextRequest(BaseModel):
+    prompt: str
+    style: str = "realistic"
+    negative_prompt: str = ""
+    tags: str = ""
 
-// ===== TOAST =====
-function toast(msg, type = 'info') {
-    const c = document.getElementById('toastContainer');
-    const t = document.createElement('div');
-    t.className = 'toast ' + type;
-    const icons = { success: '✓', error: '✕', info: 'ℹ' };
-    t.innerHTML = '<span>' + (icons[type]||'ℹ') + '</span> ' + msg;
-    c.appendChild(t);
-    setTimeout(function(){ t.style.opacity = '0'; setTimeout(function(){ t.remove(); }, 300); }, 4000);
+class RegisterReq(BaseModel):
+    name: str
+    email: str
+    password: str
+
+class LoginReq(BaseModel):
+    email: str
+    password: str
+
+class UpdateProfileReq(BaseModel):
+    name: Optional[str] = None
+    password: Optional[str] = None
+    bio: Optional[str] = None
+    website: Optional[str] = None
+
+class ForgotPasswordReq(BaseModel):
+    email: str
+
+class ResetPasswordReq(BaseModel):
+    token: str
+    password: str
+
+class CollectionReq(BaseModel):
+    name: str
+    description: str = ""
+    is_public: int = 1
+
+class CollectionItemReq(BaseModel):
+    model_id: int
+
+class BlogPostReq(BaseModel):
+    title: str
+    slug: str
+    excerpt: str = ""
+    content: str
+    cover_image: str = ""
+    tags: str = ""
+
+class TagModelReq(BaseModel):
+    tags: str  # comma separated
+
+
+STYLE_MAP = {
+    "realistic": "realistic", "cartoon": "cartoon", "lowpoly": "low-poly",
+    "sculpture": "sculpture", "mechanical": "pbr", "miniature": "sculpture",
+    "geometric": "realistic",
 }
 
-// ===== AUTH =====
-function switchAuth(tab) {
-    document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
-    document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
-    document.getElementById('forgotForm').style.display = tab === 'forgot' ? 'block' : 'none';
-    document.getElementById('resetForm').style.display = tab === 'reset' ? 'block' : 'none';
-    var tabs = document.querySelectorAll('.auth-tab');
-    tabs[0].classList.toggle('active', tab === 'login' || tab === 'forgot');
-    tabs[1].classList.toggle('active', tab === 'register');
-    document.getElementById('authMsg').style.display = 'none';
-}
+CATEGORIES = [
+    "karakter", "arac", "mimari", "dekor", "mobilya", "hayvan",
+    "yiyecek", "aksesuar", "silah", "bitki", "elektronik", "oyuncak",
+    "spor", "muzik", "diger"
+]
 
-function showAuthMsg(msg, type) {
-    var el = document.getElementById('authMsg');
-    el.textContent = msg;
-    el.className = 'msg-box msg-' + (type || 'error');
-    el.style.display = 'block';
-}
+def get_api():
+    if TRIPO_API_KEY:
+        return "tripo"
+    if MESHY_API_KEY:
+        return "meshy"
+    return "demo"
 
-function doLogin() {
-    var email = document.getElementById('loginEmail').value.trim();
-    var password = document.getElementById('loginPass').value;
-    if (!email || !password) { showAuthMsg('Tüm alanları doldurun'); return; }
-    var btn = document.getElementById('loginBtn');
-    btn.disabled = true; btn.textContent = 'Giriş yapılıyor...';
-    fetch(API + '/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email, password: password })
-    })
-    .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
-    .then(function(result) {
-        if (!result.ok) throw new Error(result.data.detail || 'Giriş başarısız');
-        currentToken = result.data.token;
-        currentUser = result.data.user;
-        localStorage.setItem('pf_token', result.data.token);
-        localStorage.setItem('pf_user', JSON.stringify(result.data.user));
-        showAuthMsg('Giriş başarılı!', 'success');
-        setTimeout(enterApp, 500);
-    })
-    .catch(function(err) { showAuthMsg(err.message); })
-    .finally(function() { btn.disabled = false; btn.textContent = 'Giriş Yap →'; });
-}
 
-function doRegister() {
-    var name = document.getElementById('regName').value.trim();
-    var email = document.getElementById('regEmail').value.trim();
-    var password = document.getElementById('regPass').value;
-    if (!name || !email || !password) { showAuthMsg('Tüm alanları doldurun'); return; }
-    if (password.length < 6) { showAuthMsg('Şifre en az 6 karakter olmalı'); return; }
-    var btn = document.getElementById('regBtn');
-    btn.disabled = true; btn.textContent = 'Oluşturuluyor...';
-    fetch(API + '/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name, email: email, password: password })
-    })
-    .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
-    .then(function(result) {
-        if (!result.ok) throw new Error(result.data.detail || 'Kayıt başarısız');
-        currentToken = result.data.token;
-        currentUser = result.data.user;
-        localStorage.setItem('pf_token', result.data.token);
-        localStorage.setItem('pf_user', JSON.stringify(result.data.user));
-        showAuthMsg(result.data.message || 'Hesap oluşturuldu!', 'success');
-        setTimeout(enterApp, 800);
-    })
-    .catch(function(err) { showAuthMsg(err.message); })
-    .finally(function() { btn.disabled = false; btn.textContent = 'Hesap Oluştur →'; });
-}
+# ════════ VERITABANI ════════
+def get_db():
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    return conn
 
-function doForgotPassword() {
-    var email = document.getElementById('forgotEmail').value.trim();
-    if (!email) { showAuthMsg('E-posta girin'); return; }
-    fetch(API + '/api/auth/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email })
-    })
-    .then(function(res) { return res.json(); })
-    .then(function(data) { showAuthMsg(data.message || 'Sıfırlama linki gönderildi', 'success'); })
-    .catch(function() { showAuthMsg('Bir hata oluştu'); });
-}
+def init_db():
+    conn = get_db()
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            username TEXT UNIQUE,
+            password_hash TEXT NOT NULL,
+            salt TEXT NOT NULL,
+            plan TEXT DEFAULT 'free',
+            bio TEXT DEFAULT '',
+            website TEXT DEFAULT '',
+            google_id TEXT,
+            avatar_url TEXT,
+            verified INTEGER DEFAULT 0,
+            verify_token TEXT,
+            reset_token TEXT,
+            reset_expires TEXT,
+            email_notifications INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS models (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER DEFAULT 0,
+            task_id TEXT UNIQUE,
+            title TEXT,
+            prompt TEXT,
+            negative_prompt TEXT DEFAULT '',
+            gen_type TEXT,
+            style TEXT,
+            category TEXT DEFAULT '',
+            model_url TEXT,
+            is_public INTEGER DEFAULT 1,
+            likes INTEGER DEFAULT 0,
+            downloads INTEGER DEFAULT 0,
+            views INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS model_tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model_id INTEGER,
+            tag TEXT,
+            UNIQUE(model_id, tag)
+        );
+        CREATE TABLE IF NOT EXISTS usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            month TEXT,
+            count INTEGER DEFAULT 0,
+            UNIQUE(user_id, month)
+        );
+        CREATE TABLE IF NOT EXISTS user_likes (
+            user_id INTEGER,
+            model_id INTEGER,
+            created_at TEXT DEFAULT (datetime('now')),
+            PRIMARY KEY(user_id, model_id)
+        );
+        CREATE TABLE IF NOT EXISTS follows (
+            follower_id INTEGER,
+            following_id INTEGER,
+            created_at TEXT DEFAULT (datetime('now')),
+            PRIMARY KEY(follower_id, following_id)
+        );
+        CREATE TABLE IF NOT EXISTS collections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            is_public INTEGER DEFAULT 1,
+            model_count INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS collection_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            collection_id INTEGER NOT NULL,
+            model_id INTEGER NOT NULL,
+            added_at TEXT DEFAULT (datetime('now')),
+            UNIQUE(collection_id, model_id)
+        );
+        CREATE TABLE IF NOT EXISTS blog_posts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            author_id INTEGER DEFAULT 0,
+            title TEXT NOT NULL,
+            slug TEXT UNIQUE NOT NULL,
+            excerpt TEXT DEFAULT '',
+            content TEXT NOT NULL,
+            cover_image TEXT DEFAULT '',
+            tags TEXT DEFAULT '',
+            views INTEGER DEFAULT 0,
+            is_published INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS security_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            action TEXT,
+            ip TEXT,
+            detail TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+    """)
+    # Add columns if missing (migration)
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN username TEXT UNIQUE")
+    except: pass
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN bio TEXT DEFAULT ''")
+    except: pass
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN website TEXT DEFAULT ''")
+    except: pass
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN email_notifications INTEGER DEFAULT 1")
+    except: pass
+    try:
+        conn.execute("ALTER TABLE models ADD COLUMN negative_prompt TEXT DEFAULT ''")
+    except: pass
+    try:
+        conn.execute("ALTER TABLE models ADD COLUMN category TEXT DEFAULT ''")
+    except: pass
+    try:
+        conn.execute("ALTER TABLE models ADD COLUMN views INTEGER DEFAULT 0")
+    except: pass
 
-function doResetPassword() {
-    var pass = document.getElementById('resetPass').value;
-    var conf = document.getElementById('resetPassConfirm').value;
-    if (!pass || pass.length < 6) { showAuthMsg('Şifre en az 6 karakter'); return; }
-    if (pass !== conf) { showAuthMsg('Şifreler eşleşmiyor'); return; }
-    var token = new URLSearchParams(window.location.search).get('reset');
-    if (!token) { showAuthMsg('Geçersiz link'); return; }
-    fetch(API + '/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: token, password: pass })
-    })
-    .then(function(res) { return res.json().then(function(d){ return {ok:res.ok,data:d}; }); })
-    .then(function(r) {
-        if (!r.ok) throw new Error(r.data.detail);
-        showAuthMsg('Şifre değiştirildi!', 'success');
-        setTimeout(function(){ switchAuth('login'); }, 1500);
-    })
-    .catch(function(err) { showAuthMsg(err.message); });
-}
+    # Insert sample blog posts
+    try:
+        cnt = conn.execute("SELECT COUNT(*) FROM blog_posts").fetchone()[0]
+        if cnt == 0:
+            conn.executescript("""
+                INSERT INTO blog_posts (title, slug, excerpt, content, cover_image, tags) VALUES
+                ('PrintForge ile Ilk 3D Modelinizi Uretin', 'ilk-3d-model', 'AI destekli 3D model uretiminin temelleri', 'PrintForge, yapay zeka teknolojisini kullanarak metin veya gorsellerden 3D model uretmenizi saglar. Bu rehberde adim adim ilk modelinizi nasil olusturacaginizi ogreneceksiniz.\n\n## Baslarken\n\nPrintForge''a kaydolduktan sonra ucretsiz planla ayda 5 model uretebilirsiniz. Hemen /app sayfasindan baslayabilirsiniz.\n\n## Metin ile Model Uretme\n\nSol panelde "Metin" sekmesini secin, modelinizi tanimlayan bir prompt yazin. Ornegin: "Detayli bir ortacag kalesi, kuleler ve asma kopru ile"\n\n## Gorsel ile Model Uretme\n\n"Gorsel" sekmesine gecin ve bir fotograf yukleyin. AI, gorseldeki nesneyi analiz ederek 3D modele donusturecektir.\n\n## Indirme\n\nModeliniz hazir oldugunda GLB, STL veya OBJ formatinda indirebilirsiniz.', '', 'rehber,baslangic,3d-model'),
+                ('3D Baski Icin Model Hazirlama Rehberi', '3d-baski-rehberi', '3D yazicida baskilar icin model hazirlama ipuclari', 'PrintForge ile urettiginiz modelleri 3D yazicida basmak icin bazi onemli adimlar vardir.\n\n## STL Formatinda Indirin\n\nCogu 3D yazici dilimleyici (slicer) yazilimi STL formatini destekler. Modelinizi indirirken STL secenegini tercih edin.\n\n## Slicer Ayarlari\n\nCura, PrusaSlicer veya Bambu Studio gibi bir dilimleyici kullanin. Katman yuksekligi, dolgu orani ve destek yapilarini ayarlayin.\n\n## Malzeme Secimi\n\nPLA: Baslangic icin ideal, kolay basilir\nPETG: Daha dayanikli, sicakliga direncli\nABS: Profesyonel kullanim, post-processing uygun', '', '3d-baski,slicer,rehber'),
+                ('Prompt Muhendisligi: Daha Iyi 3D Modeller', 'prompt-muhendisligi', 'Etkili prompt yazarak daha kaliteli modeller uretin', 'AI ile 3D model uretirken yazdiginiz prompt (aciklama) sonucun kalitesini dogrudan etkiler.\n\n## Iyi Prompt Nasil Yazilir?\n\n1. **Detayli olun**: "Araba" yerine "Kirmizi spor araba, karbon fiber detaylar, parlak boya"\n2. **Stil belirtin**: "Low-poly", "Gercekci", "Cartoon" gibi stiller ekleyin\n3. **Boyut referansi verin**: "20cm yuksekliginde masa ustu figur"\n4. **Malzeme belirtin**: "Metalik gorunumlu", "Ahsap dokulu"\n\n## Kotu Prompt Ornekleri\n- "bir sey yap" (cok belirsiz)\n- "gzl arba" (yazim hatalari)\n\n## Iyi Prompt Ornekleri\n- "Detayli ortacag savascisi, zirhli, kilicli, gercekci stil, 15cm figur"\n- "Minimalist geometric vazo, dalgali yuzey, beyaz seramik gorunum"', '', 'prompt,ipucu,kalite')
+            """)
+    except: pass
 
-function doGoogleLogin() { window.location.href = API + '/api/auth/google'; }
+    conn.commit()
+    conn.close()
 
-function doLogout() {
-    if (!confirm('Çıkış yapmak istiyor musunuz?')) return;
-    currentUser = null; currentToken = '';
-    localStorage.removeItem('pf_token'); localStorage.removeItem('pf_user');
-    document.getElementById('authOverlay').classList.remove('hidden');
-    document.getElementById('appLayout').style.display = 'none';
-    switchAuth('login');
-    toast('Çıkış yapıldı', 'info');
-}
+init_db()
 
-// ===== APP ENTRY =====
-function enterApp() {
-    document.getElementById('authOverlay').classList.add('hidden');
-    document.getElementById('appLayout').style.display = 'flex';
-    updateSidebar();
-    checkVerification();
-    loadUserData();
-    renderImageSlots();
-}
+@app.on_event("startup")
+async def startup():
+    init_db()
+    print(f"[DB] Yol: {DB_PATH}")
+    print(f"[MAIL] Resend: {'ON' if RESEND_API_KEY else 'OFF'}")
+    print(f"[GOOGLE] OAuth: {'ON' if GOOGLE_CLIENT_ID else 'OFF'}")
 
-function updateSidebar() {
-    if (!currentUser) return;
-    document.getElementById('sidebarName').textContent = currentUser.name || 'Kullanıcı';
-    document.getElementById('sidebarAvatar').textContent = (currentUser.name || 'U')[0].toUpperCase();
-    document.getElementById('sidebarPlan').textContent = (currentUser.plan || 'free').toUpperCase();
-}
 
-function checkVerification() {
-    var b = document.getElementById('verifyBanner');
-    if (currentUser && currentUser.verified === 0) b.classList.remove('hidden');
-    else b.classList.add('hidden');
-}
+# ════════ GUVENLIK MIDDLEWARE ════════
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    ip = get_client_ip(request)
+    if not check_rate_limit(ip, "general", 120, 60):
+        return Response(content='{"detail":"Cok fazla istek"}', status_code=429, media_type="application/json")
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
-function resendVerification() {
-    fetch(API + '/api/auth/resend-verification', {
-        method: 'POST', headers: { 'Authorization': 'Bearer ' + currentToken }
-    }).then(function() { toast('Doğrulama maili gönderildi', 'success'); })
-    .catch(function() { toast('Hata oluştu', 'error'); });
-}
 
-function loadUserData() {
-    fetch(API + '/api/auth/me', { headers: { 'Authorization': 'Bearer ' + currentToken } })
-    .then(function(res) { if (!res.ok) throw new Error(); return res.json(); })
-    .then(function(data) {
-        currentUser = data.user;
-        localStorage.setItem('pf_user', JSON.stringify(data.user));
-        var u = data.usage || {}, s = data.stats || {};
-        document.getElementById('usageText').textContent = (u.used||0) + ' / ' + (u.limit||5);
-        document.getElementById('usageFill').style.width = Math.min(100, ((u.used||0) / (u.limit||5)) * 100) + '%';
-        document.getElementById('usageRemain').textContent = (u.remaining||5) + ' model kaldı';
-        document.getElementById('statModels').textContent = s.models || 0;
-        document.getElementById('statLikes').textContent = s.likes || 0;
-        document.getElementById('statDownloads').textContent = s.downloads || 0;
-        document.getElementById('myModelCount').textContent = s.models || 0;
-        document.getElementById('settingsName').value = currentUser.name || '';
-        document.getElementById('settingsEmail').value = currentUser.email || '';
-        var pn = { free:'Free', pro:'Pro', business:'Business' };
-        var pl = { free:'5 model/ay', pro:'100 model/ay', business:'Sınırsız' };
-        var plan = currentUser.plan || 'free';
-        document.getElementById('usagePlanName').textContent = pn[plan] || 'Free';
-        document.getElementById('usagePlanDetail').textContent = pl[plan] || '5 model/ay';
-        document.getElementById('usagePlanBadge').textContent = plan.toUpperCase();
-        document.getElementById('billingPlan').textContent = pn[plan] || 'Free';
-        document.getElementById('billingBadge').textContent = plan.toUpperCase();
-        updateSidebar();
-        checkVerification();
-    }).catch(function(e) { console.log('User data error:', e); });
-}
+# ════════ AUTH HELPERS ════════
+async def get_user(authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return None
+    data = decode_token(authorization.replace("Bearer ", ""))
+    if not data:
+        return None
+    conn = get_db()
+    row = conn.execute(
+        "SELECT id,email,name,username,plan,bio,website,avatar_url,verified,email_notifications,created_at FROM users WHERE id=?",
+        (data["user_id"],)
+    ).fetchone()
+    conn.close()
+    if row:
+        return dict(row)
+    return None
 
-// ===== NAVIGATION =====
-function navigateTo(page) {
-    var pages = document.querySelectorAll('.main-body');
-    for (var i = 0; i < pages.length; i++) pages[i].style.display = 'none';
-    document.getElementById('page-' + page).style.display = page === 'generate' ? '' : 'block';
-    var items = document.querySelectorAll('.sb-item');
-    for (var j = 0; j < items.length; j++) items[j].classList.remove('active');
-    var item = document.querySelector('.sb-item[data-page="' + page + '"]');
-    if (item) item.classList.add('active');
-    var titles = { generate:'Model Üret', gallery:'Galeri', mymodels:'Modellerim', settings:'Ayarlar', plans:'Planlar' };
-    document.getElementById('pageTitle').textContent = titles[page] || '';
-    if (page === 'gallery') loadGallery();
-    if (page === 'mymodels') loadMyModels();
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('mobileOverlay').classList.remove('active');
-}
+def get_usage(uid):
+    month = datetime.now().strftime("%Y-%m")
+    conn = get_db()
+    row = conn.execute("SELECT count FROM usage WHERE user_id=? AND month=?", (uid, month)).fetchone()
+    conn.close()
+    return row[0] if row else 0
 
-function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('open');
-    document.getElementById('mobileOverlay').classList.toggle('active');
-}
+def add_usage(uid):
+    month = datetime.now().strftime("%Y-%m")
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO usage(user_id,month,count) VALUES(?,?,1) "
+        "ON CONFLICT(user_id,month) DO UPDATE SET count=count+1", (uid, month))
+    conn.commit()
+    conn.close()
 
-// ===== GENERATE TABS =====
-function switchGenTab(tab, btn) {
-    document.getElementById('genText').style.display = tab === 'text' ? 'block' : 'none';
-    document.getElementById('genImage').style.display = tab === 'image' ? 'block' : 'none';
-    var tabs = document.querySelectorAll('.gen-tab');
-    for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
-    if (btn) btn.classList.add('active');
-}
+def save_model(uid, tid, title, prompt, gtype, style, url, neg_prompt="", tags="", category=""):
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO models(user_id,task_id,title,prompt,negative_prompt,gen_type,style,category,model_url) VALUES(?,?,?,?,?,?,?,?,?)",
+            (uid, tid, title, prompt, neg_prompt, gtype, style, category, url))
+        if tags:
+            mid = conn.execute("SELECT id FROM models WHERE task_id=?", (tid,)).fetchone()
+            if mid:
+                for tag in [t.strip().lower() for t in tags.split(",") if t.strip()]:
+                    try:
+                        conn.execute("INSERT INTO model_tags(model_id,tag) VALUES(?,?)", (mid[0], tag))
+                    except: pass
+    except: pass
+    conn.commit()
+    conn.close()
 
-function selectStyle(el, style) {
-    currentStyle = style;
-    var cards = document.querySelectorAll('.style-card');
-    for (var i = 0; i < cards.length; i++) cards[i].classList.remove('active');
-    el.classList.add('active');
-}
+def get_user_stats(uid):
+    conn = get_db()
+    mc = conn.execute("SELECT COUNT(*) FROM models WHERE user_id=?", (uid,)).fetchone()[0]
+    tl = conn.execute("SELECT COALESCE(SUM(likes),0) FROM models WHERE user_id=?", (uid,)).fetchone()[0]
+    td = conn.execute("SELECT COALESCE(SUM(downloads),0) FROM models WHERE user_id=?", (uid,)).fetchone()[0]
+    followers = conn.execute("SELECT COUNT(*) FROM follows WHERE following_id=?", (uid,)).fetchone()[0]
+    following = conn.execute("SELECT COUNT(*) FROM follows WHERE follower_id=?", (uid,)).fetchone()[0]
+    collections = conn.execute("SELECT COUNT(*) FROM collections WHERE user_id=?", (uid,)).fetchone()[0]
+    conn.close()
+    return {"models": mc, "likes": tl, "downloads": td, "followers": followers, "following": following, "collections": collections}
 
-function updateCharCount() {
-    document.getElementById('charCount').textContent = document.getElementById('promptInput').value.length;
-}
+def log_security(uid, action, ip, detail=""):
+    try:
+        conn = get_db()
+        conn.execute("INSERT INTO security_log(user_id,action,ip,detail) VALUES(?,?,?,?)", (uid, action, ip, detail))
+        conn.commit()
+        conn.close()
+    except: pass
 
-// ===== IMAGE UPLOAD =====
-function renderImageSlots() {
-    var grid = document.getElementById('imageGrid');
-    if (!grid) return;
-    grid.innerHTML = '';
-    for (var i = 0; i < MAX_SLOTS; i++) {
-        var data = imageSlots[i];
-        var slot = document.createElement('div');
-        slot.className = 'image-slot' + (data ? ' has-image' : '') + (data && primarySlot === i ? ' primary' : '');
-        if (data) {
-            slot.innerHTML = '<img src="' + data.dataUrl + '"><div class="slot-label">' + (primarySlot===i ? '★ Ana' : slotLabels[i]) + '</div><button class="slot-remove" onclick="event.stopPropagation();removeSlot(' + i + ')">✕</button>' + (primarySlot!==i ? '<button class="slot-primary-btn" onclick="event.stopPropagation();setPrimary(' + i + ')">★</button>' : '');
-        } else {
-            slot.innerHTML = '<span class="slot-placeholder">+</span><div class="slot-label">' + slotLabels[i] + '</div>';
-            (function(idx) {
-                slot.onclick = function() {
-                    var inp = document.createElement('input');
-                    inp.type = 'file'; inp.accept = 'image/*';
-                    inp.onchange = function(e) { addImage(idx, e.target.files[0]); };
-                    inp.click();
-                };
-            })(i);
-        }
-        grid.appendChild(slot);
+
+# ════════ SAYFALAR ════════
+@app.get("/", response_class=HTMLResponse)
+def serve_landing():
+    for name in ["index.html", "printforge.html"]:
+        path = os.path.join(os.path.dirname(__file__), name)
+        if os.path.exists(path):
+            return FileResponse(path, media_type="text/html")
+    return HTMLResponse("<html><body style='background:#04080a;color:#00e5ff;display:flex;align-items:center;justify-content:center;height:100vh'><a href='/app' style='color:#00e5ff;font-size:24px'>PrintForge /app</a></body></html>")
+
+@app.get("/app", response_class=HTMLResponse)
+def serve_app():
+    path = os.path.join(os.path.dirname(__file__), "app.html")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return HTMLResponse(f.read())
+    return HTMLResponse("<html><body><h1>app.html bulunamadi</h1></body></html>")
+
+@app.get("/blog", response_class=HTMLResponse)
+@app.get("/blog/{slug}", response_class=HTMLResponse)
+def serve_blog(slug: str = ""):
+    path = os.path.join(os.path.dirname(__file__), "index.html")
+    if os.path.exists(path):
+        return FileResponse(path, media_type="text/html")
+    return HTMLResponse("<html><body><h1>Blog</h1></body></html>")
+
+@app.get("/u/{username}", response_class=HTMLResponse)
+def serve_profile(username: str):
+    path = os.path.join(os.path.dirname(__file__), "index.html")
+    if os.path.exists(path):
+        return FileResponse(path, media_type="text/html")
+    return HTMLResponse("<html><body><h1>Profil</h1></body></html>")
+
+
+# ════════ AUTH API ════════
+@app.post("/api/auth/register")
+async def register(req: RegisterReq, request: Request):
+    ip = get_client_ip(request)
+    if not check_rate_limit(ip, "register", 3, 3600):
+        raise HTTPException(429, "Cok fazla kayit denemesi. 1 saat sonra tekrar deneyin.")
+    valid, msg = validate_password(req.password)
+    if not valid:
+        raise HTTPException(400, msg)
+    if not req.name.strip() or len(req.name.strip()) < 2:
+        raise HTTPException(400, "Gecerli bir isim girin")
+    valid, msg = await validate_email(req.email)
+    if not valid:
+        raise HTTPException(400, msg)
+
+    salt, h = hash_pw(req.password)
+    verify_token = secrets.token_urlsafe(32)
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO users(email,name,password_hash,salt,verify_token,verified) VALUES(?,?,?,?,?,?)",
+            (req.email.lower().strip(), sanitize(req.name.strip()), h, salt, verify_token,
+             0 if RESEND_API_KEY else 1))
+        conn.commit()
+        uid = conn.execute("SELECT id FROM users WHERE email=?", (req.email.lower().strip(),)).fetchone()[0]
+        username = generate_username(req.name, uid)
+        conn.execute("UPDATE users SET username=? WHERE id=?", (username, uid))
+        conn.commit()
+        conn.close()
+    except sqlite3.IntegrityError:
+        conn.close()
+        raise HTTPException(400, "Bu e-posta zaten kayitli")
+
+    log_security(uid, "register", ip)
+
+    if RESEND_API_KEY:
+        await send_verification_email(req.email.lower().strip(), verify_token)
+        await send_welcome_email(req.email.lower().strip(), req.name.strip())
+
+    token = create_token(uid, req.email, req.name, "free")
+    result = {
+        "token": token,
+        "user": {"id": uid, "name": req.name, "email": req.email, "username": username, "plan": "free",
+                 "verified": 0 if RESEND_API_KEY else 1}
     }
-    var count = imageSlots.filter(function(s){ return s !== null; }).length;
-    document.getElementById('imageCountInfo').innerHTML = '<span>' + count + '</span> / ' + MAX_SLOTS + ' görsel · ★ Ana görsel kullanılır';
-}
+    if RESEND_API_KEY:
+        result["message"] = "Dogrulama maili gonderildi. E-postanizi kontrol edin."
+    return result
 
-function addImage(idx, file) {
-    if (!file || file.size > 10*1024*1024) { toast('Max 10MB', 'error'); return; }
-    var reader = new FileReader();
-    reader.onload = function(e) {
-        imageSlots[idx] = { file: file, dataUrl: e.target.result };
-        var filled = imageSlots.filter(function(s){ return s !== null; });
-        if (filled.length === 1) primarySlot = idx;
-        renderImageSlots();
-    };
-    reader.readAsDataURL(file);
-}
+@app.post("/api/auth/login")
+async def login(req: LoginReq, request: Request):
+    ip = get_client_ip(request)
+    if not check_login_attempt(ip):
+        raise HTTPException(429, "Cok fazla basarisiz deneme. 15 dakika sonra tekrar deneyin.")
+    if not check_rate_limit(ip, "login", 10, 60):
+        raise HTTPException(429, "Cok fazla istek")
 
-function removeSlot(i) {
-    imageSlots[i] = null;
-    if (primarySlot === i) {
-        var n = imageSlots.findIndex(function(s){ return s !== null; });
-        primarySlot = n >= 0 ? n : 0;
-    }
-    renderImageSlots();
-}
+    conn = get_db()
+    row = conn.execute(
+        "SELECT id,email,name,username,password_hash,salt,plan,verified FROM users WHERE email=?",
+        (req.email.lower().strip(),)).fetchone()
+    conn.close()
+    if not row:
+        record_login_fail(ip)
+        log_security(0, "login_fail", ip, f"email:{req.email}")
+        raise HTTPException(401, "E-posta veya sifre hatali")
+    if not verify_pw(req.password, row["salt"], row["password_hash"]):
+        record_login_fail(ip)
+        log_security(row["id"], "login_fail", ip)
+        raise HTTPException(401, "E-posta veya sifre hatali")
 
-function setPrimary(i) {
-    primarySlot = i;
-    renderImageSlots();
-    toast('Ana görsel değiştirildi', 'info');
-}
-
-function handleMultiDrop(e) {
-    var files = Array.from(e.target.files || []);
-    var added = 0;
-    for (var f = 0; f < files.length; f++) {
-        if (added >= MAX_SLOTS) break;
-        var idx = imageSlots.findIndex(function(s){ return s === null; });
-        if (idx === -1) break;
-        addImage(idx, files[f]);
-        added++;
-    }
-    e.target.value = '';
-}
-
-// Drag & drop
-var dz = document.getElementById('multiDropZone');
-if (dz) {
-    dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('dragover'); });
-    dz.addEventListener('dragleave', function() { dz.classList.remove('dragover'); });
-    dz.addEventListener('drop', function(e) {
-        e.preventDefault(); dz.classList.remove('dragover');
-        if (e.dataTransfer.files.length) handleMultiDrop({ target: { files: e.dataTransfer.files } });
-    });
-}
-
-// ===== MODEL VIEWER (model-viewer component - always works) =====
-var modelRetryCount = 0;
-var originalModelUrl = ''; // Orijinal model URL (API'den gelen)
-var proxyModelUrl = '';    // Proxy URL (sunucumuz üzerinden)
-
-function showModel(taskId, isDemo, directUrl) {
-    currentTaskId = taskId;
-    proxyModelUrl = API + '/api/model/' + taskId + '/view';
-    if (directUrl) originalModelUrl = directUrl;
-
-    var container = document.getElementById('viewerContainer');
-    var empty = document.getElementById('viewerEmpty');
-    var toolbar = document.getElementById('viewerToolbar');
-    var loading = document.getElementById('viewerLoading');
-    var error = document.getElementById('viewerError');
-
-    if (empty) empty.style.display = 'none';
-    error.classList.add('hidden');
-    loading.classList.remove('hidden');
-    loading.querySelector('.viewer-loading-text').textContent = 'Model yükleniyor...';
-    toolbar.classList.add('active');
-    modelRetryCount = 0;
-
-    var old = container.querySelector('model-viewer');
-    if (old) old.remove();
-
-    // Önce proxy URL'yi kontrol et, erişilebilir mi?
-    console.log('[Viewer] Proxy URL deneniyor:', proxyModelUrl);
-    fetch(proxyModelUrl, { method: 'HEAD' })
-    .then(function(res) {
-        if (res.ok) {
-            console.log('[Viewer] Proxy OK, model-viewer oluşturuluyor');
-            createModelViewer(proxyModelUrl, taskId, isDemo, container, loading, error);
-        } else {
-            throw new Error('Proxy 404');
-        }
-    })
-    .catch(function() {
-        console.log('[Viewer] Proxy başarısız, orijinal URL deneniyor:', originalModelUrl);
-        if (originalModelUrl) {
-            loading.querySelector('.viewer-loading-text').textContent = 'Alternatif kaynak deneniyor...';
-            createModelViewer(originalModelUrl, taskId, isDemo, container, loading, error);
-        } else {
-            // Status API'den model_url'yi çek
-            console.log('[Viewer] Orijinal URL yok, status API sorgulanıyor...');
-            loading.querySelector('.viewer-loading-text').textContent = 'Model kaynağı aranıyor...';
-            fetch(API + '/api/status/' + taskId)
-            .then(function(r) { return r.json(); })
-            .then(function(st) {
-                if (st.model_url) {
-                    originalModelUrl = st.model_url;
-                    console.log('[Viewer] Status API model_url bulundu:', originalModelUrl);
-                    createModelViewer(originalModelUrl, taskId, isDemo, container, loading, error);
-                } else {
-                    // Son çare: proxy'yi tekrar zorla
-                    console.log('[Viewer] model_url yok, proxy zorlanıyor...');
-                    loading.querySelector('.viewer-loading-text').textContent = 'Son deneme...';
-                    setTimeout(function() {
-                        createModelViewer(proxyModelUrl + '?force=' + Date.now(), taskId, isDemo, container, loading, error);
-                    }, 3000);
-                }
-            })
-            .catch(function() {
-                createModelViewer(proxyModelUrl + '?force=' + Date.now(), taskId, isDemo, container, loading, error);
-            });
-        }
-    });
-}
-
-function createModelViewer(url, taskId, isDemo, container, loading, error) {
-    console.log('[Viewer] model-viewer oluşturuluyor, URL:', url);
-
-    var old = container.querySelector('model-viewer');
-    if (old) old.remove();
-
-    var mv = document.createElement('model-viewer');
-    mv.setAttribute('src', url);
-    mv.setAttribute('camera-controls', '');
-    mv.setAttribute('touch-action', 'pan-y');
-    mv.setAttribute('auto-rotate', '');
-    mv.setAttribute('auto-rotate-delay', '0');
-    mv.setAttribute('rotation-per-second', '30deg');
-    mv.setAttribute('exposure', '1');
-    mv.setAttribute('shadow-intensity', '0');
-    mv.setAttribute('environment-image', 'neutral');
-    mv.setAttribute('camera-orbit', '45deg 55deg auto');
-    mv.style.cssText = 'width:100%;height:100%;min-height:400px;background:transparent;';
-
-    var loadTimeout = setTimeout(function() {
-        console.log('[Viewer] 30s timeout, fallback deneniyor...');
-        tryFallbackUrl(mv, url, taskId, isDemo, loading, error);
-    }, 30000);
-
-    mv.addEventListener('load', function() {
-        clearTimeout(loadTimeout);
-        loading.classList.add('hidden');
-        error.classList.add('hidden');
-        document.getElementById('viewerInfo').textContent = isDemo ? 'DEMO MODEL' : 'Task: ' + taskId;
-        document.getElementById('downloadInfo').textContent = taskId;
-        toast('Model başarıyla yüklendi!', 'success');
-        console.log('[Viewer] Model yüklendi!');
-    });
-
-    mv.addEventListener('error', function(e) {
-        clearTimeout(loadTimeout);
-        console.error('[Viewer] model-viewer hata:', e, 'URL:', url);
-        tryFallbackUrl(mv, url, taskId, isDemo, loading, error);
-    });
-
-    container.insertBefore(mv, loading);
-}
-
-function tryFallbackUrl(mv, failedUrl, taskId, isDemo, loading, error) {
-    modelRetryCount++;
-    console.log('[Viewer] Fallback deneme #' + modelRetryCount);
-
-    if (modelRetryCount > 4) {
-        loading.classList.add('hidden');
-        error.classList.remove('hidden');
-        document.getElementById('viewerErrorMsg').textContent = 
-            'Model yüklenemedi. Model henüz hazır olmayabilir veya sunucu geçici olarak yanıt vermiyor. Birkaç dakika sonra tekrar deneyin.';
-        return;
+    log_security(row["id"], "login_ok", ip)
+    token = create_token(row["id"], row["email"], row["name"], row["plan"])
+    return {
+        "token": token,
+        "user": {"id": row["id"], "name": row["name"], "email": row["email"],
+                 "username": row["username"], "plan": row["plan"], "verified": row["verified"]}
     }
 
-    // Hangi URL başarısız oldu? Diğerini dene
-    var nextUrl = '';
-    if (failedUrl === proxyModelUrl || failedUrl.indexOf('/api/model/') !== -1) {
-        // Proxy başarısız → orijinal URL dene
-        if (originalModelUrl) {
-            nextUrl = originalModelUrl;
-            loading.querySelector('.viewer-loading-text').textContent = 'Doğrudan kaynak deneniyor... (' + modelRetryCount + '/4)';
-        } else {
-            // Gecikmeyle proxy'yi tekrar dene (cache dolmuş olabilir)
-            nextUrl = proxyModelUrl + '?retry=' + Date.now();
-            loading.querySelector('.viewer-loading-text').textContent = 'Tekrar deneniyor... (' + modelRetryCount + '/4)';
-        }
-    } else {
-        // Orijinal URL başarısız → proxy'yi tekrar dene
-        nextUrl = proxyModelUrl + '?retry=' + Date.now();
-        loading.querySelector('.viewer-loading-text').textContent = 'Proxy deneniyor... (' + modelRetryCount + '/4)';
+@app.get("/api/auth/me")
+async def get_me(authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    used = get_usage(user["id"])
+    limit = PLAN_LIMITS.get(user["plan"], 5)
+    stats = get_user_stats(user["id"])
+    return {
+        "user": user,
+        "usage": {"used": used, "limit": limit, "remaining": max(0, limit - used)},
+        "stats": stats
     }
 
-    console.log('[Viewer] Sonraki URL:', nextUrl);
-    setTimeout(function() {
-        mv.setAttribute('src', nextUrl);
-    }, 2000 * modelRetryCount);
-}
+@app.get("/api/auth/verify")
+async def verify_email_endpoint(token: str = ""):
+    if not token:
+        raise HTTPException(400, "Gecersiz link")
+    conn = get_db()
+    row = conn.execute("SELECT id FROM users WHERE verify_token=?", (token,)).fetchone()
+    if not row:
+        conn.close()
+        return HTMLResponse("<html><body style='background:#04080a;color:#ff4466;font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column'><h2>Gecersiz veya suresi dolmus link</h2><a href='/app' style='color:#00e5ff;margin-top:16px'>Uygulamaya Don</a></body></html>")
+    conn.execute("UPDATE users SET verified=1, verify_token=NULL WHERE id=?", (row["id"],))
+    conn.commit()
+    conn.close()
+    return HTMLResponse("<html><body style='background:#04080a;color:#00ff9d;font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column'><h2>Hesabiniz dogrulandi! ✓</h2><p style='color:#c8dde5;margin-top:8px'>Artik PrintForge'u kullanabilirsiniz.</p><a href='/app' style='color:#00e5ff;margin-top:16px;font-size:18px'>Uygulamaya Git →</a></body></html>")
 
-function retryLoadModel() {
-    if (currentTaskId) {
-        modelRetryCount = 0;
-        showModel(currentTaskId, false, originalModelUrl);
+@app.post("/api/auth/resend-verification")
+async def resend_verification(authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    if user.get("verified") == 1:
+        return {"message": "Hesabiniz zaten dogrulanmis"}
+    if not RESEND_API_KEY:
+        raise HTTPException(400, "E-posta servisi yapilandirilmamis")
+    new_token = secrets.token_urlsafe(32)
+    conn = get_db()
+    conn.execute("UPDATE users SET verify_token=? WHERE id=?", (new_token, user["id"]))
+    conn.commit()
+    conn.close()
+    await send_verification_email(user["email"], new_token)
+    return {"message": "Dogrulama maili tekrar gonderildi"}
+
+@app.post("/api/auth/forgot-password")
+async def forgot_password(req: ForgotPasswordReq, request: Request):
+    ip = get_client_ip(request)
+    if not check_rate_limit(ip, "forgot", 3, 3600):
+        raise HTTPException(429, "Cok fazla istek")
+    if not RESEND_API_KEY:
+        raise HTTPException(400, "E-posta servisi yapilandirilmamis")
+    conn = get_db()
+    row = conn.execute("SELECT id,email FROM users WHERE email=?", (req.email.lower().strip(),)).fetchone()
+    if not row:
+        return {"message": "Eger bu e-posta kayitliysa sifirlama maili gonderildi"}
+    reset_token = secrets.token_urlsafe(32)
+    expires = (datetime.utcnow() + timedelta(hours=1)).isoformat()
+    conn.execute("UPDATE users SET reset_token=?, reset_expires=? WHERE id=?", (reset_token, expires, row["id"]))
+    conn.commit()
+    conn.close()
+    await send_reset_email(row["email"], reset_token)
+    log_security(row["id"], "password_reset_request", ip)
+    return {"message": "Sifre sifirlama maili gonderildi"}
+
+@app.post("/api/auth/reset-password")
+async def reset_password(req: ResetPasswordReq):
+    valid, msg = validate_password(req.password)
+    if not valid:
+        raise HTTPException(400, msg)
+    conn = get_db()
+    row = conn.execute("SELECT id,reset_expires FROM users WHERE reset_token=?", (req.token,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(400, "Gecersiz veya suresi dolmus link")
+    if row["reset_expires"]:
+        try:
+            if datetime.utcnow() > datetime.fromisoformat(row["reset_expires"]):
+                conn.close()
+                raise HTTPException(400, "Link suresi dolmus")
+        except: pass
+    salt, h = hash_pw(req.password)
+    conn.execute("UPDATE users SET password_hash=?, salt=?, reset_token=NULL, reset_expires=NULL WHERE id=?", (h, salt, row["id"]))
+    conn.commit()
+    conn.close()
+    return {"message": "Sifreniz basariyla degistirildi"}
+
+@app.post("/api/auth/update-profile")
+async def update_profile(req: UpdateProfileReq, authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    if req.name and len(req.name.strip()) >= 2:
+        conn.execute("UPDATE users SET name=? WHERE id=?", (sanitize(req.name.strip()), user["id"]))
+    if req.password:
+        valid, msg = validate_password(req.password)
+        if not valid:
+            conn.close()
+            raise HTTPException(400, msg)
+        salt, h = hash_pw(req.password)
+        conn.execute("UPDATE users SET password_hash=?, salt=? WHERE id=?", (h, salt, user["id"]))
+    if req.bio is not None:
+        conn.execute("UPDATE users SET bio=? WHERE id=?", (sanitize(req.bio)[:300], user["id"]))
+    if req.website is not None:
+        conn.execute("UPDATE users SET website=? WHERE id=?", (sanitize(req.website)[:200], user["id"]))
+    conn.commit()
+    conn.close()
+    return {"success": True}
+
+
+# ════════ GOOGLE LOGIN ════════
+@app.get("/api/auth/google")
+async def google_login():
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(400, "Google login yapilandirilmamis")
+    redirect_uri = f"{get_site_url()}/api/auth/google/callback"
+    params = urlencode({
+        "client_id": GOOGLE_CLIENT_ID, "redirect_uri": redirect_uri,
+        "response_type": "code", "scope": "openid email profile",
+        "access_type": "offline", "prompt": "select_account",
+    })
+    return RedirectResponse(f"https://accounts.google.com/o/oauth2/v2/auth?{params}")
+
+@app.get("/api/auth/google/callback")
+async def google_callback(code: str = ""):
+    if not code:
+        raise HTTPException(400, "Google login basarisiz")
+    redirect_uri = f"{get_site_url()}/api/auth/google/callback"
+    async with httpx.AsyncClient() as client:
+        tr = await client.post("https://oauth2.googleapis.com/token", data={
+            "client_id": GOOGLE_CLIENT_ID, "client_secret": GOOGLE_CLIENT_SECRET,
+            "code": code, "grant_type": "authorization_code", "redirect_uri": redirect_uri})
+        if tr.status_code != 200:
+            raise HTTPException(400, "Google token alinamadi")
+        at = tr.json().get("access_token")
+        ur = await client.get("https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={"Authorization": f"Bearer {at}"})
+        if ur.status_code != 200:
+            raise HTTPException(400, "Google bilgi alinamadi")
+        gu = ur.json()
+    email = gu.get("email", "").lower()
+    name = gu.get("name", email.split("@")[0])
+    gid = gu.get("id", "")
+    avatar = gu.get("picture", "")
+    conn = get_db()
+    ex = conn.execute("SELECT id,name,plan FROM users WHERE email=?", (email,)).fetchone()
+    if ex:
+        uid, name, plan = ex["id"], ex["name"], ex["plan"]
+        conn.execute("UPDATE users SET google_id=?,avatar_url=?,verified=1 WHERE id=?", (gid, avatar, uid))
+    else:
+        salt, h = hash_pw(secrets.token_hex(16))
+        conn.execute("INSERT INTO users(email,name,password_hash,salt,google_id,avatar_url,verified) VALUES(?,?,?,?,?,?,1)",
+            (email, name, h, salt, gid, avatar))
+        uid = conn.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()[0]
+        username = generate_username(name, uid)
+        conn.execute("UPDATE users SET username=? WHERE id=?", (username, uid))
+        plan = "free"
+    conn.commit()
+    conn.close()
+    jwt_token = create_token(uid, email, name, plan)
+    return HTMLResponse(f"<html><head><script>localStorage.setItem('pf_token','{jwt_token}');window.location.href='/app';</script></head><body style='background:#04080a;color:#00e5ff;display:flex;align-items:center;justify-content:center;height:100vh'>Giris yapiliyor...</body></html>")
+
+
+# ════════ PUBLIC PROFILE ════════
+@app.get("/api/users/{username}")
+async def get_public_profile(username: str):
+    conn = get_db()
+    user = conn.execute(
+        "SELECT id,name,username,bio,website,avatar_url,plan,created_at FROM users WHERE username=?",
+        (username,)).fetchone()
+    if not user:
+        conn.close()
+        raise HTTPException(404, "Kullanici bulunamadi")
+    uid = user["id"]
+    models = conn.execute(
+        "SELECT id,task_id,title,prompt,style,category,likes,downloads,views,created_at FROM models WHERE user_id=? AND is_public=1 ORDER BY created_at DESC LIMIT 50",
+        (uid,)).fetchall()
+    followers = conn.execute("SELECT COUNT(*) FROM follows WHERE following_id=?", (uid,)).fetchone()[0]
+    following = conn.execute("SELECT COUNT(*) FROM follows WHERE follower_id=?", (uid,)).fetchone()[0]
+    model_count = conn.execute("SELECT COUNT(*) FROM models WHERE user_id=? AND is_public=1", (uid,)).fetchone()[0]
+    total_likes = conn.execute("SELECT COALESCE(SUM(likes),0) FROM models WHERE user_id=?", (uid,)).fetchone()[0]
+    collections = conn.execute("SELECT id,name,description,model_count,created_at FROM collections WHERE user_id=? AND is_public=1 ORDER BY created_at DESC", (uid,)).fetchall()
+    conn.close()
+    return {
+        "user": dict(user),
+        "models": [dict(m) for m in models],
+        "collections": [dict(c) for c in collections],
+        "stats": {"models": model_count, "followers": followers, "following": following, "total_likes": total_likes}
     }
-}
 
-function tryDirectUrl() {
-    if (originalModelUrl) {
-        window.open(originalModelUrl, '_blank');
-    } else if (currentTaskId) {
-        window.open(API + '/api/model/' + currentTaskId + '/view', '_blank');
+
+# ════════ FOLLOW SYSTEM ════════
+@app.post("/api/users/{username}/follow")
+async def toggle_follow(username: str, authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    target = conn.execute("SELECT id,email,name,email_notifications FROM users WHERE username=?", (username,)).fetchone()
+    if not target:
+        conn.close()
+        raise HTTPException(404, "Kullanici bulunamadi")
+    if target["id"] == user["id"]:
+        conn.close()
+        raise HTTPException(400, "Kendinizi takip edemezsiniz")
+    ex = conn.execute("SELECT 1 FROM follows WHERE follower_id=? AND following_id=?", (user["id"], target["id"])).fetchone()
+    if ex:
+        conn.execute("DELETE FROM follows WHERE follower_id=? AND following_id=?", (user["id"], target["id"]))
+        followed = False
+    else:
+        conn.execute("INSERT INTO follows(follower_id,following_id) VALUES(?,?)", (user["id"], target["id"]))
+        followed = True
+        if target["email_notifications"] and RESEND_API_KEY:
+            asyncio.create_task(send_follow_email(user["name"], target["email"], target["name"]))
+    conn.commit()
+    conn.close()
+    return {"followed": followed}
+
+@app.get("/api/users/{username}/followers")
+async def get_followers(username: str):
+    conn = get_db()
+    target = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+    if not target:
+        conn.close()
+        raise HTTPException(404, "Kullanici bulunamadi")
+    rows = conn.execute(
+        "SELECT u.name,u.username,u.avatar_url FROM follows f JOIN users u ON f.follower_id=u.id WHERE f.following_id=? ORDER BY f.created_at DESC LIMIT 100",
+        (target["id"],)).fetchall()
+    conn.close()
+    return {"followers": [dict(r) for r in rows]}
+
+@app.get("/api/users/{username}/following")
+async def get_following(username: str):
+    conn = get_db()
+    target = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+    if not target:
+        conn.close()
+        raise HTTPException(404, "Kullanici bulunamadi")
+    rows = conn.execute(
+        "SELECT u.name,u.username,u.avatar_url FROM follows f JOIN users u ON f.following_id=u.id WHERE f.follower_id=? ORDER BY f.created_at DESC LIMIT 100",
+        (target["id"],)).fetchall()
+    conn.close()
+    return {"following": [dict(r) for r in rows]}
+
+
+# ════════ COLLECTIONS ════════
+@app.get("/api/collections")
+async def get_my_collections(authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM collections WHERE user_id=? ORDER BY created_at DESC", (user["id"],)).fetchall()
+    conn.close()
+    return {"collections": [dict(r) for r in rows]}
+
+@app.post("/api/collections")
+async def create_collection(req: CollectionReq, authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    count = conn.execute("SELECT COUNT(*) FROM collections WHERE user_id=?", (user["id"],)).fetchone()[0]
+    if count >= 50:
+        conn.close()
+        raise HTTPException(400, "Maksimum 50 koleksiyon olusturabilirsiniz")
+    conn.execute("INSERT INTO collections(user_id,name,description,is_public) VALUES(?,?,?,?)",
+        (user["id"], sanitize(req.name)[:100], sanitize(req.description)[:500], req.is_public))
+    conn.commit()
+    cid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    conn.close()
+    return {"id": cid, "message": "Koleksiyon olusturuldu"}
+
+@app.get("/api/collections/{collection_id}")
+async def get_collection(collection_id: int):
+    conn = get_db()
+    col = conn.execute("SELECT c.*, u.name as owner_name, u.username as owner_username FROM collections c JOIN users u ON c.user_id=u.id WHERE c.id=?", (collection_id,)).fetchone()
+    if not col:
+        conn.close()
+        raise HTTPException(404, "Koleksiyon bulunamadi")
+    items = conn.execute(
+        "SELECT m.* FROM collection_items ci JOIN models m ON ci.model_id=m.id WHERE ci.collection_id=? ORDER BY ci.added_at DESC",
+        (collection_id,)).fetchall()
+    conn.close()
+    return {"collection": dict(col), "models": [dict(i) for i in items]}
+
+@app.post("/api/collections/{collection_id}/items")
+async def add_to_collection(collection_id: int, req: CollectionItemReq, authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    col = conn.execute("SELECT user_id FROM collections WHERE id=?", (collection_id,)).fetchone()
+    if not col or col["user_id"] != user["id"]:
+        conn.close()
+        raise HTTPException(403, "Bu koleksiyon size ait degil")
+    try:
+        conn.execute("INSERT INTO collection_items(collection_id,model_id) VALUES(?,?)", (collection_id, req.model_id))
+        conn.execute("UPDATE collections SET model_count=model_count+1 WHERE id=?", (collection_id,))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
+        raise HTTPException(400, "Model zaten koleksiyonda")
+    conn.close()
+    return {"message": "Koleksiyona eklendi"}
+
+@app.delete("/api/collections/{collection_id}/items/{model_id}")
+async def remove_from_collection(collection_id: int, model_id: int, authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    col = conn.execute("SELECT user_id FROM collections WHERE id=?", (collection_id,)).fetchone()
+    if not col or col["user_id"] != user["id"]:
+        conn.close()
+        raise HTTPException(403, "Bu koleksiyon size ait degil")
+    conn.execute("DELETE FROM collection_items WHERE collection_id=? AND model_id=?", (collection_id, model_id))
+    conn.execute("UPDATE collections SET model_count=MAX(0,model_count-1) WHERE id=?", (collection_id,))
+    conn.commit()
+    conn.close()
+    return {"message": "Koleksiyondan cikarildi"}
+
+@app.delete("/api/collections/{collection_id}")
+async def delete_collection(collection_id: int, authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    col = conn.execute("SELECT user_id FROM collections WHERE id=?", (collection_id,)).fetchone()
+    if not col or col["user_id"] != user["id"]:
+        conn.close()
+        raise HTTPException(403, "Bu koleksiyon size ait degil")
+    conn.execute("DELETE FROM collection_items WHERE collection_id=?", (collection_id,))
+    conn.execute("DELETE FROM collections WHERE id=?", (collection_id,))
+    conn.commit()
+    conn.close()
+    return {"deleted": True}
+
+
+# ════════ TAGS / CATEGORIES ════════
+@app.get("/api/tags")
+async def get_tags():
+    conn = get_db()
+    rows = conn.execute("SELECT tag, COUNT(*) as count FROM model_tags GROUP BY tag ORDER BY count DESC LIMIT 50").fetchall()
+    conn.close()
+    return {"tags": [{"tag": r["tag"], "count": r["count"]} for r in rows]}
+
+@app.get("/api/tags/{tag}")
+async def get_models_by_tag(tag: str, page: int = 1, limit: int = 20):
+    conn = get_db()
+    offset = (page - 1) * limit
+    rows = conn.execute(
+        "SELECT m.*, u.name as author_name, u.username as author_username FROM model_tags mt JOIN models m ON mt.model_id=m.id LEFT JOIN users u ON m.user_id=u.id WHERE mt.tag=? AND m.is_public=1 ORDER BY m.created_at DESC LIMIT ? OFFSET ?",
+        (tag.lower(), limit, offset)).fetchall()
+    total = conn.execute("SELECT COUNT(*) FROM model_tags mt JOIN models m ON mt.model_id=m.id WHERE mt.tag=? AND m.is_public=1", (tag.lower(),)).fetchone()[0]
+    conn.close()
+    return {"models": [dict(r) for r in rows], "total": total, "tag": tag}
+
+@app.post("/api/models/{model_id}/tags")
+async def update_model_tags(model_id: int, req: TagModelReq, authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    model = conn.execute("SELECT user_id FROM models WHERE id=?", (model_id,)).fetchone()
+    if not model or model["user_id"] != user["id"]:
+        conn.close()
+        raise HTTPException(403, "Bu model size ait degil")
+    conn.execute("DELETE FROM model_tags WHERE model_id=?", (model_id,))
+    tags = [t.strip().lower() for t in req.tags.split(",") if t.strip()][:10]
+    for tag in tags:
+        try:
+            conn.execute("INSERT INTO model_tags(model_id,tag) VALUES(?,?)", (model_id, sanitize(tag)[:30]))
+        except: pass
+    conn.commit()
+    conn.close()
+    return {"tags": tags}
+
+@app.get("/api/categories")
+async def get_categories():
+    return {"categories": CATEGORIES}
+
+
+# ════════ BLOG API ════════
+@app.get("/api/blog")
+async def get_blog_posts(page: int = 1, limit: int = 10, tag: str = ""):
+    conn = get_db()
+    offset = (page - 1) * limit
+    where = "WHERE is_published=1"
+    params = []
+    if tag:
+        where += " AND tags LIKE ?"
+        params.append(f"%{tag}%")
+    rows = conn.execute(
+        f"SELECT id,title,slug,excerpt,cover_image,tags,views,created_at FROM blog_posts {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        params + [limit, offset]).fetchall()
+    total = conn.execute(f"SELECT COUNT(*) FROM blog_posts {where}", params).fetchone()[0]
+    conn.close()
+    return {"posts": [dict(r) for r in rows], "total": total, "page": page, "pages": max(1, (total + limit - 1) // limit)}
+
+@app.get("/api/blog/{slug}")
+async def get_blog_post(slug: str):
+    conn = get_db()
+    row = conn.execute("SELECT bp.*, u.name as author_name FROM blog_posts bp LEFT JOIN users u ON bp.author_id=u.id WHERE bp.slug=? AND bp.is_published=1", (slug,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "Yazi bulunamadi")
+    conn.execute("UPDATE blog_posts SET views=views+1 WHERE slug=?", (slug,))
+    conn.commit()
+    related = conn.execute("SELECT id,title,slug,excerpt,cover_image FROM blog_posts WHERE slug!=? AND is_published=1 ORDER BY created_at DESC LIMIT 3", (slug,)).fetchall()
+    conn.close()
+    return {"post": dict(row), "related": [dict(r) for r in related]}
+
+
+# ════════ MODEL URETIMI ════════
+@app.post("/api/generate/text")
+async def generate_text(req: TextRequest, authorization: Optional[str] = Header(None), request: Request = None):
+    api = get_api()
+    user = await get_user(authorization)
+    if api != "demo":
+        if not user:
+            raise HTTPException(401, "Model uretmek icin giris yapin")
+        used = get_usage(user["id"])
+        limit = PLAN_LIMITS.get(user["plan"], 5)
+        if used >= limit:
+            raise HTTPException(403, f"Aylik limitinize ulastiniz ({limit}). Planizi yukseltin.")
+        add_usage(user["id"])
+    tid = str(uuid.uuid4())[:8]
+    tasks[tid] = {
+        "status": "processing", "progress": 0, "step": "Baslatiliyor...",
+        "type": "text", "api": api, "prompt": req.prompt, "style": req.style,
+        "negative_prompt": req.negative_prompt, "tags": req.tags,
+        "user_id": user["id"] if user else 0
     }
-}
+    if api == "tripo":
+        asyncio.create_task(_tripo_text(tid, req.prompt, req.style))
+    elif api == "meshy":
+        asyncio.create_task(_meshy_text(tid, req.prompt, req.style))
+    else:
+        asyncio.create_task(_demo_generate(tid))
+    return {"task_id": tid}
 
-// Hata durumunda debug bilgisi göster
-function showViewerDebug() {
-    var el = document.getElementById('viewerDebugInfo');
-    if (el) {
-        el.textContent = 'Proxy: ' + proxyModelUrl + ' | Direct: ' + (originalModelUrl || 'yok') + ' | Retry: ' + modelRetryCount;
+@app.post("/api/generate/image")
+async def generate_image(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    api = get_api()
+    user = await get_user(authorization)
+    if api != "demo":
+        if not user:
+            raise HTTPException(401, "Model uretmek icin giris yapin")
+        used = get_usage(user["id"])
+        limit = PLAN_LIMITS.get(user["plan"], 5)
+        if used >= limit:
+            raise HTTPException(403, f"Aylik limitinize ulastiniz ({limit}). Planizi yukseltin.")
+        add_usage(user["id"])
+    contents = await file.read()
+    if len(contents) > 10 * 1024 * 1024:
+        raise HTTPException(400, "Dosya cok buyuk (max 10MB)")
+    # Magic bytes check
+    if contents[:3] not in (b'\xff\xd8\xff', b'\x89PN', b'RIF'):
+        raise HTTPException(400, "Gecersiz dosya formati")
+    tid = str(uuid.uuid4())[:8]
+    fname = file.filename or "image.jpg"
+    tasks[tid] = {
+        "status": "processing", "progress": 0, "step": "Gorsel hazirlaniyor...",
+        "type": "image", "api": api, "prompt": fname, "style": "",
+        "user_id": user["id"] if user else 0
     }
-    // Eğer orijinal URL varsa "Doğrudan Aç" butonunu göster
-    var btn = document.getElementById('btnDirectUrl');
-    if (btn && originalModelUrl) {
-        btn.style.display = 'inline-block';
+    if api == "tripo":
+        asyncio.create_task(_tripo_image(tid, contents, fname))
+    elif api == "meshy":
+        asyncio.create_task(_meshy_image(tid, contents, fname))
+    else:
+        asyncio.create_task(_demo_generate(tid))
+    return {"task_id": tid}
+
+@app.get("/api/status/{task_id}")
+async def get_status(task_id: str):
+    if task_id not in tasks:
+        raise HTTPException(404, "Gorev bulunamadi")
+    t = tasks[task_id]
+    return {
+        "task_id": task_id, "status": t["status"], "progress": t["progress"],
+        "step": t.get("step", ""), "model_url": t.get("model_url", ""),
+        "is_demo": t.get("api") == "demo", "error": t.get("error", ""),
     }
-}
 
-function getModelViewer() {
-    return document.querySelector('#viewerContainer model-viewer');
-}
 
-// ===== VIEWER CONTROLS =====
-function toggleAutoRotate() {
-    var mv = getModelViewer();
-    var btn = document.getElementById('btnAutoRotate');
-    if (!mv) return;
-    if (mv.hasAttribute('auto-rotate')) {
-        mv.removeAttribute('auto-rotate');
-        btn.classList.remove('active');
-    } else {
-        mv.setAttribute('auto-rotate', '');
-        btn.classList.add('active');
+# ════════ MODEL SUNMA ════════
+async def cache_model(tid, url):
+    """Model GLB dosyasini indir ve cache'le - 3 deneme yapar"""
+    if tid in model_cache:
+        return True
+    while len(model_cache) >= MAX_CACHE:
+        del model_cache[next(iter(model_cache))]
+    for attempt in range(3):
+        try:
+            timeout_val = 30 + (attempt * 30)  # 30s, 60s, 90s
+            async with httpx.AsyncClient(timeout=timeout_val, follow_redirects=True) as c:
+                print(f"[CACHE] Deneme {attempt+1}/3: {url[:80]}... (timeout={timeout_val}s)")
+                r = await c.get(url)
+                if r.status_code == 200 and len(r.content) > 100:
+                    model_cache[tid] = r.content
+                    print(f"[CACHE] Basarili! {len(r.content)} bytes cached for {tid}")
+                    return True
+                else:
+                    print(f"[CACHE] HTTP {r.status_code}, size={len(r.content)}")
+        except Exception as e:
+            print(f"[CACHE] Deneme {attempt+1} basarisiz: {e}")
+            if attempt < 2:
+                await asyncio.sleep(2)
+    print(f"[CACHE] Tum denemeler basarisiz: {tid}")
+    return False
+
+def get_model_url(tid):
+    """Task veya DB'den model URL'sini bul"""
+    # Oncelikle aktif task'tan
+    if tid in tasks and tasks[tid].get("model_url"):
+        return tasks[tid]["model_url"]
+    # Sonra veritabanından
+    try:
+        conn = get_db()
+        row = conn.execute("SELECT model_url FROM models WHERE task_id=?", (tid,)).fetchone()
+        conn.close()
+        if row and row[0]:
+            return row[0]
+    except:
+        pass
+    return None
+
+async def ensure_cached(tid):
+    if tid in model_cache:
+        return True
+    url = get_model_url(tid)
+    if url:
+        return await cache_model(tid, url)
+    return False
+
+@app.get("/api/model/{task_id}/view")
+async def model_view(task_id: str):
+    # 1. Cache'de varsa hemen dön
+    if task_id in model_cache:
+        return Response(content=model_cache[task_id], media_type="model/gltf-binary",
+            headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=3600"})
+    
+    # 2. URL'yi bul
+    url = get_model_url(task_id)
+    if not url:
+        raise HTTPException(404, "Model bulunamadi")
+    
+    # 3. Cache'lemeyi dene
+    if await cache_model(task_id, url):
+        return Response(content=model_cache[task_id], media_type="model/gltf-binary",
+            headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=3600"})
+    
+    # 4. Cache basarisiz → orijinal URL'ye redirect (FALLBACK!)
+    print(f"[MODEL] Cache basarisiz, redirect: {url[:80]}")
+    return RedirectResponse(url=url, status_code=302)
+
+@app.get("/api/model/{task_id}/glb")
+async def download_glb(task_id: str):
+    conn = get_db()
+    conn.execute("UPDATE models SET downloads=downloads+1 WHERE task_id=?", (task_id,))
+    conn.commit()
+    conn.close()
+    if task_id in model_cache:
+        return Response(content=model_cache[task_id], media_type="model/gltf-binary",
+            headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.glb"'})
+    if await ensure_cached(task_id):
+        return Response(content=model_cache[task_id], media_type="model/gltf-binary",
+            headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.glb"'})
+    # Fallback: redirect to original URL
+    url = get_model_url(task_id)
+    if url:
+        return RedirectResponse(url=url, status_code=302)
+    raise HTTPException(404, "Model bulunamadi")
+
+@app.get("/api/model/{task_id}/stl")
+async def download_stl(task_id: str):
+    if not HAS_TRIMESH:
+        raise HTTPException(500, "STL donusturme yuklu degil")
+    if not await ensure_cached(task_id):
+        raise HTTPException(404, "Model bulunamadi")
+    try:
+        scene = trimesh.load(io.BytesIO(model_cache[task_id]), file_type="glb", force="scene")
+        meshes = [g for g in scene.geometry.values() if isinstance(g, trimesh.Trimesh)] if isinstance(scene, trimesh.Scene) else [scene]
+        if not meshes:
+            raise Exception("Mesh bulunamadi")
+        stl = trimesh.util.concatenate(meshes).export(file_type="stl")
+        conn = get_db()
+        conn.execute("UPDATE models SET downloads=downloads+1 WHERE task_id=?", (task_id,))
+        conn.commit()
+        conn.close()
+        return Response(content=stl, media_type="application/vnd.ms-pki.stl",
+            headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.stl"'})
+    except Exception as e:
+        raise HTTPException(500, f"STL hatasi: {e}")
+
+@app.get("/api/model/{task_id}/obj")
+async def download_obj(task_id: str):
+    if not HAS_TRIMESH:
+        raise HTTPException(500, "OBJ donusturme yuklu degil")
+    if not await ensure_cached(task_id):
+        raise HTTPException(404, "Model bulunamadi")
+    try:
+        scene = trimesh.load(io.BytesIO(model_cache[task_id]), file_type="glb", force="scene")
+        meshes = [g for g in scene.geometry.values() if isinstance(g, trimesh.Trimesh)] if isinstance(scene, trimesh.Scene) else [scene]
+        obj = trimesh.util.concatenate(meshes).export(file_type="obj")
+        return Response(content=obj, media_type="text/plain",
+            headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.obj"'})
+    except Exception as e:
+        raise HTTPException(500, f"OBJ hatasi: {e}")
+
+
+# ════════ GALERI ════════
+@app.get("/api/gallery")
+async def gallery(page: int = 1, limit: int = 20, sort: str = "newest", search: str = "", category: str = "", tag: str = ""):
+    conn = get_db()
+    offset = (page - 1) * limit
+    where = "WHERE m.is_public=1 AND m.model_url != ''"
+    params = []
+    if search:
+        where += " AND (m.title LIKE ? OR m.prompt LIKE ?)"
+        params += [f"%{search}%", f"%{search}%"]
+    if category:
+        where += " AND m.category=?"
+        params.append(category)
+    if tag:
+        where += " AND m.id IN (SELECT model_id FROM model_tags WHERE tag=?)"
+        params.append(tag.lower())
+    order = {"popular": "ORDER BY m.likes DESC", "downloads": "ORDER BY m.downloads DESC", "views": "ORDER BY m.views DESC"}.get(sort, "ORDER BY m.created_at DESC")
+    rows = conn.execute(
+        f"SELECT m.*, u.name as author_name, u.username as author_username FROM models m LEFT JOIN users u ON m.user_id=u.id {where} {order} LIMIT ? OFFSET ?",
+        params + [limit, offset]).fetchall()
+    total = conn.execute(f"SELECT COUNT(*) FROM models m {where}", params).fetchone()[0]
+    conn.close()
+    return {"models": [dict(r) for r in rows], "total": total, "page": page, "pages": max(1, (total + limit - 1) // limit)}
+
+@app.get("/api/gallery/{model_id}")
+async def model_detail(model_id: int):
+    conn = get_db()
+    row = conn.execute("SELECT m.*, u.name as author_name, u.username as author_username FROM models m LEFT JOIN users u ON m.user_id=u.id WHERE m.id=?", (model_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "Model bulunamadi")
+    conn.execute("UPDATE models SET views=views+1 WHERE id=?", (model_id,))
+    conn.commit()
+    tags = conn.execute("SELECT tag FROM model_tags WHERE model_id=?", (model_id,)).fetchall()
+    conn.close()
+    result = dict(row)
+    result["tags"] = [t["tag"] for t in tags]
+    return result
+
+@app.post("/api/gallery/{model_id}/like")
+async def toggle_like(model_id: int, authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    ex = conn.execute("SELECT 1 FROM user_likes WHERE user_id=? AND model_id=?", (user["id"], model_id)).fetchone()
+    if ex:
+        conn.execute("DELETE FROM user_likes WHERE user_id=? AND model_id=?", (user["id"], model_id))
+        conn.execute("UPDATE models SET likes=likes-1 WHERE id=?", (model_id,))
+        liked = False
+    else:
+        conn.execute("INSERT INTO user_likes(user_id,model_id) VALUES(?,?)", (user["id"], model_id))
+        conn.execute("UPDATE models SET likes=likes+1 WHERE id=?", (model_id,))
+        liked = True
+    conn.commit()
+    conn.close()
+    return {"liked": liked}
+
+@app.get("/api/my-models")
+async def my_models(authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM models WHERE user_id=? ORDER BY created_at DESC", (user["id"],)).fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        tags = conn.execute("SELECT tag FROM model_tags WHERE model_id=?", (r["id"],)).fetchall()
+        d["tags"] = [t["tag"] for t in tags]
+        result.append(d)
+    conn.close()
+    return {"models": result}
+
+@app.delete("/api/my-models/{model_id}")
+async def delete_model(model_id: int, authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    conn.execute("DELETE FROM model_tags WHERE model_id=?", (model_id,))
+    conn.execute("DELETE FROM collection_items WHERE model_id=?", (model_id,))
+    conn.execute("DELETE FROM user_likes WHERE model_id=?", (model_id,))
+    conn.execute("DELETE FROM models WHERE id=? AND user_id=?", (model_id, user["id"]))
+    conn.commit()
+    conn.close()
+    return {"deleted": True}
+
+@app.post("/api/payment/upgrade")
+async def upgrade_plan(authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    conn.execute("UPDATE users SET plan='pro' WHERE id=?", (user["id"],))
+    conn.commit()
+    conn.close()
+    return {"success": True, "plan": "pro"}
+
+
+# ════════ PRIVACY ════════
+@app.post("/api/privacy/export-data")
+async def export_data(authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    models = [dict(r) for r in conn.execute("SELECT * FROM models WHERE user_id=?", (user["id"],)).fetchall()]
+    collections = [dict(r) for r in conn.execute("SELECT * FROM collections WHERE user_id=?", (user["id"],)).fetchall()]
+    likes = [dict(r) for r in conn.execute("SELECT * FROM user_likes WHERE user_id=?", (user["id"],)).fetchall()]
+    conn.close()
+    return {"user": user, "models": models, "collections": collections, "likes": likes, "exported_at": datetime.utcnow().isoformat()}
+
+@app.post("/api/privacy/delete-account")
+async def delete_account(authorization: Optional[str] = Header(None)):
+    user = await get_user(authorization)
+    if not user:
+        raise HTTPException(401, "Giris yapin")
+    conn = get_db()
+    uid = user["id"]
+    conn.execute("DELETE FROM model_tags WHERE model_id IN (SELECT id FROM models WHERE user_id=?)", (uid,))
+    conn.execute("DELETE FROM collection_items WHERE collection_id IN (SELECT id FROM collections WHERE user_id=?)", (uid,))
+    conn.execute("DELETE FROM collections WHERE user_id=?", (uid,))
+    conn.execute("DELETE FROM follows WHERE follower_id=? OR following_id=?", (uid, uid))
+    conn.execute("DELETE FROM user_likes WHERE user_id=?", (uid,))
+    conn.execute("DELETE FROM usage WHERE user_id=?", (uid,))
+    conn.execute("DELETE FROM security_log WHERE user_id=?", (uid,))
+    conn.execute("DELETE FROM models WHERE user_id=?", (uid,))
+    conn.execute("DELETE FROM users WHERE id=?", (uid,))
+    conn.commit()
+    conn.close()
+    return {"deleted": True, "message": "Hesabiniz ve tum verileriniz kalici olarak silindi"}
+
+@app.get("/api/health")
+async def health():
+    api = get_api()
+    return {
+        "status": "online", "active_api": api, "api_ready": True,
+        "is_demo": api == "demo", "stl_ready": HAS_TRIMESH,
+        "auth_ready": HAS_JWT, "google_ready": bool(GOOGLE_CLIENT_ID),
+        "email_ready": bool(RESEND_API_KEY), "cached_models": len(model_cache),
     }
-}
 
-function toggleShadow() {
-    var mv = getModelViewer();
-    var btn = document.getElementById('btnShadow');
-    if (!mv) return;
-    var current = parseFloat(mv.getAttribute('shadow-intensity') || '0');
-    if (current > 0) {
-        mv.setAttribute('shadow-intensity', '0');
-        btn.classList.remove('active');
-        document.getElementById('slShadow').value = 0;
-        document.getElementById('valShadow').textContent = '0.0';
-    } else {
-        mv.setAttribute('shadow-intensity', '1');
-        btn.classList.add('active');
-        document.getElementById('slShadow').value = 1;
-        document.getElementById('valShadow').textContent = '1.0';
-    }
-}
 
-function setViewerAttr(attr, val) {
-    var mv = getModelViewer();
-    if (mv) mv.setAttribute(attr, val);
-}
+# ════════ URL CIKARMA ════════
+def extract_model_url(data):
+    if not data: return ""
+    if isinstance(data, str) and data.startswith("http"): return data
+    if not isinstance(data, dict): return ""
+    for key in ["model", "pbr_model", "base_model"]:
+        val = data.get(key, "")
+        if isinstance(val, str) and val.startswith("http"): return val
+        if isinstance(val, dict):
+            url = val.get("url", "") or val.get("download_url", "")
+            if url and url.startswith("http"): return url
+    for k, v in data.items():
+        if isinstance(v, str) and v.startswith("http"):
+            if any(x in v.lower() for x in [".glb", ".gltf", "model"]): return v
+    return ""
 
-function setRotSpeed(val) {
-    var mv = getModelViewer();
-    if (mv) mv.setAttribute('rotation-per-second', val + 'deg');
-}
 
-function toggleEditPanel() {
-    var panel = document.getElementById('editPanel');
-    var btn = document.getElementById('btnEditPanel');
-    panel.classList.toggle('active');
-    btn.classList.toggle('active');
-}
+# ════════ TRIPO3D ════════
+async def _tripo_text(tid, prompt, style):
+    try:
+        h = {"Authorization": f"Bearer {TRIPO_API_KEY}"}
+        tasks[tid]["progress"] = 10
+        tasks[tid]["step"] = "Prompt gonderiliyor..."
+        async with httpx.AsyncClient(timeout=600) as c:
+            r = await c.post(f"{TRIPO_BASE}/task",
+                json={"type": "text_to_model", "prompt": f"{prompt}, {style} style"},
+                headers={**h, "Content-Type": "application/json"})
+            if r.status_code != 200: raise Exception(f"Tripo hata {r.status_code}")
+            tripo_id = r.json().get("data", {}).get("task_id")
+            if not tripo_id: raise Exception("Task ID alinamadi")
+            tasks[tid]["progress"] = 25
+            await _tripo_poll(c, h, tid, tripo_id)
+    except Exception as e:
+        tasks[tid]["status"] = "failed"
+        tasks[tid]["error"] = str(e)
 
-function setBgColor(color, swatch) {
-    document.getElementById('viewerContainer').style.background = color;
-    var mv = getModelViewer();
-    if (mv) mv.style.background = 'transparent';
-    var swatches = document.querySelectorAll('.color-sw');
-    for (var i = 0; i < swatches.length; i++) swatches[i].classList.remove('active');
-    if (swatch) swatch.classList.add('active');
-}
+async def _tripo_image(tid, contents, fname):
+    try:
+        h = {"Authorization": f"Bearer {TRIPO_API_KEY}"}
+        ext = fname.rsplit(".", 1)[-1].lower()
+        if ext not in ("jpg", "jpeg", "png", "webp"): ext = "jpeg"
+        mime = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
+        tasks[tid]["progress"] = 10
+        tasks[tid]["step"] = "Gorsel yukleniyor..."
+        async with httpx.AsyncClient(timeout=600) as c:
+            ur = await c.post(f"{TRIPO_BASE}/upload", files={"file": (fname, contents, mime)}, headers=h)
+            if ur.status_code != 200: raise Exception(f"Upload hata {ur.status_code}")
+            token = ur.json().get("data", {}).get("image_token")
+            if not token: raise Exception("Token alinamadi")
+            tasks[tid]["progress"] = 25
+            tasks[tid]["step"] = "Model olusturuluyor..."
+            tr = await c.post(f"{TRIPO_BASE}/task",
+                json={"type": "image_to_model", "file": {"type": ext if ext != "jpg" else "jpeg", "file_token": token}},
+                headers={**h, "Content-Type": "application/json"})
+            if tr.status_code != 200: raise Exception(f"Task hata {tr.status_code}")
+            tripo_id = tr.json().get("data", {}).get("task_id")
+            if not tripo_id: raise Exception("Task ID alinamadi")
+            tasks[tid]["progress"] = 35
+            await _tripo_poll(c, h, tid, tripo_id)
+    except Exception as e:
+        tasks[tid]["status"] = "failed"
+        tasks[tid]["error"] = str(e)
 
-function resetCamera() {
-    var mv = getModelViewer();
-    if (mv) {
-        mv.cameraOrbit = '45deg 55deg auto';
-        mv.cameraTarget = 'auto auto auto';
-        mv.fieldOfView = 'auto';
-    }
-    toast('Kamera sıfırlandı', 'info');
-}
+async def _tripo_poll(client, headers, tid, tripo_id):
+    for _ in range(200):
+        await asyncio.sleep(3)
+        try:
+            r = await client.get(f"{TRIPO_BASE}/task/{tripo_id}", headers=headers)
+            d = r.json().get("data", {})
+            st = d.get("status", "")
+            pr = d.get("progress", 0)
+            tasks[tid]["progress"] = 35 + int(pr * 0.55)
+            tasks[tid]["step"] = f"Model uretiliyor... %{pr}"
+            if st == "success":
+                url = extract_model_url(d.get("output", {}))
+                tasks[tid]["model_url"] = url
+                tasks[tid]["progress"] = 92
+                tasks[tid]["step"] = "Model indiriliyor..."
+                if url: await cache_model(tid, url)
+                tasks[tid]["status"] = "done"
+                tasks[tid]["progress"] = 100
+                tasks[tid]["step"] = "Tamamlandi!"
+                uid = tasks[tid].get("user_id", 0)
+                prompt = tasks[tid].get("prompt", "")
+                save_model(uid, tid, prompt[:50], prompt, tasks[tid].get("type", ""), tasks[tid].get("style", ""), url,
+                    tasks[tid].get("negative_prompt", ""), tasks[tid].get("tags", ""))
+                return
+            elif st in ("failed", "cancelled"):
+                raise Exception(f"Tripo: {st}")
+        except Exception as e:
+            if any(x in str(e) for x in ["Tripo", "failed", "cancelled"]):
+                tasks[tid]["status"] = "failed"
+                tasks[tid]["error"] = str(e)
+                return
+    tasks[tid]["status"] = "failed"
+    tasks[tid]["error"] = "Zaman asimi"
 
-function toggleFullscreen() {
-    var c = document.getElementById('viewerContainer');
-    if (document.fullscreenElement) {
-        document.exitFullscreen();
-    } else {
-        c.requestFullscreen().catch(function() { toast('Tam ekran kullanılamıyor', 'error'); });
-    }
-}
 
-function takeScreenshot() {
-    var mv = getModelViewer();
-    if (!mv) { toast('Model yok', 'error'); return; }
-    try {
-        var dataUrl = mv.toDataURL('image/png');
-        var link = document.createElement('a');
-        link.download = 'printforge_screenshot.png';
-        link.href = dataUrl;
-        link.click();
-        toast('Ekran görüntüsü indirildi', 'success');
-    } catch(e) {
-        toast('Screenshot alınamadı', 'error');
-    }
-}
+# ════════ MESHY ════════
+async def _meshy_text(tid, prompt, style):
+    try:
+        h = {"Authorization": f"Bearer {MESHY_API_KEY}", "Content-Type": "application/json"}
+        tasks[tid]["progress"] = 10
+        async with httpx.AsyncClient(timeout=600) as c:
+            r = await c.post(f"{MESHY_BASE}/text-to-3d",
+                json={"mode": "preview", "prompt": prompt, "art_style": "realistic"}, headers=h)
+            if r.status_code not in (200, 202): raise Exception(f"Meshy hata {r.status_code}")
+            mid = r.json().get("result")
+            tasks[tid]["progress"] = 20
+            await _meshy_poll(c, h, tid, mid, "text-to-3d")
+    except Exception as e:
+        tasks[tid]["status"] = "failed"
+        tasks[tid]["error"] = str(e)
 
-function downloadModel(format) {
-    if (!currentTaskId) { toast('İndirilecek model yok', 'error'); return; }
-    window.open(API + '/api/model/' + currentTaskId + '/' + format, '_blank');
-    toast(format.toUpperCase() + ' indiriliyor...', 'info');
-}
+async def _meshy_image(tid, contents, fname):
+    try:
+        h = {"Authorization": f"Bearer {MESHY_API_KEY}", "Content-Type": "application/json"}
+        ext = fname.rsplit(".", 1)[-1].lower()
+        mime = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
+        b64 = base64.b64encode(contents).decode()
+        tasks[tid]["progress"] = 15
+        async with httpx.AsyncClient(timeout=600) as c:
+            r = await c.post(f"{MESHY_BASE}/image-to-3d",
+                json={"image_url": f"data:{mime};base64,{b64}", "enable_pbr": True}, headers=h)
+            if r.status_code not in (200, 202): raise Exception(f"Meshy hata {r.status_code}")
+            mid = r.json().get("result")
+            tasks[tid]["progress"] = 25
+            await _meshy_poll(c, h, tid, mid, "image-to-3d")
+    except Exception as e:
+        tasks[tid]["status"] = "failed"
+        tasks[tid]["error"] = str(e)
 
-// ===== GENERATE =====
-function generateText() {
-    var prompt = document.getElementById('promptInput').value.trim();
-    if (!prompt) { toast('Prompt girin', 'error'); return; }
-    var btn = document.getElementById('genTextBtn');
-    btn.disabled = true; btn.className = 'gen-btn generating'; btn.innerHTML = '⏳ Üretiliyor...';
-    fetch(API + '/api/generate/text', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
-        body: JSON.stringify({ prompt: prompt, style: currentStyle })
-    })
-    .then(function(res) { return res.json().then(function(d){ return {ok:res.ok,data:d}; }); })
-    .then(function(r) {
-        if (!r.ok) throw new Error(r.data.detail || 'Başarısız');
-        currentTaskId = r.data.task_id;
-        showProgress();
-        startPolling();
-        toast('Model üretimi başlatıldı!', 'success');
-    })
-    .catch(function(err) { toast(err.message, 'error'); resetGenBtn(); });
-}
+async def _meshy_poll(client, h, tid, mid, ep):
+    for _ in range(200):
+        await asyncio.sleep(3)
+        try:
+            r = await client.get(f"{MESHY_BASE}/{ep}/{mid}", headers=h)
+            if r.status_code != 200: continue
+            d = r.json()
+            status = d.get("status", "")
+            progress = d.get("progress", 0)
+            tasks[tid]["progress"] = 25 + int(progress * 0.7)
+            tasks[tid]["step"] = f"Model uretiliyor... %{progress}"
+            if status == "SUCCEEDED":
+                glb = d.get("model_urls", {}).get("glb", "")
+                tasks[tid]["model_url"] = glb
+                if glb: await cache_model(tid, glb)
+                tasks[tid]["status"] = "done"
+                tasks[tid]["progress"] = 100
+                tasks[tid]["step"] = "Tamamlandi!"
+                uid = tasks[tid].get("user_id", 0)
+                prompt = tasks[tid].get("prompt", "")
+                save_model(uid, tid, prompt[:50], prompt, tasks[tid].get("type", ""), "", glb,
+                    tasks[tid].get("negative_prompt", ""), tasks[tid].get("tags", ""))
+                return
+            elif status == "FAILED":
+                raise Exception("Meshy: Model uretilemedi")
+        except Exception as e:
+            if "uretilemedi" in str(e):
+                tasks[tid]["status"] = "failed"
+                tasks[tid]["error"] = str(e)
+                return
+    tasks[tid]["status"] = "failed"
+    tasks[tid]["error"] = "Zaman asimi"
 
-function generateImage() {
-    var primary = imageSlots[primarySlot];
-    if (!primary) { toast('En az 1 görsel yükleyin', 'error'); return; }
-    var btn = document.getElementById('genImageBtn');
-    btn.disabled = true; btn.className = 'gen-btn generating'; btn.innerHTML = '⏳ Üretiliyor...';
-    var fd = new FormData();
-    fd.append('file', primary.file);
-    fetch(API + '/api/generate/image', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + currentToken },
-        body: fd
-    })
-    .then(function(res) { return res.json().then(function(d){ return {ok:res.ok,data:d}; }); })
-    .then(function(r) {
-        if (!r.ok) throw new Error(r.data.detail || 'Başarısız');
-        currentTaskId = r.data.task_id;
-        showProgress();
-        startPolling();
-        toast('Model üretimi başlatıldı!', 'success');
-    })
-    .catch(function(err) { toast(err.message, 'error'); resetGenBtn(); });
-}
 
-function showProgress() { document.getElementById('genProgress').classList.add('active'); }
-function hideProgress() { document.getElementById('genProgress').classList.remove('active'); }
-function resetGenBtn() {
-    var a = document.getElementById('genTextBtn'), b = document.getElementById('genImageBtn');
-    a.disabled = false; a.className = 'gen-btn'; a.innerHTML = '✦ Model Üret';
-    b.disabled = false; b.className = 'gen-btn'; b.innerHTML = '✦ Görselden Model Üret';
-}
-
-function startPolling() {
-    if (pollInterval) clearInterval(pollInterval);
-    pollInterval = setInterval(function() {
-        fetch(API + '/api/status/' + currentTaskId)
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-            document.getElementById('progressFill').style.width = data.progress + '%';
-            document.getElementById('progressStep').textContent = data.step || 'İşleniyor...';
-            document.getElementById('progressPercent').textContent = data.progress + '%';
-            if (data.status === 'done') {
-                clearInterval(pollInterval); pollInterval = null;
-                hideProgress(); resetGenBtn();
-                // model_url'yi de gönder (fallback için)
-                var directUrl = data.model_url || '';
-                console.log('[Poll] Model hazır! model_url:', directUrl);
-                showModel(currentTaskId, data.is_demo, directUrl);
-                loadUserData();
-            } else if (data.status === 'failed') {
-                clearInterval(pollInterval); pollInterval = null;
-                hideProgress(); resetGenBtn();
-                toast('Üretim başarısız: ' + (data.error || ''), 'error');
-            }
-        })
-        .catch(function(e) { console.log('Poll error:', e); });
-    }, 2000);
-}
-
-// ===== GALLERY =====
-function setGallerySort(sort, btn) {
-    gallerySort = sort;
-    var chips = document.querySelectorAll('.filter-chip');
-    for (var i = 0; i < chips.length; i++) chips[i].classList.remove('active');
-    btn.classList.add('active');
-    loadGallery();
-}
-
-function loadGallery() {
-    var grid = document.getElementById('galleryGrid');
-    var search = document.getElementById('gallerySearch') ? document.getElementById('gallerySearch').value : '';
-    grid.innerHTML = '<div class="empty-state"><div class="skeleton" style="height:200px;width:100%"></div></div>';
-    fetch(API + '/api/gallery?sort=' + gallerySort + '&limit=20&search=' + encodeURIComponent(search))
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
-        if (!data.models || data.models.length === 0) {
-            grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">◎</div><div class="empty-title">Henüz model yok</div><div class="empty-desc">İlk modeli sen üret!</div><button onclick="navigateTo(\'generate\')">Model Üret →</button></div>';
-            return;
-        }
-        grid.innerHTML = data.models.map(function(m) {
-            return '<div class="model-card" onclick="viewGalleryModel(\'' + m.task_id + '\')">' +
-                '<div class="model-thumb"><span class="thumb-placeholder">✦</span>' +
-                (m.style ? '<div class="model-style-tag">' + m.style + '</div>' : '') +
-                '<div class="thumb-overlay"><button onclick="event.stopPropagation();viewGalleryModel(\'' + m.task_id + '\')">👁 Görüntüle</button></div></div>' +
-                '<div class="model-body"><div class="model-title">' + (m.title || 'Model') + '</div>' +
-                '<div class="model-meta"><span>@' + (m.author_name || 'Maker') + '</span><span>' + (m.created_at || '').slice(0,10) + '</span></div>' +
-                '<div class="model-stats"><span class="model-stat">❤ <span>' + (m.likes||0) + '</span></span><span class="model-stat">↓ <span>' + (m.downloads||0) + '</span></span></div>' +
-                '<div class="model-actions"><button class="model-action-btn download" onclick="event.stopPropagation();downloadGalleryModel(\'' + m.task_id + '\',\'glb\')">↓ GLB</button>' +
-                '<button class="model-action-btn" onclick="event.stopPropagation();likeModel(' + m.id + ',this)">♡</button></div></div></div>';
-        }).join('');
-    })
-    .catch(function() {
-        grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">⚠</div><div class="empty-title">Yükleme hatası</div></div>';
-    });
-}
-
-function viewGalleryModel(taskId) {
-    navigateTo('generate');
-    // Önce status'tan model_url'yi al
-    fetch(API + '/api/status/' + taskId)
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-        showModel(taskId, d.is_demo, d.model_url || '');
-    })
-    .catch(function() {
-        showModel(taskId, false, '');
-    });
-}
-
-function downloadGalleryModel(taskId, format) {
-    window.open(API + '/api/model/' + taskId + '/' + format, '_blank');
-    toast(format.toUpperCase() + ' indiriliyor...', 'info');
-}
-
-function likeModel(modelId, btn) {
-    fetch(API + '/api/gallery/' + modelId + '/like', {
-        method: 'POST', headers: { 'Authorization': 'Bearer ' + currentToken }
-    })
-    .then(function(res) { return res.json(); })
-    .then(function(d) {
-        btn.textContent = d.liked ? '❤' : '♡';
-        btn.classList.toggle('liked', d.liked);
-    })
-    .catch(function() { toast('Giriş yapın', 'error'); });
-}
-
-// ===== MY MODELS =====
-function loadMyModels() {
-    var grid = document.getElementById('myModelsGrid');
-    grid.innerHTML = '<div class="skeleton" style="height:200px"></div>';
-    fetch(API + '/api/my-models', { headers: { 'Authorization': 'Bearer ' + currentToken } })
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
-        if (!data.models || data.models.length === 0) {
-            grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">◇</div><div class="empty-title">Henüz modeliniz yok</div><button onclick="navigateTo(\'generate\')">Model Üret →</button></div>';
-            return;
-        }
-        grid.innerHTML = data.models.map(function(m) {
-            return '<div class="model-card"><div class="model-thumb"><span class="thumb-placeholder">✦</span>' +
-                '<div class="thumb-overlay"><button onclick="viewGalleryModel(\'' + m.task_id + '\')">👁 Görüntüle</button></div></div>' +
-                '<div class="model-body"><div class="model-title">' + (m.title || m.prompt || 'Model') + '</div>' +
-                '<div class="model-meta"><span>' + (m.gen_type||'text') + '</span><span>' + (m.created_at||'').slice(0,10) + '</span></div>' +
-                '<div class="model-actions"><button class="model-action-btn download" onclick="downloadGalleryModel(\'' + m.task_id + '\',\'glb\')">↓ GLB</button>' +
-                '<button class="model-action-btn" onclick="downloadGalleryModel(\'' + m.task_id + '\',\'stl\')">↓ STL</button>' +
-                '<button class="model-action-btn delete" onclick="deleteModel(' + m.id + ',this)">🗑</button></div></div></div>';
-        }).join('');
-    })
-    .catch(function() {
-        grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">⚠</div><div class="empty-title">Yükleme hatası</div></div>';
-    });
-}
-
-function deleteModel(modelId, btn) {
-    if (!confirm('Bu modeli silmek istediğinize emin misiniz?')) return;
-    fetch(API + '/api/my-models/' + modelId, {
-        method: 'DELETE', headers: { 'Authorization': 'Bearer ' + currentToken }
-    })
-    .then(function(res) {
-        if (res.ok) { btn.closest('.model-card').remove(); toast('Model silindi', 'success'); loadUserData(); }
-    })
-    .catch(function() { toast('Silme başarısız', 'error'); });
-}
-
-// ===== SETTINGS =====
-function switchSettingsTab(tab, btn) {
-    document.getElementById('settingsProfile').style.display = tab === 'profile' ? 'block' : 'none';
-    document.getElementById('settingsUsage').style.display = tab === 'usage' ? 'block' : 'none';
-    document.getElementById('settingsBilling').style.display = tab === 'billing' ? 'block' : 'none';
-    var items = document.querySelectorAll('.settings-nav-item');
-    for (var i = 0; i < items.length; i++) items[i].classList.remove('active');
-    btn.classList.add('active');
-}
-
-function saveProfile() {
-    var name = document.getElementById('settingsName').value.trim();
-    var password = document.getElementById('settingsPass').value;
-    var body = {};
-    if (name) body.name = name;
-    if (password) body.password = password;
-    fetch(API + '/api/auth/update-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentToken },
-        body: JSON.stringify(body)
-    })
-    .then(function(res) {
-        if (!res.ok) throw new Error();
-        if (name) currentUser.name = name;
-        localStorage.setItem('pf_user', JSON.stringify(currentUser));
-        updateSidebar();
-        toast('Profil güncellendi!', 'success');
-        document.getElementById('settingsPass').value = '';
-    })
-    .catch(function() { toast('Kaydetme başarısız', 'error'); });
-}
-
-// ===== PLANS =====
-function upgradePlan(plan) {
-    if (!confirm(plan.toUpperCase() + ' planına geçmek istiyor musunuz?')) return;
-    fetch(API + '/api/payment/upgrade', {
-        method: 'POST', headers: { 'Authorization': 'Bearer ' + currentToken }
-    })
-    .then(function(res) { return res.json(); })
-    .then(function(d) {
-        if (d.success) {
-            currentUser.plan = d.plan;
-            localStorage.setItem('pf_user', JSON.stringify(currentUser));
-            updateSidebar(); loadUserData();
-            toast('Plan yükseltildi: ' + d.plan.toUpperCase(), 'success');
-        }
-    })
-    .catch(function() { toast('Yükseltme başarısız', 'error'); });
-}
-
-// ===== INIT =====
-function init() {
-    // Check reset token
-    var params = new URLSearchParams(window.location.search);
-    if (params.get('reset')) { switchAuth('reset'); return; }
-
-    // Check existing token
-    var storedToken = localStorage.getItem('pf_token');
-    if (storedToken && storedToken !== 'no-jwt') {
-        currentToken = storedToken;
-        fetch(API + '/api/auth/me', { headers: { 'Authorization': 'Bearer ' + currentToken } })
-        .then(function(res) {
-            if (res.ok) return res.json();
-            throw new Error('Invalid token');
-        })
-        .then(function(data) {
-            currentUser = data.user;
-            localStorage.setItem('pf_user', JSON.stringify(data.user));
-            enterApp();
-        })
-        .catch(function() {
-            // Try stored user as fallback
-            var su = localStorage.getItem('pf_user');
-            if (su) {
-                try {
-                    currentUser = JSON.parse(su);
-                    enterApp();
-                    return;
-                } catch(e) {}
-            }
-            localStorage.removeItem('pf_token');
-            localStorage.removeItem('pf_user');
-            document.getElementById('authOverlay').classList.remove('hidden');
-            document.getElementById('appLayout').style.display = 'none';
-        });
-    } else {
-        document.getElementById('authOverlay').classList.remove('hidden');
-        document.getElementById('appLayout').style.display = 'none';
-    }
-}
-
-init();
-</script>
-</body>
-</html>
+# ════════ DEMO ════════
+async def _demo_generate(tid):
+    try:
+        steps = [(8,"Analiz ediliyor..."),(22,"AI yukleniyor..."),(40,"Geometri olusturuluyor..."),
+                 (58,"Mesh uretiliyor..."),(72,"Texture uygulanıyor..."),(88,"Optimize ediliyor..."),(95,"Hazirlaniyor...")]
+        for pr, st in steps:
+            tasks[tid]["progress"] = pr
+            tasks[tid]["step"] = st
+            await asyncio.sleep(random.uniform(1.0, 2.0))
+        m = random.choice(DEMO_MODELS)
+        tasks[tid]["model_url"] = m["glb"]
+        await cache_model(tid, m["glb"])
+        tasks[tid]["status"] = "done"
+        tasks[tid]["progress"] = 100
+        tasks[tid]["step"] = f"Demo: {m['name']}"
+        save_model(0, tid, m["name"], "demo", "demo", "", m["glb"])
+    except Exception as e:
+        tasks[tid]["status"] = "failed"
+        tasks[tid]["error"] = str(e)
