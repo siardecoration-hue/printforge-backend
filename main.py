@@ -1170,6 +1170,9 @@ def is_allowed_model_url(url: str) -> bool:
     except:
         return False
 
+def is_real_glb(data: bytes) -> bool:
+    return len(data) >= 4 and data[:4] == b"glTF"
+
 async def fetch_model_from_upstream(url: str):
     if not is_allowed_model_url(url):
         raise HTTPException(400, "Model kaynagi izinli degil")
@@ -1206,7 +1209,6 @@ def _extract_url_from_json_payload(data: bytes) -> str:
             return ""
         obj = json.loads(txt)
 
-        # Yaygin alanlar
         for k in ["model_url", "url", "download_url", "glb", "pbr_model", "base_model"]:
             v = obj.get(k)
             if isinstance(v, str) and v.startswith("http"):
@@ -1216,7 +1218,6 @@ def _extract_url_from_json_payload(data: bytes) -> str:
                 if isinstance(u, str) and u.startswith("http"):
                     return u
 
-        # Nested tarama
         def walk(x):
             if isinstance(x, dict):
                 for vv in x.values():
@@ -1239,42 +1240,42 @@ def _extract_url_from_json_payload(data: bytes) -> str:
 async def _force_real_glb(url: str):
     """
     Upstream bazen dogrudan GLB yerine JSON doner.
-    Bu fonksiyon JSON icinden gercek model URL'ini cikarip tekrar indirir.
+    JSON icinden gercek URL bulunursa tekrar indirir.
+    Sadece GLB (glTF magic) kabul eder.
     """
     current_url = url
     for _ in range(3):
         data, media_type = await fetch_model_from_upstream(current_url)
 
-        # Gercek GLB imzasi
-        if len(data) >= 4 and data[:4] == b"glTF":
+        if is_real_glb(data):
             return data, "model/gltf-binary"
 
-        # JSON geldiyse icinden URL bul
-        nested = _extract_url_from_json_payload(data)
-        if nested:
-            current_url = nested
-            continue
-
-        # glTF JSON dosyasi olabilir
+        # JSON geldi, icinden URL bulup tekrar dene
         if data.lstrip().startswith(b"{"):
-            return data, "model/gltf+json"
+            nested = _extract_url_from_json_payload(data)
+            if nested:
+                current_url = nested
+                continue
+            raise HTTPException(502, "Upstream JSON dondu, GLB URL bulunamadi")
 
-        # Bilinmeyen binary fallback
-        return data, media_type
+        # JSON degil ve GLB imzasi da yoksa gecersiz
+        raise HTTPException(502, f"Gecersiz model payload (type={media_type})")
 
     raise HTTPException(502, "Gercek GLB URL cozulamadi")
 
 async def cache_model(tid, url):
-    """Model dosyasini indirip RAM cache'e atar."""
-    if tid in model_cache:
+    """Sadece gercek GLB verisini cache'ler."""
+    if tid in model_cache and is_real_glb(model_cache[tid]):
         return True
+    if tid in model_cache and not is_real_glb(model_cache[tid]):
+        model_cache.pop(tid, None)
 
     while len(model_cache) >= MAX_CACHE:
         del model_cache[next(iter(model_cache))]
 
     try:
         data, _ = await _force_real_glb(url)
-        if len(data) > 100:
+        if is_real_glb(data):
             model_cache[tid] = data
             return True
     except Exception as e:
@@ -1300,8 +1301,11 @@ def get_model_url(tid):
     return None
 
 async def ensure_cached(tid):
-    if tid in model_cache:
+    if tid in model_cache and is_real_glb(model_cache[tid]):
         return True
+    if tid in model_cache and not is_real_glb(model_cache[tid]):
+        model_cache.pop(tid, None)
+
     url = get_model_url(tid)
     if url:
         return await cache_model(tid, url)
@@ -1309,33 +1313,38 @@ async def ensure_cached(tid):
 
 @app.get("/api/model/{task_id}/view")
 async def model_view(task_id: str):
-    # Cache hit
+    # Cache hit (sadece dogru GLB ise)
     if task_id in model_cache:
-        return Response(
-            content=model_cache[task_id],
-            media_type="model/gltf-binary",
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Headers": "*",
-                "Cache-Control": "no-store",
-                "X-Model-Proxy": "1",
-            },
-        )
+        cached = model_cache[task_id]
+        if is_real_glb(cached):
+            return Response(
+                content=cached,
+                media_type="model/gltf-binary",
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Headers": "*",
+                    "Cache-Control": "no-store",
+                    "X-Model-Proxy": "1",
+                },
+            )
+        model_cache.pop(task_id, None)
 
     url = get_model_url(task_id)
     if not url:
         raise HTTPException(404, "Model bulunamadi")
 
-    data, media_type = await _force_real_glb(url)
+    data, _ = await _force_real_glb(url)
 
-    if len(data) > 100:
-        while len(model_cache) >= MAX_CACHE:
-            del model_cache[next(iter(model_cache))]
-        model_cache[task_id] = data
+    if not is_real_glb(data):
+        raise HTTPException(502, "Gecersiz GLB payload")
+
+    while len(model_cache) >= MAX_CACHE:
+        del model_cache[next(iter(model_cache))]
+    model_cache[task_id] = data
 
     return Response(
         content=data,
-        media_type=media_type,
+        media_type="model/gltf-binary",
         headers={
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Headers": "*",
@@ -1351,16 +1360,18 @@ async def model_proxy(task_id: str, url: str = ""):
     if not target_url:
         raise HTTPException(404, "Model URL bulunamadi")
 
-    data, media_type = await _force_real_glb(target_url)
+    data, _ = await _force_real_glb(target_url)
 
-    if len(data) > 100:
-        while len(model_cache) >= MAX_CACHE:
-            del model_cache[next(iter(model_cache))]
-        model_cache[task_id] = data
+    if not is_real_glb(data):
+        raise HTTPException(502, "Gecersiz GLB payload")
+
+    while len(model_cache) >= MAX_CACHE:
+        del model_cache[next(iter(model_cache))]
+    model_cache[task_id] = data
 
     return Response(
         content=data,
-        media_type=media_type,
+        media_type="model/gltf-binary",
         headers={
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Headers": "*",
@@ -1377,22 +1388,26 @@ async def download_glb(task_id: str):
     conn.close()
 
     if task_id in model_cache:
-        return Response(
-            content=model_cache[task_id],
-            media_type="model/gltf-binary",
-            headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.glb"'},
-        )
+        cached = model_cache[task_id]
+        if is_real_glb(cached):
+            return Response(
+                content=cached,
+                media_type="model/gltf-binary",
+                headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.glb"'},
+            )
+        model_cache.pop(task_id, None)
 
     url = get_model_url(task_id)
     if not url:
         raise HTTPException(404, "Model bulunamadi")
 
     data, _ = await _force_real_glb(url)
+    if not is_real_glb(data):
+        raise HTTPException(502, "Gecersiz GLB payload")
 
-    if len(data) > 100:
-        while len(model_cache) >= MAX_CACHE:
-            del model_cache[next(iter(model_cache))]
-        model_cache[task_id] = data
+    while len(model_cache) >= MAX_CACHE:
+        del model_cache[next(iter(model_cache))]
+    model_cache[task_id] = data
 
     return Response(
         content=data,
