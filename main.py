@@ -616,39 +616,54 @@ def serve_profile(username: str):
 @app.post("/api/auth/register")
 async def register(req: RegisterReq, request: Request):
     ip = get_client_ip(request)
+
     if not check_rate_limit(ip, "register", 3, 3600):
         raise HTTPException(429, "Cok fazla kayit denemesi. 1 saat sonra tekrar deneyin.")
+
     valid, msg = validate_password(req.password)
     if not valid:
         raise HTTPException(400, msg)
+
     if not req.name.strip() or len(req.name.strip()) < 2:
         raise HTTPException(400, "Gecerli bir isim girin")
+
     valid, msg = await validate_email(req.email)
     if not valid:
         raise HTTPException(400, msg)
 
     salt, h = hash_pw(req.password)
     verify_token = secrets.token_urlsafe(32)
+
     conn = get_db()
     try:
-        conn.execute(
-            "INSERT INTO users(email,name,password_hash,salt,verify_token,verified) VALUES(%s,%s,%s,%s,%s,%s)",
-            (req.email.lower().strip(), sanitize(req.name.strip()), h, salt, verify_token, 0 if RESEND_API_KEY else 1)
+        cur = conn.execute(
+            "INSERT INTO users(email,name,password_hash,salt,verify_token,verified) "
+            "VALUES(%s,%s,%s,%s,%s,%s) RETURNING id",
+            (
+                req.email.lower().strip(),
+                sanitize(req.name.strip()),
+                h,
+                salt,
+                verify_token,
+                0 if RESEND_API_KEY else 1,
+            ),
         )
-        conn.commit()
+        uid = cur.fetchone()["id"]
 
-        uid = conn.execute("SELECT id FROM users WHERE email=%s", (req.email.lower().strip(),)).fetchone()["id"]
         username = generate_username(req.name, uid)
         conn.execute("UPDATE users SET username=%s WHERE id=%s", (username, uid))
+
         conn.commit()
         conn.close()
+
     except Exception as e:
         conn.rollback()
         conn.close()
+        print("[REGISTER ERROR]", repr(e))  # logda gercek nedeni gorelim
         msg = str(e).lower()
         if "unique" in msg or "duplicate" in msg:
             raise HTTPException(400, "Bu e-posta zaten kayitli")
-        raise HTTPException(500, "Kayit sirasinda hata olustu")
+        raise HTTPException(500, "Kayit olusturulamadi")
 
     log_security(uid, "register", ip)
 
@@ -670,6 +685,7 @@ async def register(req: RegisterReq, request: Request):
     }
     if RESEND_API_KEY:
         result["message"] = "Dogrulama maili gonderildi. E-postanizi kontrol edin."
+
     return result
 
 @app.post("/api/auth/login")
