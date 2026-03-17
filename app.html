@@ -951,15 +951,39 @@ if (dz) {
     });
 }
 
-// ===== MODEL VIEWER (model-viewer component - always works) =====
+// ===== MODEL VIEWER =====
 var modelRetryCount = 0;
-var originalModelUrl = ''; // Orijinal model URL (API'den gelen)
-var proxyModelUrl = '';    // Proxy URL (sunucumuz üzerinden)
+var originalModelUrl = '';
+var proxyModelUrl = '';
+var modelViewerReady = false;
+
+// model-viewer yüklenene kadar bekle
+function waitForModelViewer(callback) {
+    if (customElements.get('model-viewer')) {
+        modelViewerReady = true;
+        callback();
+        return;
+    }
+    var checkCount = 0;
+    var checker = setInterval(function() {
+        checkCount++;
+        if (customElements.get('model-viewer')) {
+            modelViewerReady = true;
+            clearInterval(checker);
+            callback();
+        } else if (checkCount > 50) { // 10 saniye
+            clearInterval(checker);
+            console.error('[Viewer] model-viewer component yüklenemedi!');
+            callback(); // yine de dene
+        }
+    }, 200);
+}
 
 function showModel(taskId, isDemo, directUrl) {
     currentTaskId = taskId;
     proxyModelUrl = API + '/api/model/' + taskId + '/view';
-    if (directUrl) originalModelUrl = directUrl;
+    originalModelUrl = directUrl || '';
+    modelRetryCount = 0;
 
     var container = document.getElementById('viewerContainer');
     var empty = document.getElementById('viewerEmpty');
@@ -972,60 +996,75 @@ function showModel(taskId, isDemo, directUrl) {
     loading.classList.remove('hidden');
     loading.querySelector('.viewer-loading-text').textContent = 'Model yükleniyor...';
     toolbar.classList.add('active');
-    modelRetryCount = 0;
 
     var old = container.querySelector('model-viewer');
     if (old) old.remove();
 
-    // Önce proxy URL'yi kontrol et, erişilebilir mi?
-    console.log('[Viewer] Proxy URL deneniyor:', proxyModelUrl);
-    fetch(proxyModelUrl, { method: 'HEAD' })
-    .then(function(res) {
-        if (res.ok) {
-            console.log('[Viewer] Proxy OK, model-viewer oluşturuluyor');
-            createModelViewer(proxyModelUrl, taskId, isDemo, container, loading, error);
-        } else {
-            throw new Error('Proxy 404');
-        }
-    })
-    .catch(function() {
-        console.log('[Viewer] Proxy başarısız, orijinal URL deneniyor:', originalModelUrl);
-        if (originalModelUrl) {
-            loading.querySelector('.viewer-loading-text').textContent = 'Alternatif kaynak deneniyor...';
-            createModelViewer(originalModelUrl, taskId, isDemo, container, loading, error);
-        } else {
-            // Status API'den model_url'yi çek
-            console.log('[Viewer] Orijinal URL yok, status API sorgulanıyor...');
-            loading.querySelector('.viewer-loading-text').textContent = 'Model kaynağı aranıyor...';
-            fetch(API + '/api/status/' + taskId)
-            .then(function(r) { return r.json(); })
-            .then(function(st) {
-                if (st.model_url) {
-                    originalModelUrl = st.model_url;
-                    console.log('[Viewer] Status API model_url bulundu:', originalModelUrl);
-                    createModelViewer(originalModelUrl, taskId, isDemo, container, loading, error);
-                } else {
-                    // Son çare: proxy'yi tekrar zorla
-                    console.log('[Viewer] model_url yok, proxy zorlanıyor...');
-                    loading.querySelector('.viewer-loading-text').textContent = 'Son deneme...';
-                    setTimeout(function() {
-                        createModelViewer(proxyModelUrl + '?force=' + Date.now(), taskId, isDemo, container, loading, error);
-                    }, 3000);
-                }
-            })
-            .catch(function() {
-                createModelViewer(proxyModelUrl + '?force=' + Date.now(), taskId, isDemo, container, loading, error);
-            });
-        }
+    // URL listesi: Önce orijinal (CORS dostu), sonra proxy
+    var urls = [];
+    if (originalModelUrl) urls.push(originalModelUrl);
+    urls.push(proxyModelUrl);
+
+    console.log('[Viewer] URL listesi:', urls);
+
+    waitForModelViewer(function() {
+        tryLoadFromList(urls, 0, taskId, isDemo);
     });
 }
 
-function createModelViewer(url, taskId, isDemo, container, loading, error) {
-    console.log('[Viewer] model-viewer oluşturuluyor, URL:', url);
+function tryLoadFromList(urls, index, taskId, isDemo) {
+    var container = document.getElementById('viewerContainer');
+    var loading = document.getElementById('viewerLoading');
+    var error = document.getElementById('viewerError');
 
+    if (index >= urls.length) {
+        // Tüm URL'ler denendi, şimdi bekleyip tekrar dene
+        modelRetryCount++;
+        if (modelRetryCount <= 3) {
+            var waitTime = modelRetryCount * 5000; // 5s, 10s, 15s
+            loading.querySelector('.viewer-loading-text').textContent = 
+                'Model hazırlanıyor... Deneme ' + modelRetryCount + '/3 (' + (waitTime/1000) + 's bekleniyor)';
+            console.log('[Viewer] Tüm URL başarısız, ' + waitTime + 'ms beklenip tekrar denenecek');
+            
+            // Status API'den güncel URL al
+            setTimeout(function() {
+                fetch(API + '/api/status/' + taskId)
+                .then(function(r) { return r.json(); })
+                .then(function(st) {
+                    var freshUrls = [];
+                    if (st.model_url) {
+                        originalModelUrl = st.model_url;
+                        freshUrls.push(st.model_url);
+                    }
+                    freshUrls.push(proxyModelUrl + '?t=' + Date.now());
+                    tryLoadFromList(freshUrls, 0, taskId, st.is_demo);
+                })
+                .catch(function() {
+                    tryLoadFromList([proxyModelUrl + '?t=' + Date.now()], 0, taskId, false);
+                });
+            }, waitTime);
+            return;
+        }
+        
+        // 3 tur denendi, hala başarısız
+        loading.classList.add('hidden');
+        error.classList.remove('hidden');
+        document.getElementById('viewerErrorMsg').textContent = 
+            'Model görüntülenemiyor. Model indirilebilir durumda — aşağıdaki butonlarla indirebilirsiniz.';
+        var dbtn = document.getElementById('btnDirectUrl');
+        if (dbtn) dbtn.style.display = 'inline-block';
+        return;
+    }
+
+    var url = urls[index];
+    console.log('[Viewer] Deneme: URL #' + (index+1) + '/' + urls.length + ': ' + url.substring(0, 80));
+    loading.querySelector('.viewer-loading-text').textContent = 'Model yükleniyor... (' + (index+1) + '/' + urls.length + ')';
+
+    // Eski viewer'ı temizle
     var old = container.querySelector('model-viewer');
     if (old) old.remove();
 
+    // Yeni model-viewer oluştur
     var mv = document.createElement('model-viewer');
     mv.setAttribute('src', url);
     mv.setAttribute('camera-controls', '');
@@ -1039,64 +1078,38 @@ function createModelViewer(url, taskId, isDemo, container, loading, error) {
     mv.setAttribute('camera-orbit', '45deg 55deg auto');
     mv.style.cssText = 'width:100%;height:100%;min-height:400px;background:transparent;';
 
+    var settled = false;
+
+    // Timeout: 30 saniye
     var loadTimeout = setTimeout(function() {
-        console.log('[Viewer] 30s timeout, fallback deneniyor...');
-        tryFallbackUrl(mv, url, taskId, isDemo, loading, error);
+        if (settled) return;
+        settled = true;
+        console.log('[Viewer] Timeout (30s) URL #' + (index+1));
+        tryLoadFromList(urls, index + 1, taskId, false);
     }, 30000);
 
     mv.addEventListener('load', function() {
+        if (settled) return;
+        settled = true;
         clearTimeout(loadTimeout);
         loading.classList.add('hidden');
         error.classList.add('hidden');
-        document.getElementById('viewerInfo').textContent = isDemo ? 'DEMO MODEL' : 'Task: ' + taskId;
+        document.getElementById('viewerInfo').textContent = taskId;
         document.getElementById('downloadInfo').textContent = taskId;
-        toast('Model başarıyla yüklendi!', 'success');
-        console.log('[Viewer] Model yüklendi!');
+        toast('Model yüklendi!', 'success');
+        console.log('[Viewer] ✓ Başarılı! URL: ' + url.substring(0, 60));
     });
 
     mv.addEventListener('error', function(e) {
+        if (settled) return;
+        settled = true;
         clearTimeout(loadTimeout);
-        console.error('[Viewer] model-viewer hata:', e, 'URL:', url);
-        tryFallbackUrl(mv, url, taskId, isDemo, loading, error);
+        console.log('[Viewer] Hata URL #' + (index+1) + ':', e);
+        // Sonraki URL'yi dene
+        tryLoadFromList(urls, index + 1, taskId, false);
     });
 
     container.insertBefore(mv, loading);
-}
-
-function tryFallbackUrl(mv, failedUrl, taskId, isDemo, loading, error) {
-    modelRetryCount++;
-    console.log('[Viewer] Fallback deneme #' + modelRetryCount);
-
-    if (modelRetryCount > 4) {
-        loading.classList.add('hidden');
-        error.classList.remove('hidden');
-        document.getElementById('viewerErrorMsg').textContent = 
-            'Model yüklenemedi. Model henüz hazır olmayabilir veya sunucu geçici olarak yanıt vermiyor. Birkaç dakika sonra tekrar deneyin.';
-        return;
-    }
-
-    // Hangi URL başarısız oldu? Diğerini dene
-    var nextUrl = '';
-    if (failedUrl === proxyModelUrl || failedUrl.indexOf('/api/model/') !== -1) {
-        // Proxy başarısız → orijinal URL dene
-        if (originalModelUrl) {
-            nextUrl = originalModelUrl;
-            loading.querySelector('.viewer-loading-text').textContent = 'Doğrudan kaynak deneniyor... (' + modelRetryCount + '/4)';
-        } else {
-            // Gecikmeyle proxy'yi tekrar dene (cache dolmuş olabilir)
-            nextUrl = proxyModelUrl + '?retry=' + Date.now();
-            loading.querySelector('.viewer-loading-text').textContent = 'Tekrar deneniyor... (' + modelRetryCount + '/4)';
-        }
-    } else {
-        // Orijinal URL başarısız → proxy'yi tekrar dene
-        nextUrl = proxyModelUrl + '?retry=' + Date.now();
-        loading.querySelector('.viewer-loading-text').textContent = 'Proxy deneniyor... (' + modelRetryCount + '/4)';
-    }
-
-    console.log('[Viewer] Sonraki URL:', nextUrl);
-    setTimeout(function() {
-        mv.setAttribute('src', nextUrl);
-    }, 2000 * modelRetryCount);
 }
 
 function retryLoadModel() {
@@ -1110,20 +1123,7 @@ function tryDirectUrl() {
     if (originalModelUrl) {
         window.open(originalModelUrl, '_blank');
     } else if (currentTaskId) {
-        window.open(API + '/api/model/' + currentTaskId + '/view', '_blank');
-    }
-}
-
-// Hata durumunda debug bilgisi göster
-function showViewerDebug() {
-    var el = document.getElementById('viewerDebugInfo');
-    if (el) {
-        el.textContent = 'Proxy: ' + proxyModelUrl + ' | Direct: ' + (originalModelUrl || 'yok') + ' | Retry: ' + modelRetryCount;
-    }
-    // Eğer orijinal URL varsa "Doğrudan Aç" butonunu göster
-    var btn = document.getElementById('btnDirectUrl');
-    if (btn && originalModelUrl) {
-        btn.style.display = 'inline-block';
+        window.open(proxyModelUrl, '_blank');
     }
 }
 
