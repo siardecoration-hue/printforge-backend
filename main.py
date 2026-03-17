@@ -70,7 +70,13 @@ DEMO_MODELS = [
     {"name": "Lantern", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Lantern/glTF-Binary/Lantern.glb"},
     {"name": "Water Bottle", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/WaterBottle/glTF-Binary/WaterBottle.glb"},
 ]
-
+async def cache_model(tid, url):
+    try:
+        await persist_model_glb(tid, url)
+        return True
+    except Exception as e:
+        print(f"[CACHE] basarisiz: {e}")
+        return False
 # ════════ RATE LIMITING ════════
 rate_limits = {}
 login_attempts = {}
