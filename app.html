@@ -30,7 +30,9 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text)}
 ::-webkit-scrollbar-thumb{background:var(--primary);border-radius:3px}
 input,select,textarea,button{outline:none;font-family:inherit}
 a{text-decoration:none;color:inherit}
+
 .app-layout{display:flex;height:100vh;width:100vw}
+
 /* SIDEBAR */
 .sidebar{width:var(--sidebar-w);background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;transition:transform .3s}
 .sb-logo{padding:20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);cursor:pointer}
@@ -54,6 +56,7 @@ a{text-decoration:none;color:inherit}
 .sb-user-info{flex:1;min-width:0}
 .sb-user-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sb-user-plan{font-size:10px;color:var(--primary2);font-weight:500}
+
 /* MAIN */
 .main-content{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
 .main-header{padding:16px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;background:var(--bg);flex-shrink:0}
@@ -63,6 +66,7 @@ a{text-decoration:none;color:inherit}
 .mobile-toggle{display:none;background:none;border:none;color:var(--primary2);font-size:22px;cursor:pointer}
 .mobile-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999}
 .mobile-overlay.active{display:block}
+
 /* AUTH */
 .auth-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
 .auth-overlay.hidden{display:none}
@@ -92,10 +96,12 @@ a{text-decoration:none;color:inherit}
 .msg-box{padding:10px 14px;font-size:12px;margin-bottom:14px;display:none;border-radius:var(--radius-xs);line-height:1.6}
 .msg-error{background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.25);color:var(--red)}
 .msg-success{background:rgba(0,184,148,.1);border:1px solid rgba(0,184,148,.25);color:var(--green)}
+
 /* VERIFY BANNER */
 .verify-banner{background:rgba(225,112,85,.08);border-bottom:1px solid rgba(225,112,85,.2);padding:10px 28px;display:flex;align-items:center;gap:12px;font-size:12px;color:var(--orange)}
 .verify-banner.hidden{display:none}
 .verify-banner button{background:rgba(225,112,85,.15);border:1px solid rgba(225,112,85,.3);color:var(--orange);padding:4px 14px;font-size:11px;cursor:pointer;border-radius:var(--radius-xs);margin-left:auto}
+
 /* GENERATE */
 .gen-layout{display:grid;grid-template-columns:380px 1fr;gap:0;height:100%;min-height:0}
 .gen-panel{background:var(--bg2);border-right:1px solid var(--border);padding:24px;overflow-y:auto}
@@ -119,6 +125,7 @@ a{text-decoration:none;color:inherit}
 .gen-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
 .gen-btn.generating{background:var(--bg3);color:var(--primary2);border:1px solid var(--primary);animation:genPulse 2s infinite}
 @keyframes genPulse{0%,100%{box-shadow:0 0 0 0 rgba(108,92,231,.2)}50%{box-shadow:0 0 20px 4px rgba(108,92,231,.15)}}
+
 /* IMAGE UPLOAD */
 .image-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
 .image-slot{position:relative;aspect-ratio:1;border:2px dashed var(--border);background:var(--surface);display:flex;align-items:center;justify-content:center;flex-direction:column;cursor:pointer;transition:all .2s;overflow:hidden;border-radius:var(--radius-sm)}
@@ -140,6 +147,7 @@ a{text-decoration:none;color:inherit}
 .multi-drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .multi-drop-zone .drop-text{font-size:11px;color:var(--text3)}
 .multi-drop-zone .drop-text span{color:var(--primary2);font-weight:600}
+
 /* PROGRESS */
 .gen-progress{display:none;margin-top:16px}
 .gen-progress.active{display:block}
@@ -147,6 +155,7 @@ a{text-decoration:none;color:inherit}
 .progress-bar-fill{height:100%;background:var(--grad1);border-radius:3px;transition:width .5s;width:0%}
 .progress-text{font-size:11px;color:var(--text3);display:flex;justify-content:space-between}
 .progress-step{color:var(--primary2);font-weight:500}
+
 /* 3D VIEWER */
 .viewer-container{flex:1;display:flex;align-items:center;justify-content:center;position:relative;background:var(--bg);min-height:300px}
 .viewer-container model-viewer{width:100%;height:100%;min-height:400px;background:transparent;--poster-color:transparent}
@@ -162,6 +171,7 @@ a{text-decoration:none;color:inherit}
 .viewer-error{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,10,26,.85);z-index:10;gap:12px}
 .viewer-error.hidden{display:none}
 .viewer-error button{padding:8px 20px;background:var(--grad1);color:#fff;border:none;border-radius:var(--radius-xs);cursor:pointer;font-size:12px;font-weight:600}
+
 /* VIEWER TOOLBAR */
 .viewer-toolbar{border-top:1px solid var(--border);background:var(--bg2);display:none;flex-direction:column}
 .viewer-toolbar.active{display:flex}
@@ -174,6 +184,7 @@ a{text-decoration:none;color:inherit}
 .vt-btn.primary-btn:hover{opacity:.9}
 .vt-sep{width:1px;height:24px;background:var(--border);margin:0 2px}
 .vt-info{margin-left:auto;font-size:10px;color:var(--text3);font-weight:500}
+
 /* EDIT PANEL */
 .edit-panel{display:none;padding:14px 16px;border-bottom:1px solid var(--border);background:rgba(15,15,36,.5);flex-wrap:wrap;gap:20px}
 .edit-panel.active{display:flex}
@@ -188,6 +199,7 @@ a{text-decoration:none;color:inherit}
 .color-sw{width:22px;height:22px;border:2px solid transparent;border-radius:4px;cursor:pointer;transition:all .15s}
 .color-sw:hover{transform:scale(1.15)}
 .color-sw.active{border-color:var(--primary);box-shadow:0 0 8px rgba(108,92,231,.4)}
+
 /* GALLERY / MODELS */
 .gallery-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)}
 .search-box{display:flex;align-items:center;gap:8px;border:1px solid var(--border);background:var(--surface);padding:9px 14px;flex:1;max-width:320px;border-radius:var(--radius-sm)}
@@ -217,6 +229,7 @@ a{text-decoration:none;color:inherit}
 .model-action-btn.download{background:var(--grad1);color:#fff;border-color:transparent}
 .model-action-btn.liked{color:var(--pink);border-color:rgba(253,121,168,.4)}
 .model-action-btn.delete{color:var(--red);border-color:rgba(255,107,107,.3)}
+
 /* SETTINGS */
 .settings-grid{display:grid;grid-template-columns:200px 1fr;gap:0;min-height:400px}
 .settings-nav{border-right:1px solid var(--border);padding:8px 0}
@@ -239,6 +252,7 @@ a{text-decoration:none;color:inherit}
 .usage-stat-card{padding:18px;border:1px solid var(--border);background:var(--surface);text-align:center;border-radius:var(--radius)}
 .usage-stat-num{font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:800;background:var(--grad1);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .usage-stat-label{font-size:10px;color:var(--text3);font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:.05em}
+
 /* PLANS */
 .plans-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
 .plan-box{background:var(--surface);border:1px solid var(--border);padding:36px 28px;position:relative;transition:all .3s;border-radius:var(--radius);backdrop-filter:blur(10px)}
@@ -258,6 +272,7 @@ a{text-decoration:none;color:inherit}
 .plan-btn:hover{border-color:var(--primary);color:var(--primary2)}
 .plan-btn.highlight{background:var(--grad1);color:#fff;border-color:transparent}
 .plan-btn.highlight:hover{opacity:.9}
+
 /* TOAST */
 .toast-container{position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px}
 .toast{padding:12px 18px;font-size:12px;border-radius:var(--radius-sm);animation:toastIn .3s ease;max-width:360px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 32px rgba(0,0,0,.4);backdrop-filter:blur(12px);font-weight:500}
@@ -265,14 +280,17 @@ a{text-decoration:none;color:inherit}
 .toast.error{background:rgba(255,107,107,.15);border:1px solid rgba(255,107,107,.3);color:var(--red)}
 .toast.info{background:rgba(108,92,231,.15);border:1px solid rgba(108,92,231,.3);color:var(--primary2)}
 @keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+
 /* EMPTY STATE */
 .empty-state{text-align:center;padding:60px 20px;color:var(--text3)}
 .empty-state .empty-icon{font-size:48px;opacity:.15;margin-bottom:16px}
 .empty-state .empty-title{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:700;color:var(--text);margin-bottom:8px}
 .empty-state .empty-desc{font-size:12px;line-height:1.8;margin-bottom:20px}
 .empty-state button{padding:10px 24px;background:var(--grad1);color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;border-radius:var(--radius-xs)}
+
 .skeleton{background:linear-gradient(90deg,var(--bg2) 25%,var(--bg3) 50%,var(--bg2) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:var(--radius)}
 @keyframes shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+
 /* RESPONSIVE */
 @media(max-width:900px){
   .gen-layout{grid-template-columns:1fr}
@@ -300,6 +318,7 @@ a{text-decoration:none;color:inherit}
 <body>
 <div class="toast-container" id="toastContainer"></div>
 <div class="mobile-overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
+
 <!-- AUTH -->
 <div class="auth-overlay" id="authOverlay">
   <div class="auth-bg-glow"></div>
@@ -357,6 +376,7 @@ a{text-decoration:none;color:inherit}
     </div>
   </div>
 </div>
+
 <!-- APP LAYOUT -->
 <div class="app-layout" id="appLayout" style="display:none">
   <aside class="sidebar" id="sidebar">
@@ -391,6 +411,7 @@ a{text-decoration:none;color:inherit}
       </div>
     </div>
   </aside>
+
   <div class="main-content">
     <div class="main-header">
       <button class="mobile-toggle" onclick="toggleSidebar()">☰</button>
@@ -401,6 +422,7 @@ a{text-decoration:none;color:inherit}
       ⚠️ E-posta adresinizi doğrulayın.
       <button onclick="resendVerification()">Tekrar Gönder</button>
     </div>
+
     <!-- PAGE: GENERATE -->
     <div class="main-body" id="page-generate" style="padding:0;overflow:hidden">
       <div class="gen-layout" style="height:100%">
@@ -445,6 +467,7 @@ a{text-decoration:none;color:inherit}
             <div class="progress-text"><span class="progress-step" id="progressStep">Başlatılıyor...</span><span id="progressPercent">0%</span></div>
           </div>
         </div>
+
         <div class="gen-viewer">
           <div class="viewer-container" id="viewerContainer">
             <div class="viewer-empty" id="viewerEmpty">
@@ -458,9 +481,13 @@ a{text-decoration:none;color:inherit}
             </div>
             <div class="viewer-error hidden" id="viewerError">
               <div style="font-size:36px;opacity:.3">⚠</div>
-              <div style="font-size:13px;color:var(--red);font-weight:600">Model yüklenemedi</div>
-              <div style="font-size:11px;color:var(--text3)" id="viewerErrorMsg"></div>
-              <button onclick="retryLoadModel()">Tekrar Dene</button>
+              <div style="font-size:13px;color:var(--red);font-weight:600;margin:8px 0">Model yüklenemedi</div>
+              <div style="font-size:11px;color:var(--text3);max-width:300px;line-height:1.6;margin-bottom:16px" id="viewerErrorMsg"></div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+                <button onclick="retryLoadModel()" style="padding:10px 20px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-family:inherit;font-size:11px;cursor:pointer">↻ Tekrar Dene</button>
+                <button onclick="tryDirectUrl()" id="btnDirectUrl" style="padding:10px 20px;background:transparent;color:var(--cyan);border:1px solid var(--cyan);border-radius:8px;font-family:inherit;font-size:11px;cursor:pointer;display:none">↗ Doğrudan Aç</button>
+              </div>
+              <div style="font-size:9px;color:var(--text3);margin-top:12px;opacity:.6" id="viewerDebugInfo"></div>
             </div>
           </div>
           <div class="viewer-toolbar" id="viewerToolbar">
@@ -506,6 +533,7 @@ a{text-decoration:none;color:inherit}
         </div>
       </div>
     </div>
+
     <!-- PAGE: GALLERY -->
     <div class="main-body" id="page-gallery" style="display:none">
       <div class="gallery-toolbar">
@@ -518,10 +546,12 @@ a{text-decoration:none;color:inherit}
       </div>
       <div class="models-grid" id="galleryGrid"></div>
     </div>
+
     <!-- PAGE: MY MODELS -->
     <div class="main-body" id="page-mymodels" style="display:none">
       <div class="models-grid" id="myModelsGrid"></div>
     </div>
+
     <!-- PAGE: SETTINGS -->
     <div class="main-body" id="page-settings" style="display:none">
       <div class="settings-grid">
@@ -561,6 +591,7 @@ a{text-decoration:none;color:inherit}
         </div>
       </div>
     </div>
+
     <!-- PAGE: PLANS -->
     <div class="main-body" id="page-plans" style="display:none">
       <div style="text-align:center;margin-bottom:32px">
@@ -594,6 +625,7 @@ a{text-decoration:none;color:inherit}
     </div>
   </div>
 </div>
+
 <!-- NORMAL SCRIPT - Three.js YOK, her zaman çalışır -->
 <script>
 const API = window.location.origin;
@@ -604,11 +636,13 @@ let lastModelUrl = null;
 let currentStyle = 'realistic';
 let gallerySort = 'newest';
 let pollInterval = null;
+
 // Image upload state
 const MAX_SLOTS = 6;
 const imageSlots = Array(MAX_SLOTS).fill(null);
 let primarySlot = 0;
 const slotLabels = ['Ön', 'Sağ Yan', 'Arka', 'Sol Yan', 'Üst', 'Detay'];
+
 // ===== TOAST =====
 function toast(msg, type = 'info') {
     const c = document.getElementById('toastContainer');
@@ -619,6 +653,7 @@ function toast(msg, type = 'info') {
     c.appendChild(t);
     setTimeout(function(){ t.style.opacity = '0'; setTimeout(function(){ t.remove(); }, 300); }, 4000);
 }
+
 // ===== AUTH =====
 function switchAuth(tab) {
     document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
@@ -630,12 +665,14 @@ function switchAuth(tab) {
     tabs[1].classList.toggle('active', tab === 'register');
     document.getElementById('authMsg').style.display = 'none';
 }
+
 function showAuthMsg(msg, type) {
     var el = document.getElementById('authMsg');
     el.textContent = msg;
     el.className = 'msg-box msg-' + (type || 'error');
     el.style.display = 'block';
 }
+
 function doLogin() {
     var email = document.getElementById('loginEmail').value.trim();
     var password = document.getElementById('loginPass').value;
@@ -660,6 +697,7 @@ function doLogin() {
     .catch(function(err) { showAuthMsg(err.message); })
     .finally(function() { btn.disabled = false; btn.textContent = 'Giriş Yap →'; });
 }
+
 function doRegister() {
     var name = document.getElementById('regName').value.trim();
     var email = document.getElementById('regEmail').value.trim();
@@ -686,6 +724,7 @@ function doRegister() {
     .catch(function(err) { showAuthMsg(err.message); })
     .finally(function() { btn.disabled = false; btn.textContent = 'Hesap Oluştur →'; });
 }
+
 function doForgotPassword() {
     var email = document.getElementById('forgotEmail').value.trim();
     if (!email) { showAuthMsg('E-posta girin'); return; }
@@ -698,6 +737,7 @@ function doForgotPassword() {
     .then(function(data) { showAuthMsg(data.message || 'Sıfırlama linki gönderildi', 'success'); })
     .catch(function() { showAuthMsg('Bir hata oluştu'); });
 }
+
 function doResetPassword() {
     var pass = document.getElementById('resetPass').value;
     var conf = document.getElementById('resetPassConfirm').value;
@@ -718,7 +758,9 @@ function doResetPassword() {
     })
     .catch(function(err) { showAuthMsg(err.message); });
 }
+
 function doGoogleLogin() { window.location.href = API + '/api/auth/google'; }
+
 function doLogout() {
     if (!confirm('Çıkış yapmak istiyor musunuz?')) return;
     currentUser = null; currentToken = '';
@@ -728,6 +770,7 @@ function doLogout() {
     switchAuth('login');
     toast('Çıkış yapıldı', 'info');
 }
+
 // ===== APP ENTRY =====
 function enterApp() {
     document.getElementById('authOverlay').classList.add('hidden');
@@ -737,23 +780,27 @@ function enterApp() {
     loadUserData();
     renderImageSlots();
 }
+
 function updateSidebar() {
     if (!currentUser) return;
     document.getElementById('sidebarName').textContent = currentUser.name || 'Kullanıcı';
     document.getElementById('sidebarAvatar').textContent = (currentUser.name || 'U')[0].toUpperCase();
     document.getElementById('sidebarPlan').textContent = (currentUser.plan || 'free').toUpperCase();
 }
+
 function checkVerification() {
     var b = document.getElementById('verifyBanner');
     if (currentUser && currentUser.verified === 0) b.classList.remove('hidden');
     else b.classList.add('hidden');
 }
+
 function resendVerification() {
     fetch(API + '/api/auth/resend-verification', {
         method: 'POST', headers: { 'Authorization': 'Bearer ' + currentToken }
     }).then(function() { toast('Doğrulama maili gönderildi', 'success'); })
     .catch(function() { toast('Hata oluştu', 'error'); });
 }
+
 function loadUserData() {
     fetch(API + '/api/auth/me', { headers: { 'Authorization': 'Bearer ' + currentToken } })
     .then(function(res) { if (!res.ok) throw new Error(); return res.json(); })
@@ -782,6 +829,7 @@ function loadUserData() {
         checkVerification();
     }).catch(function(e) { console.log('User data error:', e); });
 }
+
 // ===== NAVIGATION =====
 function navigateTo(page) {
     var pages = document.querySelectorAll('.main-body');
@@ -798,10 +846,12 @@ function navigateTo(page) {
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('mobileOverlay').classList.remove('active');
 }
+
 function toggleSidebar() {
     document.getElementById('sidebar').classList.toggle('open');
     document.getElementById('mobileOverlay').classList.toggle('active');
 }
+
 // ===== GENERATE TABS =====
 function switchGenTab(tab, btn) {
     document.getElementById('genText').style.display = tab === 'text' ? 'block' : 'none';
@@ -810,15 +860,18 @@ function switchGenTab(tab, btn) {
     for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
     if (btn) btn.classList.add('active');
 }
+
 function selectStyle(el, style) {
     currentStyle = style;
     var cards = document.querySelectorAll('.style-card');
     for (var i = 0; i < cards.length; i++) cards[i].classList.remove('active');
     el.classList.add('active');
 }
+
 function updateCharCount() {
     document.getElementById('charCount').textContent = document.getElementById('promptInput').value.length;
 }
+
 // ===== IMAGE UPLOAD =====
 function renderImageSlots() {
     var grid = document.getElementById('imageGrid');
@@ -846,6 +899,7 @@ function renderImageSlots() {
     var count = imageSlots.filter(function(s){ return s !== null; }).length;
     document.getElementById('imageCountInfo').innerHTML = '<span>' + count + '</span> / ' + MAX_SLOTS + ' görsel · ★ Ana görsel kullanılır';
 }
+
 function addImage(idx, file) {
     if (!file || file.size > 10*1024*1024) { toast('Max 10MB', 'error'); return; }
     var reader = new FileReader();
@@ -857,6 +911,7 @@ function addImage(idx, file) {
     };
     reader.readAsDataURL(file);
 }
+
 function removeSlot(i) {
     imageSlots[i] = null;
     if (primarySlot === i) {
@@ -865,11 +920,13 @@ function removeSlot(i) {
     }
     renderImageSlots();
 }
+
 function setPrimary(i) {
     primarySlot = i;
     renderImageSlots();
     toast('Ana görsel değiştirildi', 'info');
 }
+
 function handleMultiDrop(e) {
     var files = Array.from(e.target.files || []);
     var added = 0;
@@ -882,6 +939,7 @@ function handleMultiDrop(e) {
     }
     e.target.value = '';
 }
+
 // Drag & drop
 var dz = document.getElementById('multiDropZone');
 if (dz) {
@@ -892,28 +950,84 @@ if (dz) {
         if (e.dataTransfer.files.length) handleMultiDrop({ target: { files: e.dataTransfer.files } });
     });
 }
+
 // ===== MODEL VIEWER (model-viewer component - always works) =====
 var modelRetryCount = 0;
-function showModel(taskId, isDemo) {
+var originalModelUrl = ''; // Orijinal model URL (API'den gelen)
+var proxyModelUrl = '';    // Proxy URL (sunucumuz üzerinden)
+
+function showModel(taskId, isDemo, directUrl) {
     currentTaskId = taskId;
-    lastModelUrl = API + '/api/model/' + taskId + '/view';
+    proxyModelUrl = API + '/api/model/' + taskId + '/view';
+    if (directUrl) originalModelUrl = directUrl;
+
     var container = document.getElementById('viewerContainer');
     var empty = document.getElementById('viewerEmpty');
     var toolbar = document.getElementById('viewerToolbar');
     var loading = document.getElementById('viewerLoading');
     var error = document.getElementById('viewerError');
-    // Show loading
+
     if (empty) empty.style.display = 'none';
     error.classList.add('hidden');
     loading.classList.remove('hidden');
+    loading.querySelector('.viewer-loading-text').textContent = 'Model yükleniyor...';
     toolbar.classList.add('active');
     modelRetryCount = 0;
-    // Remove old model-viewer
+
     var old = container.querySelector('model-viewer');
     if (old) old.remove();
-    // Create model-viewer element
+
+    // Önce proxy URL'yi kontrol et, erişilebilir mi?
+    console.log('[Viewer] Proxy URL deneniyor:', proxyModelUrl);
+    fetch(proxyModelUrl, { method: 'HEAD' })
+    .then(function(res) {
+        if (res.ok) {
+            console.log('[Viewer] Proxy OK, model-viewer oluşturuluyor');
+            createModelViewer(proxyModelUrl, taskId, isDemo, container, loading, error);
+        } else {
+            throw new Error('Proxy 404');
+        }
+    })
+    .catch(function() {
+        console.log('[Viewer] Proxy başarısız, orijinal URL deneniyor:', originalModelUrl);
+        if (originalModelUrl) {
+            loading.querySelector('.viewer-loading-text').textContent = 'Alternatif kaynak deneniyor...';
+            createModelViewer(originalModelUrl, taskId, isDemo, container, loading, error);
+        } else {
+            // Status API'den model_url'yi çek
+            console.log('[Viewer] Orijinal URL yok, status API sorgulanıyor...');
+            loading.querySelector('.viewer-loading-text').textContent = 'Model kaynağı aranıyor...';
+            fetch(API + '/api/status/' + taskId)
+            .then(function(r) { return r.json(); })
+            .then(function(st) {
+                if (st.model_url) {
+                    originalModelUrl = st.model_url;
+                    console.log('[Viewer] Status API model_url bulundu:', originalModelUrl);
+                    createModelViewer(originalModelUrl, taskId, isDemo, container, loading, error);
+                } else {
+                    // Son çare: proxy'yi tekrar zorla
+                    console.log('[Viewer] model_url yok, proxy zorlanıyor...');
+                    loading.querySelector('.viewer-loading-text').textContent = 'Son deneme...';
+                    setTimeout(function() {
+                        createModelViewer(proxyModelUrl + '?force=' + Date.now(), taskId, isDemo, container, loading, error);
+                    }, 3000);
+                }
+            })
+            .catch(function() {
+                createModelViewer(proxyModelUrl + '?force=' + Date.now(), taskId, isDemo, container, loading, error);
+            });
+        }
+    });
+}
+
+function createModelViewer(url, taskId, isDemo, container, loading, error) {
+    console.log('[Viewer] model-viewer oluşturuluyor, URL:', url);
+
+    var old = container.querySelector('model-viewer');
+    if (old) old.remove();
+
     var mv = document.createElement('model-viewer');
-    mv.setAttribute('src', lastModelUrl);
+    mv.setAttribute('src', url);
     mv.setAttribute('camera-controls', '');
     mv.setAttribute('touch-action', 'pan-y');
     mv.setAttribute('auto-rotate', '');
@@ -924,39 +1038,99 @@ function showModel(taskId, isDemo) {
     mv.setAttribute('environment-image', 'neutral');
     mv.setAttribute('camera-orbit', '45deg 55deg auto');
     mv.style.cssText = 'width:100%;height:100%;min-height:400px;background:transparent;';
-    // Success
+
+    var loadTimeout = setTimeout(function() {
+        console.log('[Viewer] 30s timeout, fallback deneniyor...');
+        tryFallbackUrl(mv, url, taskId, isDemo, loading, error);
+    }, 30000);
+
     mv.addEventListener('load', function() {
+        clearTimeout(loadTimeout);
         loading.classList.add('hidden');
         error.classList.add('hidden');
         document.getElementById('viewerInfo').textContent = isDemo ? 'DEMO MODEL' : 'Task: ' + taskId;
         document.getElementById('downloadInfo').textContent = taskId;
-        toast('Model yüklendi!', 'success');
+        toast('Model başarıyla yüklendi!', 'success');
+        console.log('[Viewer] Model yüklendi!');
     });
-    // Error with retry
+
     mv.addEventListener('error', function(e) {
-        console.error('Model viewer error:', e);
-        if (modelRetryCount < 3) {
-            modelRetryCount++;
-            loading.querySelector('.viewer-loading-text').textContent = 'Tekrar deneniyor... (' + modelRetryCount + '/3)';
-            setTimeout(function() {
-                mv.setAttribute('src', lastModelUrl + '?retry=' + modelRetryCount);
-            }, 2000 * modelRetryCount);
-        } else {
-            loading.classList.add('hidden');
-            error.classList.remove('hidden');
-            document.getElementById('viewerErrorMsg').textContent = 'Model sunucudan yüklenemedi. İnternet bağlantınızı kontrol edin.';
-        }
+        clearTimeout(loadTimeout);
+        console.error('[Viewer] model-viewer hata:', e, 'URL:', url);
+        tryFallbackUrl(mv, url, taskId, isDemo, loading, error);
     });
+
     container.insertBefore(mv, loading);
 }
+
+function tryFallbackUrl(mv, failedUrl, taskId, isDemo, loading, error) {
+    modelRetryCount++;
+    console.log('[Viewer] Fallback deneme #' + modelRetryCount);
+
+    if (modelRetryCount > 4) {
+        loading.classList.add('hidden');
+        error.classList.remove('hidden');
+        document.getElementById('viewerErrorMsg').textContent = 
+            'Model yüklenemedi. Model henüz hazır olmayabilir veya sunucu geçici olarak yanıt vermiyor. Birkaç dakika sonra tekrar deneyin.';
+        return;
+    }
+
+    // Hangi URL başarısız oldu? Diğerini dene
+    var nextUrl = '';
+    if (failedUrl === proxyModelUrl || failedUrl.indexOf('/api/model/') !== -1) {
+        // Proxy başarısız → orijinal URL dene
+        if (originalModelUrl) {
+            nextUrl = originalModelUrl;
+            loading.querySelector('.viewer-loading-text').textContent = 'Doğrudan kaynak deneniyor... (' + modelRetryCount + '/4)';
+        } else {
+            // Gecikmeyle proxy'yi tekrar dene (cache dolmuş olabilir)
+            nextUrl = proxyModelUrl + '?retry=' + Date.now();
+            loading.querySelector('.viewer-loading-text').textContent = 'Tekrar deneniyor... (' + modelRetryCount + '/4)';
+        }
+    } else {
+        // Orijinal URL başarısız → proxy'yi tekrar dene
+        nextUrl = proxyModelUrl + '?retry=' + Date.now();
+        loading.querySelector('.viewer-loading-text').textContent = 'Proxy deneniyor... (' + modelRetryCount + '/4)';
+    }
+
+    console.log('[Viewer] Sonraki URL:', nextUrl);
+    setTimeout(function() {
+        mv.setAttribute('src', nextUrl);
+    }, 2000 * modelRetryCount);
+}
+
 function retryLoadModel() {
     if (currentTaskId) {
-        showModel(currentTaskId, false);
+        modelRetryCount = 0;
+        showModel(currentTaskId, false, originalModelUrl);
     }
 }
+
+function tryDirectUrl() {
+    if (originalModelUrl) {
+        window.open(originalModelUrl, '_blank');
+    } else if (currentTaskId) {
+        window.open(API + '/api/model/' + currentTaskId + '/view', '_blank');
+    }
+}
+
+// Hata durumunda debug bilgisi göster
+function showViewerDebug() {
+    var el = document.getElementById('viewerDebugInfo');
+    if (el) {
+        el.textContent = 'Proxy: ' + proxyModelUrl + ' | Direct: ' + (originalModelUrl || 'yok') + ' | Retry: ' + modelRetryCount;
+    }
+    // Eğer orijinal URL varsa "Doğrudan Aç" butonunu göster
+    var btn = document.getElementById('btnDirectUrl');
+    if (btn && originalModelUrl) {
+        btn.style.display = 'inline-block';
+    }
+}
+
 function getModelViewer() {
     return document.querySelector('#viewerContainer model-viewer');
 }
+
 // ===== VIEWER CONTROLS =====
 function toggleAutoRotate() {
     var mv = getModelViewer();
@@ -970,6 +1144,7 @@ function toggleAutoRotate() {
         btn.classList.add('active');
     }
 }
+
 function toggleShadow() {
     var mv = getModelViewer();
     var btn = document.getElementById('btnShadow');
@@ -987,20 +1162,24 @@ function toggleShadow() {
         document.getElementById('valShadow').textContent = '1.0';
     }
 }
+
 function setViewerAttr(attr, val) {
     var mv = getModelViewer();
     if (mv) mv.setAttribute(attr, val);
 }
+
 function setRotSpeed(val) {
     var mv = getModelViewer();
     if (mv) mv.setAttribute('rotation-per-second', val + 'deg');
 }
+
 function toggleEditPanel() {
     var panel = document.getElementById('editPanel');
     var btn = document.getElementById('btnEditPanel');
     panel.classList.toggle('active');
     btn.classList.toggle('active');
 }
+
 function setBgColor(color, swatch) {
     document.getElementById('viewerContainer').style.background = color;
     var mv = getModelViewer();
@@ -1009,6 +1188,7 @@ function setBgColor(color, swatch) {
     for (var i = 0; i < swatches.length; i++) swatches[i].classList.remove('active');
     if (swatch) swatch.classList.add('active');
 }
+
 function resetCamera() {
     var mv = getModelViewer();
     if (mv) {
@@ -1018,6 +1198,7 @@ function resetCamera() {
     }
     toast('Kamera sıfırlandı', 'info');
 }
+
 function toggleFullscreen() {
     var c = document.getElementById('viewerContainer');
     if (document.fullscreenElement) {
@@ -1026,6 +1207,7 @@ function toggleFullscreen() {
         c.requestFullscreen().catch(function() { toast('Tam ekran kullanılamıyor', 'error'); });
     }
 }
+
 function takeScreenshot() {
     var mv = getModelViewer();
     if (!mv) { toast('Model yok', 'error'); return; }
@@ -1040,11 +1222,13 @@ function takeScreenshot() {
         toast('Screenshot alınamadı', 'error');
     }
 }
+
 function downloadModel(format) {
     if (!currentTaskId) { toast('İndirilecek model yok', 'error'); return; }
     window.open(API + '/api/model/' + currentTaskId + '/' + format, '_blank');
     toast(format.toUpperCase() + ' indiriliyor...', 'info');
 }
+
 // ===== GENERATE =====
 function generateText() {
     var prompt = document.getElementById('promptInput').value.trim();
@@ -1066,6 +1250,7 @@ function generateText() {
     })
     .catch(function(err) { toast(err.message, 'error'); resetGenBtn(); });
 }
+
 function generateImage() {
     var primary = imageSlots[primarySlot];
     if (!primary) { toast('En az 1 görsel yükleyin', 'error'); return; }
@@ -1088,6 +1273,7 @@ function generateImage() {
     })
     .catch(function(err) { toast(err.message, 'error'); resetGenBtn(); });
 }
+
 function showProgress() { document.getElementById('genProgress').classList.add('active'); }
 function hideProgress() { document.getElementById('genProgress').classList.remove('active'); }
 function resetGenBtn() {
@@ -1095,6 +1281,7 @@ function resetGenBtn() {
     a.disabled = false; a.className = 'gen-btn'; a.innerHTML = '✦ Model Üret';
     b.disabled = false; b.className = 'gen-btn'; b.innerHTML = '✦ Görselden Model Üret';
 }
+
 function startPolling() {
     if (pollInterval) clearInterval(pollInterval);
     pollInterval = setInterval(function() {
@@ -1107,7 +1294,10 @@ function startPolling() {
             if (data.status === 'done') {
                 clearInterval(pollInterval); pollInterval = null;
                 hideProgress(); resetGenBtn();
-                showModel(currentTaskId, data.is_demo);
+                // model_url'yi de gönder (fallback için)
+                var directUrl = data.model_url || '';
+                console.log('[Poll] Model hazır! model_url:', directUrl);
+                showModel(currentTaskId, data.is_demo, directUrl);
                 loadUserData();
             } else if (data.status === 'failed') {
                 clearInterval(pollInterval); pollInterval = null;
@@ -1118,6 +1308,7 @@ function startPolling() {
         .catch(function(e) { console.log('Poll error:', e); });
     }, 2000);
 }
+
 // ===== GALLERY =====
 function setGallerySort(sort, btn) {
     gallerySort = sort;
@@ -1126,6 +1317,7 @@ function setGallerySort(sort, btn) {
     btn.classList.add('active');
     loadGallery();
 }
+
 function loadGallery() {
     var grid = document.getElementById('galleryGrid');
     var search = document.getElementById('gallerySearch') ? document.getElementById('gallerySearch').value : '';
@@ -1153,14 +1345,25 @@ function loadGallery() {
         grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">⚠</div><div class="empty-title">Yükleme hatası</div></div>';
     });
 }
+
 function viewGalleryModel(taskId) {
     navigateTo('generate');
-    showModel(taskId, false);
+    // Önce status'tan model_url'yi al
+    fetch(API + '/api/status/' + taskId)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        showModel(taskId, d.is_demo, d.model_url || '');
+    })
+    .catch(function() {
+        showModel(taskId, false, '');
+    });
 }
+
 function downloadGalleryModel(taskId, format) {
     window.open(API + '/api/model/' + taskId + '/' + format, '_blank');
     toast(format.toUpperCase() + ' indiriliyor...', 'info');
 }
+
 function likeModel(modelId, btn) {
     fetch(API + '/api/gallery/' + modelId + '/like', {
         method: 'POST', headers: { 'Authorization': 'Bearer ' + currentToken }
@@ -1172,6 +1375,7 @@ function likeModel(modelId, btn) {
     })
     .catch(function() { toast('Giriş yapın', 'error'); });
 }
+
 // ===== MY MODELS =====
 function loadMyModels() {
     var grid = document.getElementById('myModelsGrid');
@@ -1197,6 +1401,7 @@ function loadMyModels() {
         grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">⚠</div><div class="empty-title">Yükleme hatası</div></div>';
     });
 }
+
 function deleteModel(modelId, btn) {
     if (!confirm('Bu modeli silmek istediğinize emin misiniz?')) return;
     fetch(API + '/api/my-models/' + modelId, {
@@ -1207,6 +1412,7 @@ function deleteModel(modelId, btn) {
     })
     .catch(function() { toast('Silme başarısız', 'error'); });
 }
+
 // ===== SETTINGS =====
 function switchSettingsTab(tab, btn) {
     document.getElementById('settingsProfile').style.display = tab === 'profile' ? 'block' : 'none';
@@ -1216,6 +1422,7 @@ function switchSettingsTab(tab, btn) {
     for (var i = 0; i < items.length; i++) items[i].classList.remove('active');
     btn.classList.add('active');
 }
+
 function saveProfile() {
     var name = document.getElementById('settingsName').value.trim();
     var password = document.getElementById('settingsPass').value;
@@ -1237,6 +1444,7 @@ function saveProfile() {
     })
     .catch(function() { toast('Kaydetme başarısız', 'error'); });
 }
+
 // ===== PLANS =====
 function upgradePlan(plan) {
     if (!confirm(plan.toUpperCase() + ' planına geçmek istiyor musunuz?')) return;
@@ -1254,11 +1462,13 @@ function upgradePlan(plan) {
     })
     .catch(function() { toast('Yükseltme başarısız', 'error'); });
 }
+
 // ===== INIT =====
 function init() {
     // Check reset token
     var params = new URLSearchParams(window.location.search);
     if (params.get('reset')) { switchAuth('reset'); return; }
+
     // Check existing token
     var storedToken = localStorage.getItem('pf_token');
     if (storedToken && storedToken !== 'no-jwt') {
@@ -1293,6 +1503,7 @@ function init() {
         document.getElementById('appLayout').style.display = 'none';
     }
 }
+
 init();
 </script>
 </body>
