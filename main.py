@@ -518,7 +518,7 @@ async def get_user(authorization: Optional[str] = Header(None)):
         return None
     conn = get_db()
     row = conn.execute(
-        "SELECT id,email,name,username,plan,bio,website,avatar_url,verified,email_notifications,created_at FROM users WHERE id=?",
+        "SELECT id,email,name,username,plan,bio,website,avatar_url,verified,email_notifications,created_at FROM users WHERE id=%s",
         (data["user_id"],)
     ).fetchone()
     conn.close()
@@ -529,7 +529,7 @@ async def get_user(authorization: Optional[str] = Header(None)):
 def get_usage(uid):
     month = datetime.now().strftime("%Y-%m")
     conn = get_db()
-    row = conn.execute("SELECT count FROM usage WHERE user_id=? AND month=?", (uid, month)).fetchone()
+    row = conn.execute("SELECT count FROM usage WHERE user_id=? AND month=%s", (uid, month)).fetchone()
     conn.close()
     return row[0] if row else 0
 
@@ -537,7 +537,7 @@ def add_usage(uid):
     month = datetime.now().strftime("%Y-%m")
     conn = get_db()
     conn.execute(
-        "INSERT INTO usage(user_id,month,count) VALUES(?,?,1) "
+        "INSERT INTO usage(user_id,month,count) VALUES(%s,%s,1) "
         "ON CONFLICT(user_id,month) DO UPDATE SET count=count+1", (uid, month))
     conn.commit()
     conn.close()
@@ -546,14 +546,14 @@ def save_model(uid, tid, title, prompt, gtype, style, url, neg_prompt="", tags="
     conn = get_db()
     try:
         conn.execute(
-            "INSERT INTO models(user_id,task_id,title,prompt,negative_prompt,gen_type,style,category,model_url) VALUES(?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO models(user_id,task_id,title,prompt,negative_prompt,gen_type,style,category,model_url) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (uid, tid, title, prompt, neg_prompt, gtype, style, category, url))
         if tags:
-            mid = conn.execute("SELECT id FROM models WHERE task_id=?", (tid,)).fetchone()
+            mid = conn.execute("SELECT id FROM models WHERE task_id=%s", (tid,)).fetchone()
             if mid:
                 for tag in [t.strip().lower() for t in tags.split(",") if t.strip()]:
                     try:
-                        conn.execute("INSERT INTO model_tags(model_id,tag) VALUES(?,?)", (mid[0], tag))
+                        conn.execute("INSERT INTO model_tags(model_id,tag) VALUES(%s,%s)", (mid[0], tag))
                     except: pass
     except: pass
     conn.commit()
@@ -561,19 +561,19 @@ def save_model(uid, tid, title, prompt, gtype, style, url, neg_prompt="", tags="
 
 def get_user_stats(uid):
     conn = get_db()
-    mc = conn.execute("SELECT COUNT(*) FROM models WHERE user_id=?", (uid,)).fetchone()[0]
-    tl = conn.execute("SELECT COALESCE(SUM(likes),0) FROM models WHERE user_id=?", (uid,)).fetchone()[0]
-    td = conn.execute("SELECT COALESCE(SUM(downloads),0) FROM models WHERE user_id=?", (uid,)).fetchone()[0]
-    followers = conn.execute("SELECT COUNT(*) FROM follows WHERE following_id=?", (uid,)).fetchone()[0]
-    following = conn.execute("SELECT COUNT(*) FROM follows WHERE follower_id=?", (uid,)).fetchone()[0]
-    collections = conn.execute("SELECT COUNT(*) FROM collections WHERE user_id=?", (uid,)).fetchone()[0]
+    mc = conn.execute("SELECT COUNT(*) FROM models WHERE user_id=%s", (uid,)).fetchone()[0]
+    tl = conn.execute("SELECT COALESCE(SUM(likes),0) FROM models WHERE user_id=%s", (uid,)).fetchone()[0]
+    td = conn.execute("SELECT COALESCE(SUM(downloads),0) FROM models WHERE user_id=%s", (uid,)).fetchone()[0]
+    followers = conn.execute("SELECT COUNT(*) FROM follows WHERE following_id=%s", (uid,)).fetchone()[0]
+    following = conn.execute("SELECT COUNT(*) FROM follows WHERE follower_id=%s", (uid,)).fetchone()[0]
+    collections = conn.execute("SELECT COUNT(*) FROM collections WHERE user_id=%s", (uid,)).fetchone()[0]
     conn.close()
     return {"models": mc, "likes": tl, "downloads": td, "followers": followers, "following": following, "collections": collections}
 
 def log_security(uid, action, ip, detail=""):
     try:
         conn = get_db()
-        conn.execute("INSERT INTO security_log(user_id,action,ip,detail) VALUES(?,?,?,?)", (uid, action, ip, detail))
+        conn.execute("INSERT INTO security_log(user_id,action,ip,detail) VALUES(%s,%s,%s,%s)", (uid, action, ip, detail))
         conn.commit()
         conn.close()
     except: pass
@@ -632,13 +632,13 @@ async def register(req: RegisterReq, request: Request):
     conn = get_db()
     try:
         conn.execute(
-            "INSERT INTO users(email,name,password_hash,salt,verify_token,verified) VALUES(?,?,?,?,?,?)",
+            "INSERT INTO users(email,name,password_hash,salt,verify_token,verified) VALUES(%s,%s,%s,%s,%s,%s)",
             (req.email.lower().strip(), sanitize(req.name.strip()), h, salt, verify_token,
              0 if RESEND_API_KEY else 1))
         conn.commit()
-        uid = conn.execute("SELECT id FROM users WHERE email=?", (req.email.lower().strip(),)).fetchone()[0]
+        uid = conn.execute("SELECT id FROM users WHERE email=%s", (req.email.lower().strip(),)).fetchone()[0]
         username = generate_username(req.name, uid)
-        conn.execute("UPDATE users SET username=? WHERE id=?", (username, uid))
+        conn.execute("UPDATE users SET username=? WHERE id=%s", (username, uid))
         conn.commit()
         conn.close()
     except sqlite3.IntegrityError:
@@ -671,7 +671,7 @@ async def login(req: LoginReq, request: Request):
 
     conn = get_db()
     row = conn.execute(
-        "SELECT id,email,name,username,password_hash,salt,plan,verified FROM users WHERE email=?",
+        "SELECT id,email,name,username,password_hash,salt,plan,verified FROM users WHERE email=%s",
         (req.email.lower().strip(),)).fetchone()
     conn.close()
     if not row:
@@ -710,11 +710,11 @@ async def verify_email_endpoint(token: str = ""):
     if not token:
         raise HTTPException(400, "Gecersiz link")
     conn = get_db()
-    row = conn.execute("SELECT id FROM users WHERE verify_token=?", (token,)).fetchone()
+    row = conn.execute("SELECT id FROM users WHERE verify_token=%s", (token,)).fetchone()
     if not row:
         conn.close()
         return HTMLResponse("<html><body style='background:#04080a;color:#ff4466;font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column'><h2>Gecersiz veya suresi dolmus link</h2><a href='/app' style='color:#00e5ff;margin-top:16px'>Uygulamaya Don</a></body></html>")
-    conn.execute("UPDATE users SET verified=1, verify_token=NULL WHERE id=?", (row["id"],))
+    conn.execute("UPDATE users SET verified=1, verify_token=NULL WHERE id=%s", (row["id"],))
     conn.commit()
     conn.close()
     return HTMLResponse("<html><body style='background:#04080a;color:#00ff9d;font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column'><h2>Hesabiniz dogrulandi! ✓</h2><p style='color:#c8dde5;margin-top:8px'>Artik PrintForge'u kullanabilirsiniz.</p><a href='/app' style='color:#00e5ff;margin-top:16px;font-size:18px'>Uygulamaya Git →</a></body></html>")
@@ -730,7 +730,7 @@ async def resend_verification(authorization: Optional[str] = Header(None)):
         raise HTTPException(400, "E-posta servisi yapilandirilmamis")
     new_token = secrets.token_urlsafe(32)
     conn = get_db()
-    conn.execute("UPDATE users SET verify_token=? WHERE id=?", (new_token, user["id"]))
+    conn.execute("UPDATE users SET verify_token=? WHERE id=%s", (new_token, user["id"]))
     conn.commit()
     conn.close()
     await send_verification_email(user["email"], new_token)
@@ -744,12 +744,12 @@ async def forgot_password(req: ForgotPasswordReq, request: Request):
     if not RESEND_API_KEY:
         raise HTTPException(400, "E-posta servisi yapilandirilmamis")
     conn = get_db()
-    row = conn.execute("SELECT id,email FROM users WHERE email=?", (req.email.lower().strip(),)).fetchone()
+    row = conn.execute("SELECT id,email FROM users WHERE email=%s", (req.email.lower().strip(),)).fetchone()
     if not row:
         return {"message": "Eger bu e-posta kayitliysa sifirlama maili gonderildi"}
     reset_token = secrets.token_urlsafe(32)
     expires = (datetime.utcnow() + timedelta(hours=1)).isoformat()
-    conn.execute("UPDATE users SET reset_token=?, reset_expires=? WHERE id=?", (reset_token, expires, row["id"]))
+    conn.execute("UPDATE users SET reset_token=%s, reset_expires=%s WHERE id=%s", (reset_token, expires, row["id"]))
     conn.commit()
     conn.close()
     await send_reset_email(row["email"], reset_token)
@@ -762,7 +762,7 @@ async def reset_password(req: ResetPasswordReq):
     if not valid:
         raise HTTPException(400, msg)
     conn = get_db()
-    row = conn.execute("SELECT id,reset_expires FROM users WHERE reset_token=?", (req.token,)).fetchone()
+    row = conn.execute("SELECT id,reset_expires FROM users WHERE reset_token=%s", (req.token,)).fetchone()
     if not row:
         conn.close()
         raise HTTPException(400, "Gecersiz veya suresi dolmus link")
@@ -773,7 +773,7 @@ async def reset_password(req: ResetPasswordReq):
                 raise HTTPException(400, "Link suresi dolmus")
         except: pass
     salt, h = hash_pw(req.password)
-    conn.execute("UPDATE users SET password_hash=?, salt=?, reset_token=NULL, reset_expires=NULL WHERE id=?", (h, salt, row["id"]))
+    conn.execute("UPDATE users SET password_hash=%s, salt=%s, reset_token=NULL, reset_expires=NULL WHERE id=%s", (h, salt, row["id"]))
     conn.commit()
     conn.close()
     return {"message": "Sifreniz basariyla degistirildi"}
@@ -785,18 +785,18 @@ async def update_profile(req: UpdateProfileReq, authorization: Optional[str] = H
         raise HTTPException(401, "Giris yapin")
     conn = get_db()
     if req.name and len(req.name.strip()) >= 2:
-        conn.execute("UPDATE users SET name=? WHERE id=?", (sanitize(req.name.strip()), user["id"]))
+        conn.execute("UPDATE users SET name=? WHERE id=%s", (sanitize(req.name.strip()), user["id"]))
     if req.password:
         valid, msg = validate_password(req.password)
         if not valid:
             conn.close()
             raise HTTPException(400, msg)
         salt, h = hash_pw(req.password)
-        conn.execute("UPDATE users SET password_hash=?, salt=? WHERE id=?", (h, salt, user["id"]))
+        conn.execute("UPDATE users SET password_hash=%s, salt=%s WHERE id=%s", (h, salt, user["id"]))
     if req.bio is not None:
-        conn.execute("UPDATE users SET bio=? WHERE id=?", (sanitize(req.bio)[:300], user["id"]))
+        conn.execute("UPDATE users SET bio=? WHERE id=%s", (sanitize(req.bio)[:300], user["id"]))
     if req.website is not None:
-        conn.execute("UPDATE users SET website=? WHERE id=?", (sanitize(req.website)[:200], user["id"]))
+        conn.execute("UPDATE users SET website=? WHERE id=%s", (sanitize(req.website)[:200], user["id"]))
     conn.commit()
     conn.close()
     return {"success": True}
@@ -837,17 +837,17 @@ async def google_callback(code: str = ""):
     gid = gu.get("id", "")
     avatar = gu.get("picture", "")
     conn = get_db()
-    ex = conn.execute("SELECT id,name,plan FROM users WHERE email=?", (email,)).fetchone()
+    ex = conn.execute("SELECT id,name,plan FROM users WHERE email=%s", (email,)).fetchone()
     if ex:
         uid, name, plan = ex["id"], ex["name"], ex["plan"]
-        conn.execute("UPDATE users SET google_id=?,avatar_url=?,verified=1 WHERE id=?", (gid, avatar, uid))
+        conn.execute("UPDATE users SET google_id=%s,avatar_url=%s,verified=1 WHERE id=%s", (gid, avatar, uid))
     else:
         salt, h = hash_pw(secrets.token_hex(16))
-        conn.execute("INSERT INTO users(email,name,password_hash,salt,google_id,avatar_url,verified) VALUES(?,?,?,?,?,?,1)",
+        conn.execute("INSERT INTO users(email,name,password_hash,salt,google_id,avatar_url,verified) VALUES(%s,%s,%s,%s,%s,%s,1)",
             (email, name, h, salt, gid, avatar))
-        uid = conn.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()[0]
+        uid = conn.execute("SELECT id FROM users WHERE email=%s", (email,)).fetchone()[0]
         username = generate_username(name, uid)
-        conn.execute("UPDATE users SET username=? WHERE id=?", (username, uid))
+        conn.execute("UPDATE users SET username=? WHERE id=%s", (username, uid))
         plan = "free"
     conn.commit()
     conn.close()
@@ -860,20 +860,20 @@ async def google_callback(code: str = ""):
 async def get_public_profile(username: str):
     conn = get_db()
     user = conn.execute(
-        "SELECT id,name,username,bio,website,avatar_url,plan,created_at FROM users WHERE username=?",
+        "SELECT id,name,username,bio,website,avatar_url,plan,created_at FROM users WHERE username=%s",
         (username,)).fetchone()
     if not user:
         conn.close()
         raise HTTPException(404, "Kullanici bulunamadi")
     uid = user["id"]
     models = conn.execute(
-        "SELECT id,task_id,title,prompt,style,category,likes,downloads,views,created_at FROM models WHERE user_id=? AND is_public=1 ORDER BY created_at DESC LIMIT 50",
+        "SELECT id,task_id,title,prompt,style,category,likes,downloads,views,created_at FROM models WHERE user_id=%s AND is_public=1 ORDER BY created_at DESC LIMIT 50",
         (uid,)).fetchall()
-    followers = conn.execute("SELECT COUNT(*) FROM follows WHERE following_id=?", (uid,)).fetchone()[0]
-    following = conn.execute("SELECT COUNT(*) FROM follows WHERE follower_id=?", (uid,)).fetchone()[0]
-    model_count = conn.execute("SELECT COUNT(*) FROM models WHERE user_id=? AND is_public=1", (uid,)).fetchone()[0]
-    total_likes = conn.execute("SELECT COALESCE(SUM(likes),0) FROM models WHERE user_id=?", (uid,)).fetchone()[0]
-    collections = conn.execute("SELECT id,name,description,model_count,created_at FROM collections WHERE user_id=? AND is_public=1 ORDER BY created_at DESC", (uid,)).fetchall()
+    followers = conn.execute("SELECT COUNT(*) FROM follows WHERE following_id=%s", (uid,)).fetchone()[0]
+    following = conn.execute("SELECT COUNT(*) FROM follows WHERE follower_id=%s", (uid,)).fetchone()[0]
+    model_count = conn.execute("SELECT COUNT(*) FROM models WHERE user_id=%s AND is_public=1", (uid,)).fetchone()[0]
+    total_likes = conn.execute("SELECT COALESCE(SUM(likes),0) FROM models WHERE user_id=%s", (uid,)).fetchone()[0]
+    collections = conn.execute("SELECT id,name,description,model_count,created_at FROM collections WHERE user_id=%s AND is_public=1 ORDER BY created_at DESC", (uid,)).fetchall()
     conn.close()
     return {
         "user": dict(user),
@@ -890,19 +890,19 @@ async def toggle_follow(username: str, authorization: Optional[str] = Header(Non
     if not user:
         raise HTTPException(401, "Giris yapin")
     conn = get_db()
-    target = conn.execute("SELECT id,email,name,email_notifications FROM users WHERE username=?", (username,)).fetchone()
+    target = conn.execute("SELECT id,email,name,email_notifications FROM users WHERE username=%s", (username,)).fetchone()
     if not target:
         conn.close()
         raise HTTPException(404, "Kullanici bulunamadi")
     if target["id"] == user["id"]:
         conn.close()
         raise HTTPException(400, "Kendinizi takip edemezsiniz")
-    ex = conn.execute("SELECT 1 FROM follows WHERE follower_id=? AND following_id=?", (user["id"], target["id"])).fetchone()
+    ex = conn.execute("SELECT 1 FROM follows WHERE follower_id=%s AND following_id=%s", (user["id"], target["id"])).fetchone()
     if ex:
-        conn.execute("DELETE FROM follows WHERE follower_id=? AND following_id=?", (user["id"], target["id"]))
+        conn.execute("DELETE FROM follows WHERE follower_id=%s AND following_id=%s", (user["id"], target["id"]))
         followed = False
     else:
-        conn.execute("INSERT INTO follows(follower_id,following_id) VALUES(?,?)", (user["id"], target["id"]))
+        conn.execute("INSERT INTO follows(follower_id,following_id) VALUES(%s,%s)", (user["id"], target["id"]))
         followed = True
         if target["email_notifications"] and RESEND_API_KEY:
             asyncio.create_task(send_follow_email(user["name"], target["email"], target["name"]))
@@ -913,12 +913,12 @@ async def toggle_follow(username: str, authorization: Optional[str] = Header(Non
 @app.get("/api/users/{username}/followers")
 async def get_followers(username: str):
     conn = get_db()
-    target = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+    target = conn.execute("SELECT id FROM users WHERE username=%s", (username,)).fetchone()
     if not target:
         conn.close()
         raise HTTPException(404, "Kullanici bulunamadi")
     rows = conn.execute(
-        "SELECT u.name,u.username,u.avatar_url FROM follows f JOIN users u ON f.follower_id=u.id WHERE f.following_id=? ORDER BY f.created_at DESC LIMIT 100",
+        "SELECT u.name,u.username,u.avatar_url FROM follows f JOIN users u ON f.follower_id=u.id WHERE f.following_id=%s ORDER BY f.created_at DESC LIMIT 100",
         (target["id"],)).fetchall()
     conn.close()
     return {"followers": [dict(r) for r in rows]}
@@ -926,12 +926,12 @@ async def get_followers(username: str):
 @app.get("/api/users/{username}/following")
 async def get_following(username: str):
     conn = get_db()
-    target = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+    target = conn.execute("SELECT id FROM users WHERE username=%s", (username,)).fetchone()
     if not target:
         conn.close()
         raise HTTPException(404, "Kullanici bulunamadi")
     rows = conn.execute(
-        "SELECT u.name,u.username,u.avatar_url FROM follows f JOIN users u ON f.following_id=u.id WHERE f.follower_id=? ORDER BY f.created_at DESC LIMIT 100",
+        "SELECT u.name,u.username,u.avatar_url FROM follows f JOIN users u ON f.following_id=u.id WHERE f.follower_id=%s ORDER BY f.created_at DESC LIMIT 100",
         (target["id"],)).fetchall()
     conn.close()
     return {"following": [dict(r) for r in rows]}
@@ -944,7 +944,7 @@ async def get_my_collections(authorization: Optional[str] = Header(None)):
     if not user:
         raise HTTPException(401, "Giris yapin")
     conn = get_db()
-    rows = conn.execute("SELECT * FROM collections WHERE user_id=? ORDER BY created_at DESC", (user["id"],)).fetchall()
+    rows = conn.execute("SELECT * FROM collections WHERE user_id=%s ORDER BY created_at DESC", (user["id"],)).fetchall()
     conn.close()
     return {"collections": [dict(r) for r in rows]}
 
@@ -954,11 +954,11 @@ async def create_collection(req: CollectionReq, authorization: Optional[str] = H
     if not user:
         raise HTTPException(401, "Giris yapin")
     conn = get_db()
-    count = conn.execute("SELECT COUNT(*) FROM collections WHERE user_id=?", (user["id"],)).fetchone()[0]
+    count = conn.execute("SELECT COUNT(*) FROM collections WHERE user_id=%s", (user["id"],)).fetchone()[0]
     if count >= 50:
         conn.close()
         raise HTTPException(400, "Maksimum 50 koleksiyon olusturabilirsiniz")
-    conn.execute("INSERT INTO collections(user_id,name,description,is_public) VALUES(?,?,?,?)",
+    conn.execute("INSERT INTO collections(user_id,name,description,is_public) VALUES(%s,%s,%s,%s)",
         (user["id"], sanitize(req.name)[:100], sanitize(req.description)[:500], req.is_public))
     conn.commit()
     cid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -968,12 +968,12 @@ async def create_collection(req: CollectionReq, authorization: Optional[str] = H
 @app.get("/api/collections/{collection_id}")
 async def get_collection(collection_id: int):
     conn = get_db()
-    col = conn.execute("SELECT c.*, u.name as owner_name, u.username as owner_username FROM collections c JOIN users u ON c.user_id=u.id WHERE c.id=?", (collection_id,)).fetchone()
+    col = conn.execute("SELECT c.*, u.name as owner_name, u.username as owner_username FROM collections c JOIN users u ON c.user_id=u.id WHERE c.id=%s", (collection_id,)).fetchone()
     if not col:
         conn.close()
         raise HTTPException(404, "Koleksiyon bulunamadi")
     items = conn.execute(
-        "SELECT m.* FROM collection_items ci JOIN models m ON ci.model_id=m.id WHERE ci.collection_id=? ORDER BY ci.added_at DESC",
+        "SELECT m.* FROM collection_items ci JOIN models m ON ci.model_id=m.id WHERE ci.collection_id=%s ORDER BY ci.added_at DESC",
         (collection_id,)).fetchall()
     conn.close()
     return {"collection": dict(col), "models": [dict(i) for i in items]}
@@ -984,13 +984,13 @@ async def add_to_collection(collection_id: int, req: CollectionItemReq, authoriz
     if not user:
         raise HTTPException(401, "Giris yapin")
     conn = get_db()
-    col = conn.execute("SELECT user_id FROM collections WHERE id=?", (collection_id,)).fetchone()
+    col = conn.execute("SELECT user_id FROM collections WHERE id=%s", (collection_id,)).fetchone()
     if not col or col["user_id"] != user["id"]:
         conn.close()
         raise HTTPException(403, "Bu koleksiyon size ait degil")
     try:
-        conn.execute("INSERT INTO collection_items(collection_id,model_id) VALUES(?,?)", (collection_id, req.model_id))
-        conn.execute("UPDATE collections SET model_count=model_count+1 WHERE id=?", (collection_id,))
+        conn.execute("INSERT INTO collection_items(collection_id,model_id) VALUES(%s,%s)", (collection_id, req.model_id))
+        conn.execute("UPDATE collections SET model_count=model_count+1 WHERE id=%s", (collection_id,))
         conn.commit()
     except sqlite3.IntegrityError:
         conn.close()
@@ -1004,12 +1004,12 @@ async def remove_from_collection(collection_id: int, model_id: int, authorizatio
     if not user:
         raise HTTPException(401, "Giris yapin")
     conn = get_db()
-    col = conn.execute("SELECT user_id FROM collections WHERE id=?", (collection_id,)).fetchone()
+    col = conn.execute("SELECT user_id FROM collections WHERE id=%s", (collection_id,)).fetchone()
     if not col or col["user_id"] != user["id"]:
         conn.close()
         raise HTTPException(403, "Bu koleksiyon size ait degil")
-    conn.execute("DELETE FROM collection_items WHERE collection_id=? AND model_id=?", (collection_id, model_id))
-    conn.execute("UPDATE collections SET model_count=MAX(0,model_count-1) WHERE id=?", (collection_id,))
+    conn.execute("DELETE FROM collection_items WHERE collection_id=%s AND model_id=%s", (collection_id, model_id))
+    conn.execute("UPDATE collections SET model_count=MAX(0,model_count-1) WHERE id=%s", (collection_id,))
     conn.commit()
     conn.close()
     return {"message": "Koleksiyondan cikarildi"}
@@ -1020,12 +1020,12 @@ async def delete_collection(collection_id: int, authorization: Optional[str] = H
     if not user:
         raise HTTPException(401, "Giris yapin")
     conn = get_db()
-    col = conn.execute("SELECT user_id FROM collections WHERE id=?", (collection_id,)).fetchone()
+    col = conn.execute("SELECT user_id FROM collections WHERE id=%s", (collection_id,)).fetchone()
     if not col or col["user_id"] != user["id"]:
         conn.close()
         raise HTTPException(403, "Bu koleksiyon size ait degil")
-    conn.execute("DELETE FROM collection_items WHERE collection_id=?", (collection_id,))
-    conn.execute("DELETE FROM collections WHERE id=?", (collection_id,))
+    conn.execute("DELETE FROM collection_items WHERE collection_id=%s", (collection_id,))
+    conn.execute("DELETE FROM collections WHERE id=%s", (collection_id,))
     conn.commit()
     conn.close()
     return {"deleted": True}
@@ -1044,9 +1044,9 @@ async def get_models_by_tag(tag: str, page: int = 1, limit: int = 20):
     conn = get_db()
     offset = (page - 1) * limit
     rows = conn.execute(
-        "SELECT m.*, u.name as author_name, u.username as author_username FROM model_tags mt JOIN models m ON mt.model_id=m.id LEFT JOIN users u ON m.user_id=u.id WHERE mt.tag=? AND m.is_public=1 ORDER BY m.created_at DESC LIMIT ? OFFSET ?",
+        "SELECT m.*, u.name as author_name, u.username as author_username FROM model_tags mt JOIN models m ON mt.model_id=m.id LEFT JOIN users u ON m.user_id=u.id WHERE mt.tag=%s AND m.is_public=1 ORDER BY m.created_at DESC LIMIT ? OFFSET ?",
         (tag.lower(), limit, offset)).fetchall()
-    total = conn.execute("SELECT COUNT(*) FROM model_tags mt JOIN models m ON mt.model_id=m.id WHERE mt.tag=? AND m.is_public=1", (tag.lower(),)).fetchone()[0]
+    total = conn.execute("SELECT COUNT(*) FROM model_tags mt JOIN models m ON mt.model_id=m.id WHERE mt.tag=%s AND m.is_public=1", (tag.lower(),)).fetchone()[0]
     conn.close()
     return {"models": [dict(r) for r in rows], "total": total, "tag": tag}
 
@@ -1056,15 +1056,15 @@ async def update_model_tags(model_id: int, req: TagModelReq, authorization: Opti
     if not user:
         raise HTTPException(401, "Giris yapin")
     conn = get_db()
-    model = conn.execute("SELECT user_id FROM models WHERE id=?", (model_id,)).fetchone()
+    model = conn.execute("SELECT user_id FROM models WHERE id=%s", (model_id,)).fetchone()
     if not model or model["user_id"] != user["id"]:
         conn.close()
         raise HTTPException(403, "Bu model size ait degil")
-    conn.execute("DELETE FROM model_tags WHERE model_id=?", (model_id,))
+    conn.execute("DELETE FROM model_tags WHERE model_id=%s", (model_id,))
     tags = [t.strip().lower() for t in req.tags.split(",") if t.strip()][:10]
     for tag in tags:
         try:
-            conn.execute("INSERT INTO model_tags(model_id,tag) VALUES(?,?)", (model_id, sanitize(tag)[:30]))
+            conn.execute("INSERT INTO model_tags(model_id,tag) VALUES(%s,%s)", (model_id, sanitize(tag)[:30]))
         except: pass
     conn.commit()
     conn.close()
@@ -1086,7 +1086,7 @@ async def get_blog_posts(page: int = 1, limit: int = 10, tag: str = ""):
         where += " AND tags LIKE ?"
         params.append(f"%{tag}%")
     rows = conn.execute(
-        f"SELECT id,title,slug,excerpt,cover_image,tags,views,created_at FROM blog_posts {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        f"SELECT id,title,slug,excerpt,cover_image,tags,views,created_at FROM blog_posts {where} ORDER BY created_at DESC LIMIT ? OFFSET %s",
         params + [limit, offset]).fetchall()
     total = conn.execute(f"SELECT COUNT(*) FROM blog_posts {where}", params).fetchone()[0]
     conn.close()
@@ -1095,13 +1095,13 @@ async def get_blog_posts(page: int = 1, limit: int = 10, tag: str = ""):
 @app.get("/api/blog/{slug}")
 async def get_blog_post(slug: str):
     conn = get_db()
-    row = conn.execute("SELECT bp.*, u.name as author_name FROM blog_posts bp LEFT JOIN users u ON bp.author_id=u.id WHERE bp.slug=? AND bp.is_published=1", (slug,)).fetchone()
+    row = conn.execute("SELECT bp.*, u.name as author_name FROM blog_posts bp LEFT JOIN users u ON bp.author_id=u.id WHERE bp.slug=%s AND bp.is_published=1", (slug,)).fetchone()
     if not row:
         conn.close()
         raise HTTPException(404, "Yazi bulunamadi")
-    conn.execute("UPDATE blog_posts SET views=views+1 WHERE slug=?", (slug,))
+    conn.execute("UPDATE blog_posts SET views=views+1 WHERE slug=%s", (slug,))
     conn.commit()
-    related = conn.execute("SELECT id,title,slug,excerpt,cover_image FROM blog_posts WHERE slug!=? AND is_published=1 ORDER BY created_at DESC LIMIT 3", (slug,)).fetchall()
+    related = conn.execute("SELECT id,title,slug,excerpt,cover_image FROM blog_posts WHERE slug!=%s AND is_published=1 ORDER BY created_at DESC LIMIT 3", (slug,)).fetchall()
     conn.close()
     return {"post": dict(row), "related": [dict(r) for r in related]}
 
@@ -1232,11 +1232,11 @@ async def gallery(page: int = 1, limit: int = 20, sort: str = "newest", search: 
         where += " AND m.category=?"
         params.append(category)
     if tag:
-        where += " AND m.id IN (SELECT model_id FROM model_tags WHERE tag=?)"
+        where += " AND m.id IN (SELECT model_id FROM model_tags WHERE tag=%s)"
         params.append(tag.lower())
     order = {"popular": "ORDER BY m.likes DESC", "downloads": "ORDER BY m.downloads DESC", "views": "ORDER BY m.views DESC"}.get(sort, "ORDER BY m.created_at DESC")
     rows = conn.execute(
-        f"SELECT m.*, u.name as author_name, u.username as author_username FROM models m LEFT JOIN users u ON m.user_id=u.id {where} {order} LIMIT ? OFFSET ?",
+        f"SELECT m.*, u.name as author_name, u.username as author_username FROM models m LEFT JOIN users u ON m.user_id=u.id {where} {order} LIMIT ? OFFSET %s",
         params + [limit, offset]).fetchall()
     total = conn.execute(f"SELECT COUNT(*) FROM models m {where}", params).fetchone()[0]
     conn.close()
@@ -1245,13 +1245,13 @@ async def gallery(page: int = 1, limit: int = 20, sort: str = "newest", search: 
 @app.get("/api/gallery/{model_id}")
 async def model_detail(model_id: int):
     conn = get_db()
-    row = conn.execute("SELECT m.*, u.name as author_name, u.username as author_username FROM models m LEFT JOIN users u ON m.user_id=u.id WHERE m.id=?", (model_id,)).fetchone()
+    row = conn.execute("SELECT m.*, u.name as author_name, u.username as author_username FROM models m LEFT JOIN users u ON m.user_id=u.id WHERE m.id=%s", (model_id,)).fetchone()
     if not row:
         conn.close()
         raise HTTPException(404, "Model bulunamadi")
-    conn.execute("UPDATE models SET views=views+1 WHERE id=?", (model_id,))
+    conn.execute("UPDATE models SET views=views+1 WHERE id=%s", (model_id,))
     conn.commit()
-    tags = conn.execute("SELECT tag FROM model_tags WHERE model_id=?", (model_id,)).fetchall()
+    tags = conn.execute("SELECT tag FROM model_tags WHERE model_id=%s", (model_id,)).fetchall()
     conn.close()
     result = dict(row)
     result["tags"] = [t["tag"] for t in tags]
@@ -1263,14 +1263,14 @@ async def toggle_like(model_id: int, authorization: Optional[str] = Header(None)
     if not user:
         raise HTTPException(401, "Giris yapin")
     conn = get_db()
-    ex = conn.execute("SELECT 1 FROM user_likes WHERE user_id=? AND model_id=?", (user["id"], model_id)).fetchone()
+    ex = conn.execute("SELECT 1 FROM user_likes WHERE user_id=? AND model_id=%s", (user["id"], model_id)).fetchone()
     if ex:
-        conn.execute("DELETE FROM user_likes WHERE user_id=? AND model_id=?", (user["id"], model_id))
-        conn.execute("UPDATE models SET likes=likes-1 WHERE id=?", (model_id,))
+        conn.execute("DELETE FROM user_likes WHERE user_id=%s AND model_id=%s", (user["id"], model_id))
+        conn.execute("UPDATE models SET likes=likes-1 WHERE id=%s", (model_id,))
         liked = False
     else:
-        conn.execute("INSERT INTO user_likes(user_id,model_id) VALUES(?,?)", (user["id"], model_id))
-        conn.execute("UPDATE models SET likes=likes+1 WHERE id=?", (model_id,))
+        conn.execute("INSERT INTO user_likes(user_id,model_id) VALUES(%s,%s)", (user["id"], model_id))
+        conn.execute("UPDATE models SET likes=likes+1 WHERE id=%s", (model_id,))
         liked = True
     conn.commit()
     conn.close()
@@ -1282,11 +1282,11 @@ async def my_models(authorization: Optional[str] = Header(None)):
     if not user:
         raise HTTPException(401, "Giris yapin")
     conn = get_db()
-    rows = conn.execute("SELECT * FROM models WHERE user_id=? ORDER BY created_at DESC", (user["id"],)).fetchall()
+    rows = conn.execute("SELECT * FROM models WHERE user_id=%s ORDER BY created_at DESC", (user["id"],)).fetchall()
     result = []
     for r in rows:
         d = dict(r)
-        tags = conn.execute("SELECT tag FROM model_tags WHERE model_id=?", (r["id"],)).fetchall()
+        tags = conn.execute("SELECT tag FROM model_tags WHERE model_id=%s", (r["id"],)).fetchall()
         d["tags"] = [t["tag"] for t in tags]
         result.append(d)
     conn.close()
@@ -1298,10 +1298,10 @@ async def delete_model(model_id: int, authorization: Optional[str] = Header(None
     if not user:
         raise HTTPException(401, "Giris yapin")
     conn = get_db()
-    conn.execute("DELETE FROM model_tags WHERE model_id=?", (model_id,))
-    conn.execute("DELETE FROM collection_items WHERE model_id=?", (model_id,))
-    conn.execute("DELETE FROM user_likes WHERE model_id=?", (model_id,))
-    conn.execute("DELETE FROM models WHERE id=? AND user_id=?", (model_id, user["id"]))
+    conn.execute("DELETE FROM model_tags WHERE model_id=%s", (model_id,))
+    conn.execute("DELETE FROM collection_items WHERE model_id=%s", (model_id,))
+    conn.execute("DELETE FROM user_likes WHERE model_id=%s", (model_id,))
+    conn.execute("DELETE FROM models WHERE id=%s AND user_id=%s", (model_id, user["id"]))
     conn.commit()
     conn.close()
     return {"deleted": True}
@@ -1312,7 +1312,7 @@ async def upgrade_plan(authorization: Optional[str] = Header(None)):
     if not user:
         raise HTTPException(401, "Giris yapin")
     conn = get_db()
-    conn.execute("UPDATE users SET plan='pro' WHERE id=?", (user["id"],))
+    conn.execute("UPDATE users SET plan='pro' WHERE id=%s", (user["id"],))
     conn.commit()
     conn.close()
     return {"success": True, "plan": "pro"}
@@ -1325,9 +1325,9 @@ async def export_data(authorization: Optional[str] = Header(None)):
     if not user:
         raise HTTPException(401, "Giris yapin")
     conn = get_db()
-    models = [dict(r) for r in conn.execute("SELECT * FROM models WHERE user_id=?", (user["id"],)).fetchall()]
-    collections = [dict(r) for r in conn.execute("SELECT * FROM collections WHERE user_id=?", (user["id"],)).fetchall()]
-    likes = [dict(r) for r in conn.execute("SELECT * FROM user_likes WHERE user_id=?", (user["id"],)).fetchall()]
+    models = [dict(r) for r in conn.execute("SELECT * FROM models WHERE user_id=%s", (user["id"],)).fetchall()]
+    collections = [dict(r) for r in conn.execute("SELECT * FROM collections WHERE user_id=%s", (user["id"],)).fetchall()]
+    likes = [dict(r) for r in conn.execute("SELECT * FROM user_likes WHERE user_id=%s", (user["id"],)).fetchall()]
     conn.close()
     return {"user": user, "models": models, "collections": collections, "likes": likes, "exported_at": datetime.utcnow().isoformat()}
 
@@ -1338,15 +1338,15 @@ async def delete_account(authorization: Optional[str] = Header(None)):
         raise HTTPException(401, "Giris yapin")
     conn = get_db()
     uid = user["id"]
-    conn.execute("DELETE FROM model_tags WHERE model_id IN (SELECT id FROM models WHERE user_id=?)", (uid,))
-    conn.execute("DELETE FROM collection_items WHERE collection_id IN (SELECT id FROM collections WHERE user_id=?)", (uid,))
-    conn.execute("DELETE FROM collections WHERE user_id=?", (uid,))
-    conn.execute("DELETE FROM follows WHERE follower_id=? OR following_id=?", (uid, uid))
-    conn.execute("DELETE FROM user_likes WHERE user_id=?", (uid,))
-    conn.execute("DELETE FROM usage WHERE user_id=?", (uid,))
-    conn.execute("DELETE FROM security_log WHERE user_id=?", (uid,))
-    conn.execute("DELETE FROM models WHERE user_id=?", (uid,))
-    conn.execute("DELETE FROM users WHERE id=?", (uid,))
+    conn.execute("DELETE FROM model_tags WHERE model_id IN (SELECT id FROM models WHERE user_id=%s)", (uid,))
+    conn.execute("DELETE FROM collection_items WHERE collection_id IN (SELECT id FROM collections WHERE user_id=%s)", (uid,))
+    conn.execute("DELETE FROM collections WHERE user_id=%s", (uid,))
+    conn.execute("DELETE FROM follows WHERE follower_id=%s OR following_id=%s", (uid, uid))
+    conn.execute("DELETE FROM user_likes WHERE user_id=%s", (uid,))
+    conn.execute("DELETE FROM usage WHERE user_id=%s", (uid,))
+    conn.execute("DELETE FROM security_log WHERE user_id=%s", (uid,))
+    conn.execute("DELETE FROM models WHERE user_id=%s", (uid,))
+    conn.execute("DELETE FROM users WHERE id=%s", (uid,))
     conn.commit()
     conn.close()
     return {"deleted": True, "message": "Hesabiniz ve tum verileriniz kalici olarak silindi"}
