@@ -320,7 +320,7 @@ a{text-decoration:none;color:inherit}
 <div class="mobile-overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
 
 <!-- AUTH -->
-<div class="auth-overlay" id="authOverlay">
+<div class="auth-overlay hidden" id="authOverlay">
   <div class="auth-bg-glow"></div>
   <div class="auth-card">
     <div class="auth-card-logo">
@@ -629,11 +629,46 @@ let currentTaskId = null;
 let currentStyle = 'realistic';
 let gallerySort = 'newest';
 let pollInterval = null;
+let lastGenType = 'text';
+const LOCAL_MODELS_KEY = 'pf_local_models';
 
 const MAX_SLOTS = 6;
 const imageSlots = Array(MAX_SLOTS).fill(null);
 let primarySlot = 0;
 const slotLabels = ['Ön', 'Sağ Yan', 'Arka', 'Sol Yan', 'Üst', 'Detay'];
+
+function getLocalModels() {
+    try {
+        var raw = localStorage.getItem(LOCAL_MODELS_KEY);
+        var list = raw ? JSON.parse(raw) : [];
+        return Array.isArray(list) ? list : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function setLocalModels(models) {
+    localStorage.setItem(LOCAL_MODELS_KEY, JSON.stringify(models.slice(0, 100)));
+}
+
+function upsertLocalModel(model) {
+    var list = getLocalModels();
+    var idx = list.findIndex(function(m) { return m.task_id === model.task_id; });
+    if (idx >= 0) list[idx] = model;
+    else list.unshift(model);
+    setLocalModels(list);
+}
+
+function removeLocalModelById(taskId) {
+    var list = getLocalModels().filter(function(m) { return m.task_id !== taskId; });
+    setLocalModels(list);
+}
+
+function showAuthOverlay(tab) {
+    document.getElementById('authOverlay').classList.remove('hidden');
+    document.getElementById('appLayout').style.display = 'none';
+    switchAuth(tab || 'login');
+}
 
 function toast(msg, type = 'info') {
     const c = document.getElementById('toastContainer');
@@ -755,9 +790,7 @@ function doLogout() {
     if (!confirm('Çıkış yapmak istiyor musunuz?')) return;
     currentUser = null; currentToken = '';
     localStorage.removeItem('pf_token'); localStorage.removeItem('pf_user');
-    document.getElementById('authOverlay').classList.remove('hidden');
-    document.getElementById('appLayout').style.display = 'none';
-    switchAuth('login');
+    showAuthOverlay('login');
     toast('Çıkış yapıldı', 'info');
 }
 
@@ -816,7 +849,10 @@ function loadUserData() {
         document.getElementById('billingBadge').textContent = plan.toUpperCase();
         updateSidebar();
         checkVerification();
-    }).catch(function(e) { console.log('User data error:', e); });
+    }).catch(function(e) {
+        // Aglik gecici hata / no-jwt durumunda mevcut UI'yi bozma.
+        console.log('User data error:', e);
+    });
 }
 
 function navigateTo(page) {
@@ -1175,6 +1211,11 @@ function extractUrlFromPayload(text) {
     return '';
 }
 
+function buildProxyUrl(taskId, externalUrl) {
+    if (!taskId || !externalUrl) return '';
+    return API + '/api/model/' + taskId + '/proxy?url=' + encodeURIComponent(externalUrl);
+}
+
 function resolveModelSource(url, depth) {
     depth = depth || 0;
     if (depth > 3) return Promise.reject(new Error('Model yonlendirme limiti asildi'));
@@ -1184,7 +1225,12 @@ function resolveModelSource(url, depth) {
 
     var isSameOrigin = normalized.indexOf(API) === 0;
     var isApiModel = normalized.indexOf(API + '/api/model/') === 0;
-    if (!isSameOrigin && !isApiModel) return Promise.resolve(normalized);
+    var isBlobOrData = normalized.indexOf('blob:') === 0 || normalized.indexOf('data:') === 0;
+    if (!isSameOrigin && !isApiModel && !isBlobOrData) {
+        var proxied = buildProxyUrl(currentTaskId, normalized);
+        if (proxied) return resolveModelSource(proxied, depth + 1);
+        return Promise.reject(new Error('Dis kaynak model URL bulundu. /api/model/{taskId}/proxy endpointi gerekli'));
+    }
 
     var headers = {
         'Accept': 'model/gltf-binary,model/gltf+json,application/octet-stream,*/*'
@@ -1218,7 +1264,10 @@ function resolveModelSource(url, depth) {
         if (type.indexOf('application/json') >= 0 || type.indexOf('text/plain') >= 0 || type.indexOf('text/html') >= 0) {
             return blob.text().then(function(text) {
                 var nestedUrl = extractUrlFromPayload(text);
-                if (nestedUrl) return resolveModelSource(nestedUrl, depth + 1);
+                if (nestedUrl) {
+                    var proxiedNested = buildProxyUrl(currentTaskId, nestedUrl);
+                    return resolveModelSource(proxiedNested || nestedUrl, depth + 1);
+                }
                 throw new Error('Model yerine gecersiz metin/JSON dondu');
             });
         }
@@ -1308,6 +1357,7 @@ function showModel(taskId, isDemo, directUrl) {
     urls.push(glbModelUrl + '?proxy=1');
     urls.push(proxyModelUrl + '?stream=1');
     urls.push(glbModelUrl + '?stream=1');
+    urls.push(API + '/api/model/' + taskId + '/proxy');
 
     // Yinelenen URL denemelerini temizle.
     urls = urls.filter(function(item, idx) { return item && urls.indexOf(item) === idx; });
@@ -1341,6 +1391,7 @@ function tryLoadFromList(urls, index, taskId, isDemo) {
                     freshUrls.push(glbModelUrl + '?proxy=1&t=' + Date.now());
                     freshUrls.push(proxyModelUrl + '?stream=1&t=' + Date.now());
                     freshUrls.push(glbModelUrl + '?stream=1&t=' + Date.now());
+                    freshUrls.push(API + '/api/model/' + taskId + '/proxy?t=' + Date.now());
                     tryLoadFromList(freshUrls, 0, taskId, st.is_demo);
                 })
                 .catch(function() {
@@ -1350,7 +1401,8 @@ function tryLoadFromList(urls, index, taskId, isDemo) {
                         proxyModelUrl + '?proxy=1&t=' + Date.now(),
                         glbModelUrl + '?proxy=1&t=' + Date.now(),
                         proxyModelUrl + '?stream=1&t=' + Date.now(),
-                        glbModelUrl + '?stream=1&t=' + Date.now()
+                        glbModelUrl + '?stream=1&t=' + Date.now(),
+                        API + '/api/model/' + taskId + '/proxy?t=' + Date.now()
                     ], 0, taskId, false);
                 });
             }, waitTime);
@@ -1565,6 +1617,7 @@ function downloadModel(format) {
 }
 
 function generateText() {
+    lastGenType = 'text';
     var prompt = document.getElementById('promptInput').value.trim();
     if (!prompt) { toast('Prompt girin', 'error'); return; }
     var btn = document.getElementById('genTextBtn');
@@ -1586,6 +1639,7 @@ function generateText() {
 }
 
 function generateImage() {
+    lastGenType = 'image';
     var primary = imageSlots[primarySlot];
     if (!primary) { toast('En az 1 görsel yükleyin', 'error'); return; }
     var btn = document.getElementById('genImageBtn');
@@ -1630,6 +1684,14 @@ function startPolling() {
                 hideProgress(); resetGenBtn();
                 var directUrl = data.model_url || '';
                 showModel(currentTaskId, data.is_demo, directUrl);
+                upsertLocalModel({
+                    id: Date.now(),
+                    task_id: currentTaskId,
+                    title: ((lastGenType === 'image' ? 'Gorselden Model' : document.getElementById('promptInput').value) || 'Model').slice(0, 80),
+                    prompt: (lastGenType === 'image' ? 'Gorselden model uretimi' : (document.getElementById('promptInput').value || 'Model')),
+                    gen_type: lastGenType,
+                    created_at: new Date().toISOString()
+                });
                 loadUserData();
             } else if (data.status === 'failed') {
                 clearInterval(pollInterval); pollInterval = null;
@@ -1712,32 +1774,60 @@ function loadMyModels() {
     fetch(API + '/api/my-models', { headers: { 'Authorization': 'Bearer ' + currentToken } })
     .then(function(res) { return res.json(); })
     .then(function(data) {
-        if (!data.models || data.models.length === 0) {
+        var models = (data && Array.isArray(data.models)) ? data.models : [];
+        if (models.length === 0) {
+            models = getLocalModels();
+        }
+        if (!models || models.length === 0) {
             grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">◇</div><div class="empty-title">Henüz modeliniz yok</div><button onclick="navigateTo(\'generate\')">Model Üret →</button></div>';
             return;
         }
-        grid.innerHTML = data.models.map(function(m) {
+        grid.innerHTML = models.map(function(m) {
             return '<div class="model-card"><div class="model-thumb"><span class="thumb-placeholder">✦</span>' +
                 '<div class="thumb-overlay"><button onclick="viewGalleryModel(\'' + m.task_id + '\')">👁 Görüntüle</button></div></div>' +
                 '<div class="model-body"><div class="model-title">' + (m.title || m.prompt || 'Model') + '</div>' +
                 '<div class="model-meta"><span>' + (m.gen_type||'text') + '</span><span>' + (m.created_at||'').slice(0,10) + '</span></div>' +
                 '<div class="model-actions"><button class="model-action-btn download" onclick="downloadGalleryModel(\'' + m.task_id + '\',\'glb\')">↓ GLB</button>' +
                 '<button class="model-action-btn" onclick="downloadGalleryModel(\'' + m.task_id + '\',\'stl\')">↓ STL</button>' +
-                '<button class="model-action-btn delete" onclick="deleteModel(' + m.id + ',this)">🗑</button></div></div></div>';
+                '<button class="model-action-btn delete" onclick="deleteModel(' + (m.id || 0) + ',this,\'' + m.task_id + '\')">🗑</button></div></div></div>';
         }).join('');
     })
     .catch(function() {
+        var local = getLocalModels();
+        if (local.length > 0) {
+            grid.innerHTML = local.map(function(m) {
+                return '<div class="model-card"><div class="model-thumb"><span class="thumb-placeholder">✦</span>' +
+                    '<div class="thumb-overlay"><button onclick="viewGalleryModel(\'' + m.task_id + '\')">👁 Görüntüle</button></div></div>' +
+                    '<div class="model-body"><div class="model-title">' + (m.title || m.prompt || 'Model') + '</div>' +
+                    '<div class="model-meta"><span>' + (m.gen_type||'text') + '</span><span>' + (m.created_at||'').slice(0,10) + '</span></div>' +
+                    '<div class="model-actions"><button class="model-action-btn download" onclick="downloadGalleryModel(\'' + m.task_id + '\',\'glb\')">↓ GLB</button>' +
+                    '<button class="model-action-btn" onclick="downloadGalleryModel(\'' + m.task_id + '\',\'stl\')">↓ STL</button>' +
+                    '<button class="model-action-btn delete" onclick="deleteModel(0,this,\'' + m.task_id + '\')">🗑</button></div></div></div>';
+            }).join('');
+            return;
+        }
         grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">⚠</div><div class="empty-title">Yükleme hatası</div></div>';
     });
 }
 
-function deleteModel(modelId, btn) {
+function deleteModel(modelId, btn, taskId) {
     if (!confirm('Bu modeli silmek istediğinize emin misiniz?')) return;
+    if (!modelId) {
+        removeLocalModelById(taskId || '');
+        btn.closest('.model-card').remove();
+        toast('Model silindi', 'success');
+        return;
+    }
     fetch(API + '/api/my-models/' + modelId, {
         method: 'DELETE', headers: { 'Authorization': 'Bearer ' + currentToken }
     })
     .then(function(res) {
-        if (res.ok) { btn.closest('.model-card').remove(); toast('Model silindi', 'success'); loadUserData(); }
+        if (res.ok) {
+            removeLocalModelById(taskId || '');
+            btn.closest('.model-card').remove();
+            toast('Model silindi', 'success');
+            loadUserData();
+        }
     })
     .catch(function() { toast('Silme başarısız', 'error'); });
 }
@@ -1794,7 +1884,14 @@ function upgradePlan(plan) {
 
 function init() {
     var params = new URLSearchParams(window.location.search);
-    if (params.get('reset')) { switchAuth('reset'); return; }
+    if (params.get('reset')) {
+        showAuthOverlay('reset');
+        return;
+    }
+
+    var storedUserRaw = localStorage.getItem('pf_user');
+    var storedUser = null;
+    try { storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : null; } catch(_) {}
 
     var storedToken = localStorage.getItem('pf_token');
     if (storedToken && storedToken !== 'no-jwt') {
@@ -1810,15 +1907,22 @@ function init() {
             enterApp();
         })
         .catch(function() {
-            // Düzeltme: Geçersiz token'da fallback user ile sahte giriş yapılmaz.
+            if (storedUser) {
+                currentUser = storedUser;
+                enterApp();
+                return;
+            }
             localStorage.removeItem('pf_token');
             localStorage.removeItem('pf_user');
-            document.getElementById('authOverlay').classList.remove('hidden');
-            document.getElementById('appLayout').style.display = 'none';
+            showAuthOverlay('login');
         });
+    } else if (storedToken === 'no-jwt' && storedUser) {
+        // no-jwt modunda da sayfa yenilenince kullaniciyi dusurme.
+        currentToken = storedToken;
+        currentUser = storedUser;
+        enterApp();
     } else {
-        document.getElementById('authOverlay').classList.remove('hidden');
-        document.getElementById('appLayout').style.display = 'none';
+        showAuthOverlay('login');
     }
 }
 
