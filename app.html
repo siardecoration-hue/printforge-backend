@@ -939,6 +939,7 @@ if (dz) {
 var modelRetryCount = 0;
 var originalModelUrl = '';
 var proxyModelUrl = '';
+var glbModelUrl = '';
 var activeModelBlobUrl = '';
 
 function revokeModelBlobUrl() {
@@ -977,10 +978,13 @@ function resolveModelSource(url, depth) {
     var normalized = normalizeModelUrl(url);
     if (!normalized) return Promise.reject(new Error('Model URL yok'));
 
+    var isSameOrigin = normalized.indexOf(API) === 0;
     var isApiModel = normalized.indexOf(API + '/api/model/') === 0;
-    if (!isApiModel) return Promise.resolve(normalized);
+    if (!isSameOrigin && !isApiModel) return Promise.resolve(normalized);
 
-    var headers = {};
+    var headers = {
+        'Accept': 'model/gltf-binary,model/gltf+json,application/octet-stream,*/*'
+    };
     if (currentToken) headers['Authorization'] = 'Bearer ' + currentToken;
 
     return fetch(normalized, { headers: headers, cache: 'no-store' })
@@ -999,6 +1003,13 @@ function resolveModelSource(url, depth) {
         if (!blob || blob.size === 0) throw new Error('Bos model dosyasi');
 
         var type = (blob.type || payload.contentType || '').toLowerCase();
+
+        // GLTF JSON dosyalari blob URL ile acildiginda bagli .bin/.png dosyalari kirilabilir.
+        // Bu durumda dogrudan URL denemesi daha guvenlidir.
+        if (type.indexOf('model/gltf+json') >= 0) {
+            return normalized;
+        }
+
         if (type.indexOf('application/json') >= 0 || type.indexOf('text/plain') >= 0 || type.indexOf('text/html') >= 0) {
             return blob.text().then(function(text) {
                 var nestedUrl = extractUrlFromPayload(text);
@@ -1042,6 +1053,7 @@ function waitForModelViewer(callback) {
 function showModel(taskId, isDemo, directUrl) {
     currentTaskId = taskId;
     proxyModelUrl = API + '/api/model/' + taskId + '/view';
+    glbModelUrl = API + '/api/model/' + taskId + '/glb';
     originalModelUrl = directUrl || '';
     modelRetryCount = 0;
     revokeModelBlobUrl();
@@ -1066,6 +1078,11 @@ function showModel(taskId, isDemo, directUrl) {
     var urls = [];
     if (originalModelUrl) urls.push(originalModelUrl);
     urls.push(proxyModelUrl);
+    urls.push(glbModelUrl);
+    urls.push(proxyModelUrl + '?download=1');
+
+    // Yinelenen URL denemelerini temizle.
+    urls = urls.filter(function(item, idx) { return item && urls.indexOf(item) === idx; });
 
     waitForModelViewer(function() {
         tryLoadFromList(urls, 0, taskId, isDemo);
@@ -1092,10 +1109,14 @@ function tryLoadFromList(urls, index, taskId, isDemo) {
                         freshUrls.push(st.model_url);
                     }
                     freshUrls.push(proxyModelUrl + '?t=' + Date.now());
+                    freshUrls.push(glbModelUrl + '?t=' + Date.now());
                     tryLoadFromList(freshUrls, 0, taskId, st.is_demo);
                 })
                 .catch(function() {
-                    tryLoadFromList([proxyModelUrl + '?t=' + Date.now()], 0, taskId, false);
+                    tryLoadFromList([
+                        proxyModelUrl + '?t=' + Date.now(),
+                        glbModelUrl + '?t=' + Date.now()
+                    ], 0, taskId, false);
                 });
             }, waitTime);
             return;
@@ -1111,6 +1132,8 @@ function tryLoadFromList(urls, index, taskId, isDemo) {
 
     var url = urls[index];
     loading.querySelector('.viewer-loading-text').textContent = 'Model yükleniyor... (' + (index+1) + '/' + urls.length + ')';
+    var debug = document.getElementById('viewerDebugInfo');
+    if (debug) debug.textContent = 'Denenen kaynak: ' + url;
 
     resolveModelSource(url)
     .then(function(finalSrc) {
@@ -1160,7 +1183,7 @@ function tryLoadFromList(urls, index, taskId, isDemo) {
     .catch(function(err) {
         var debug = document.getElementById('viewerDebugInfo');
         if (debug) {
-            debug.textContent = 'Yukleme denemesi hatasi: ' + ((err && err.message) ? err.message : 'Bilinmeyen hata');
+            debug.textContent = 'Yukleme denemesi hatasi (' + url + '): ' + ((err && err.message) ? err.message : 'Bilinmeyen hata');
         }
         tryLoadFromList(urls, index + 1, taskId, false);
     });
