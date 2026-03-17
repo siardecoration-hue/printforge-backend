@@ -42,7 +42,27 @@ tasks = {}
 model_cache = {}
 MAX_CACHE = 50
 PLAN_LIMITS = {"free": 5, "pro": 100, "business": 999999}
+MODEL_DIR = os.getenv("MODEL_DIR", "models_store")
+os.makedirs(MODEL_DIR, exist_ok=True)
 
+def model_file_path(task_id: str) -> str:
+    return os.path.join(MODEL_DIR, f"{task_id}.glb")
+
+async def download_glb_bytes(url: str) -> bytes:
+    async with httpx.AsyncClient(timeout=120, follow_redirects=True) as c:
+        r = await c.get(url, headers={"Accept": "model/gltf-binary,application/octet-stream,*/*"})
+        if r.status_code != 200 or len(r.content) < 100:
+            raise Exception(f"GLB indirilemedi: {r.status_code}, size={len(r.content)}")
+        data = r.content
+        if len(data) < 4 or data[:4] != b"glTF":
+            raise Exception("Gelen dosya gecerli GLB degil")
+        return data
+
+async def persist_model_glb(task_id: str, url: str):
+    data = await download_glb_bytes(url)
+    with open(model_file_path(task_id), "wb") as f:
+        f.write(data)
+    model_cache[task_id] = data
 DEMO_MODELS = [
     {"name": "Damaged Helmet", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb"},
     {"name": "Avocado", "glb": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Avocado/glTF-Binary/Avocado.glb"},
@@ -1154,231 +1174,40 @@ async def get_status(task_id: str):
 
 
 # ════════ MODEL SUNMA ════════
-ALLOWED_MODEL_HOSTS = {
-    "tripo-data.rg1.data.tripo3d.com",
-    "raw.githubusercontent.com",   # demo modeller
-    "githubusercontent.com",
-}
-
-def is_allowed_model_url(url: str) -> bool:
-    try:
-        p = urlparse(url)
-        if p.scheme not in ("http", "https"):
-            return False
-        host = (p.hostname or "").lower()
-        return host in ALLOWED_MODEL_HOSTS
-    except:
-        return False
-
-def is_real_glb(data: bytes) -> bool:
-    return len(data) >= 4 and data[:4] == b"glTF"
-
-async def fetch_model_from_upstream(url: str):
-    if not is_allowed_model_url(url):
-        raise HTTPException(400, "Model kaynagi izinli degil")
-
-    try:
-        async with httpx.AsyncClient(timeout=120, follow_redirects=True) as c:
-            r = await c.get(
-                url,
-                headers={"Accept": "model/gltf-binary,application/octet-stream,application/json,*/*"},
-            )
-    except Exception as e:
-        raise HTTPException(502, f"Upstream erisim hatasi: {e}")
-
-    if r.status_code != 200 or len(r.content) < 100:
-        raise HTTPException(
-            502,
-            f"Upstream gecersiz yanit: status={r.status_code}, size={len(r.content)}",
-        )
-
-    ct = (r.headers.get("content-type") or "").lower()
-    if ("gltf" in ct) or ("octet-stream" in ct) or (ct == ""):
-        media_type = "model/gltf-binary"
-    elif "json" in ct:
-        media_type = "application/json"
-    else:
-        media_type = ct
-
-    return r.content, media_type
-
-def _extract_url_from_json_payload(data: bytes) -> str:
-    try:
-        txt = data.decode("utf-8", errors="ignore").strip()
-        if not txt.startswith("{"):
-            return ""
-        obj = json.loads(txt)
-
-        for k in ["model_url", "url", "download_url", "glb", "pbr_model", "base_model"]:
-            v = obj.get(k)
-            if isinstance(v, str) and v.startswith("http"):
-                return v
-            if isinstance(v, dict):
-                u = v.get("url") or v.get("download_url")
-                if isinstance(u, str) and u.startswith("http"):
-                    return u
-
-        def walk(x):
-            if isinstance(x, dict):
-                for vv in x.values():
-                    r = walk(vv)
-                    if r:
-                        return r
-            elif isinstance(x, list):
-                for vv in x:
-                    r = walk(vv)
-                    if r:
-                        return r
-            elif isinstance(x, str) and x.startswith("http") and (".glb" in x.lower() or "model" in x.lower()):
-                return x
-            return ""
-
-        return walk(obj)
-    except:
-        return ""
-
-async def _force_real_glb(url: str):
-    """
-    Upstream bazen dogrudan GLB yerine JSON doner.
-    JSON icinden gercek URL bulunursa tekrar indirir.
-    Sadece GLB (glTF magic) kabul eder.
-    """
-    current_url = url
-    for _ in range(3):
-        data, media_type = await fetch_model_from_upstream(current_url)
-
-        if is_real_glb(data):
-            return data, "model/gltf-binary"
-
-        # JSON geldi, icinden URL bulup tekrar dene
-        if data.lstrip().startswith(b"{"):
-            nested = _extract_url_from_json_payload(data)
-            if nested:
-                current_url = nested
-                continue
-            raise HTTPException(502, "Upstream JSON dondu, GLB URL bulunamadi")
-
-        # JSON degil ve GLB imzasi da yoksa gecersiz
-        raise HTTPException(502, f"Gecersiz model payload (type={media_type})")
-
-    raise HTTPException(502, "Gercek GLB URL cozulamadi")
-
-async def cache_model(tid, url):
-    """Sadece gercek GLB verisini cache'ler."""
-    if tid in model_cache and is_real_glb(model_cache[tid]):
-        return True
-    if tid in model_cache and not is_real_glb(model_cache[tid]):
-        model_cache.pop(tid, None)
-
-    while len(model_cache) >= MAX_CACHE:
-        del model_cache[next(iter(model_cache))]
-
-    try:
-        data, _ = await _force_real_glb(url)
-        if is_real_glb(data):
-            model_cache[tid] = data
-            return True
-    except Exception as e:
-        print(f"[CACHE] basarisiz: {e}")
-
-    return False
-
-def get_model_url(tid):
-    # Once aktif task
-    if tid in tasks and tasks[tid].get("model_url"):
-        return tasks[tid]["model_url"]
-
-    # Sonra veritabani
-    try:
-        conn = get_db()
-        row = conn.execute("SELECT model_url FROM models WHERE task_id=?", (tid,)).fetchone()
-        conn.close()
-        if row and row[0]:
-            return row[0]
-    except:
-        pass
-
-    return None
-
-async def ensure_cached(tid):
-    if tid in model_cache and is_real_glb(model_cache[tid]):
-        return True
-    if tid in model_cache and not is_real_glb(model_cache[tid]):
-        model_cache.pop(tid, None)
-
-    url = get_model_url(tid)
-    if url:
-        return await cache_model(tid, url)
-    return False
-
 @app.get("/api/model/{task_id}/view")
 async def model_view(task_id: str):
-    # Cache hit (sadece dogru GLB ise)
-    if task_id in model_cache:
-        cached = model_cache[task_id]
-        if is_real_glb(cached):
-            return Response(
-                content=cached,
-                media_type="model/gltf-binary",
-                headers={
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Headers": "*",
-                    "Cache-Control": "no-store",
-                    "X-Model-Proxy": "1",
-                },
-            )
-        model_cache.pop(task_id, None)
+    fp = model_file_path(task_id)
 
+    # 1) Diskte varsa direkt dön
+    if os.path.exists(fp):
+        return FileResponse(
+            fp,
+            media_type="model/gltf-binary",
+            headers={"Cache-Control": "public, max-age=3600"}
+        )
+
+    # 2) Cache'te varsa dön
+    if task_id in model_cache and len(model_cache[task_id]) >= 4 and model_cache[task_id][:4] == b"glTF":
+        return Response(
+            content=model_cache[task_id],
+            media_type="model/gltf-binary",
+            headers={"Cache-Control": "public, max-age=3600"}
+        )
+
+    # 3) DB/task URL'den bir kere indirip diske yaz
     url = get_model_url(task_id)
     if not url:
         raise HTTPException(404, "Model bulunamadi")
 
-    data, _ = await _force_real_glb(url)
-
-    if not is_real_glb(data):
-        raise HTTPException(502, "Gecersiz GLB payload")
-
-    while len(model_cache) >= MAX_CACHE:
-        del model_cache[next(iter(model_cache))]
-    model_cache[task_id] = data
-
-    return Response(
-        content=data,
-        media_type="model/gltf-binary",
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers": "*",
-            "Cache-Control": "no-store",
-            "X-Model-Proxy": "1",
-        },
-    )
-
-@app.get("/api/model/{task_id}/proxy")
-async def model_proxy(task_id: str, url: str = ""):
-    # Frontend query ile URL yollarsa onu kullan, yoksa task URL
-    target_url = url or get_model_url(task_id)
-    if not target_url:
-        raise HTTPException(404, "Model URL bulunamadi")
-
-    data, _ = await _force_real_glb(target_url)
-
-    if not is_real_glb(data):
-        raise HTTPException(502, "Gecersiz GLB payload")
-
-    while len(model_cache) >= MAX_CACHE:
-        del model_cache[next(iter(model_cache))]
-    model_cache[task_id] = data
-
-    return Response(
-        content=data,
-        media_type="model/gltf-binary",
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers": "*",
-            "Cache-Control": "no-store",
-            "X-Model-Proxy": "1",
-        },
-    )
+    try:
+        await persist_model_glb(task_id, url)
+        return FileResponse(
+            fp,
+            media_type="model/gltf-binary",
+            headers={"Cache-Control": "public, max-age=3600"}
+        )
+    except Exception as e:
+        raise HTTPException(502, f"Model indirilemedi: {e}")
 
 @app.get("/api/model/{task_id}/glb")
 async def download_glb(task_id: str):
@@ -1387,75 +1216,27 @@ async def download_glb(task_id: str):
     conn.commit()
     conn.close()
 
-    if task_id in model_cache:
-        cached = model_cache[task_id]
-        if is_real_glb(cached):
-            return Response(
-                content=cached,
-                media_type="model/gltf-binary",
-                headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.glb"'},
-            )
-        model_cache.pop(task_id, None)
+    fp = model_file_path(task_id)
+    if os.path.exists(fp):
+        return FileResponse(
+            fp,
+            media_type="model/gltf-binary",
+            filename=f"printforge_{task_id}.glb"
+        )
 
     url = get_model_url(task_id)
     if not url:
         raise HTTPException(404, "Model bulunamadi")
 
-    data, _ = await _force_real_glb(url)
-    if not is_real_glb(data):
-        raise HTTPException(502, "Gecersiz GLB payload")
-
-    while len(model_cache) >= MAX_CACHE:
-        del model_cache[next(iter(model_cache))]
-    model_cache[task_id] = data
-
-    return Response(
-        content=data,
-        media_type="model/gltf-binary",
-        headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.glb"'},
-    )
-
-@app.get("/api/model/{task_id}/stl")
-async def download_stl(task_id: str):
-    if not HAS_TRIMESH:
-        raise HTTPException(500, "STL donusturme yuklu degil")
-    if not await ensure_cached(task_id):
-        raise HTTPException(404, "Model bulunamadi")
     try:
-        scene = trimesh.load(io.BytesIO(model_cache[task_id]), file_type="glb", force="scene")
-        meshes = [g for g in scene.geometry.values() if isinstance(g, trimesh.Trimesh)] if isinstance(scene, trimesh.Scene) else [scene]
-        if not meshes:
-            raise Exception("Mesh bulunamadi")
-        stl = trimesh.util.concatenate(meshes).export(file_type="stl")
-        conn = get_db()
-        conn.execute("UPDATE models SET downloads=downloads+1 WHERE task_id=?", (task_id,))
-        conn.commit()
-        conn.close()
-        return Response(
-            content=stl,
-            media_type="application/vnd.ms-pki.stl",
-            headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.stl"'},
+        await persist_model_glb(task_id, url)
+        return FileResponse(
+            fp,
+            media_type="model/gltf-binary",
+            filename=f"printforge_{task_id}.glb"
         )
     except Exception as e:
-        raise HTTPException(500, f"STL hatasi: {e}")
-
-@app.get("/api/model/{task_id}/obj")
-async def download_obj(task_id: str):
-    if not HAS_TRIMESH:
-        raise HTTPException(500, "OBJ donusturme yuklu degil")
-    if not await ensure_cached(task_id):
-        raise HTTPException(404, "Model bulunamadi")
-    try:
-        scene = trimesh.load(io.BytesIO(model_cache[task_id]), file_type="glb", force="scene")
-        meshes = [g for g in scene.geometry.values() if isinstance(g, trimesh.Trimesh)] if isinstance(scene, trimesh.Scene) else [scene]
-        obj = trimesh.util.concatenate(meshes).export(file_type="obj")
-        return Response(
-            content=obj,
-            media_type="text/plain",
-            headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.obj"'},
-        )
-    except Exception as e:
-        raise HTTPException(500, f"OBJ hatasi: {e}")
+        raise HTTPException(502, f"GLB indirilemedi: {e}")
 # ════════ GALERI ════════
 @app.get("/api/gallery")
 async def gallery(page: int = 1, limit: int = 20, sort: str = "newest", search: str = "", category: str = "", tag: str = ""):
@@ -1673,13 +1454,16 @@ async def _tripo_poll(client, headers, tid, tripo_id):
             pr = d.get("progress", 0)
             tasks[tid]["progress"] = 35 + int(pr * 0.55)
             tasks[tid]["step"] = f"Model uretiliyor... %{pr}"
-            if st == "success":
-                url = extract_model_url(d.get("output", {}))
-                tasks[tid]["model_url"] = url
-                tasks[tid]["progress"] = 92
-                tasks[tid]["step"] = "Model indiriliyor..."
-                if url: await cache_model(tid, url)
-                tasks[tid]["status"] = "done"
+           if st == "success":
+    url = extract_model_url(d.get("output", {}))
+    tasks[tid]["model_url"] = url
+    tasks[tid]["progress"] = 92
+    tasks[tid]["step"] = "Model indiriliyor..."
+
+    if url:
+        await persist_model_glb(tid, url)  # yeni: diske kaydet
+
+    tasks[tid]["status"] = "done"
                 tasks[tid]["progress"] = 100
                 tasks[tid]["step"] = "Tamamlandi!"
                 uid = tasks[tid].get("user_id", 0)
@@ -1743,11 +1527,14 @@ async def _meshy_poll(client, h, tid, mid, ep):
             progress = d.get("progress", 0)
             tasks[tid]["progress"] = 25 + int(progress * 0.7)
             tasks[tid]["step"] = f"Model uretiliyor... %{progress}"
-            if status == "SUCCEEDED":
-                glb = d.get("model_urls", {}).get("glb", "")
-                tasks[tid]["model_url"] = glb
-                if glb: await cache_model(tid, glb)
-                tasks[tid]["status"] = "done"
+           if status == "SUCCEEDED":
+    glb = d.get("model_urls", {}).get("glb", "")
+    tasks[tid]["model_url"] = glb
+
+    if glb:
+        await persist_model_glb(tid, glb)  # yeni: diske kaydet
+
+    tasks[tid]["status"] = "done"
                 tasks[tid]["progress"] = 100
                 tasks[tid]["step"] = "Tamamlandi!"
                 uid = tasks[tid].get("user_id", 0)
