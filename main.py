@@ -1452,32 +1452,44 @@ async def _tripo_poll(client, headers, tid, tripo_id):
             d = r.json().get("data", {})
             st = d.get("status", "")
             pr = d.get("progress", 0)
+
             tasks[tid]["progress"] = 35 + int(pr * 0.55)
             tasks[tid]["step"] = f"Model uretiliyor... %{pr}"
-           if st == "success":
-    url = extract_model_url(d.get("output", {}))
-    tasks[tid]["model_url"] = url
-    tasks[tid]["progress"] = 92
-    tasks[tid]["step"] = "Model indiriliyor..."
 
-    if url:
-        await persist_model_glb(tid, url)  # yeni: diske kaydet
+            if st == "success":
+                url = extract_model_url(d.get("output", {}))
+                tasks[tid]["model_url"] = url
+                tasks[tid]["progress"] = 92
+                tasks[tid]["step"] = "Model indiriliyor..."
 
-    tasks[tid]["status"] = "done"
+                if url:
+                    await persist_model_glb(tid, url)
+
+                tasks[tid]["status"] = "done"
                 tasks[tid]["progress"] = 100
                 tasks[tid]["step"] = "Tamamlandi!"
+
                 uid = tasks[tid].get("user_id", 0)
                 prompt = tasks[tid].get("prompt", "")
-                save_model(uid, tid, prompt[:50], prompt, tasks[tid].get("type", ""), tasks[tid].get("style", ""), url,
-                    tasks[tid].get("negative_prompt", ""), tasks[tid].get("tags", ""))
+                save_model(
+                    uid, tid, prompt[:50], prompt,
+                    tasks[tid].get("type", ""),
+                    tasks[tid].get("style", ""),
+                    url,
+                    tasks[tid].get("negative_prompt", ""),
+                    tasks[tid].get("tags", "")
+                )
                 return
-            elif st in ("failed", "cancelled"):
+
+            if st in ("failed", "cancelled"):
                 raise Exception(f"Tripo: {st}")
+
         except Exception as e:
             if any(x in str(e) for x in ["Tripo", "failed", "cancelled"]):
                 tasks[tid]["status"] = "failed"
                 tasks[tid]["error"] = str(e)
                 return
+
     tasks[tid]["status"] = "failed"
     tasks[tid]["error"] = "Zaman asimi"
 
