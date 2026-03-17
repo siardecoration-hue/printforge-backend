@@ -641,14 +641,13 @@ async def register(req: RegisterReq, request: Request):
         conn.execute("UPDATE users SET username=? WHERE id=%s", (username, uid))
         conn.commit()
         conn.close()
-    except Exception as e:
-    conn.rollback()
-    conn.close()
-    msg = str(e).lower()
-    if "unique" in msg or "duplicate" in msg:
-        raise HTTPException(400, "Bu e-posta zaten kayitli")
-    raise HTTPException(500, "Kayit sirasinda hata olustu")
-    log_security(uid, "register", ip)
+        except Exception as e:
+        conn.rollback()
+        conn.close()
+        msg = str(e).lower()
+        if "unique" in msg or "duplicate" in msg:
+            raise HTTPException(400, "Bu e-posta zaten kayitli")
+        raise HTTPException(500, "Kayit sirasinda hata olustu")
 
     if RESEND_API_KEY:
         await send_verification_email(req.email.lower().strip(), verify_token)
@@ -997,13 +996,13 @@ async def add_to_collection(collection_id: int, req: CollectionItemReq, authoriz
         conn.execute("INSERT INTO collection_items(collection_id,model_id) VALUES(%s,%s)", (collection_id, req.model_id))
         conn.execute("UPDATE collections SET model_count=model_count+1 WHERE id=%s", (collection_id,))
         conn.commit()
-    except Exception as e:
-    conn.rollback()
-    conn.close()
-    msg = str(e).lower()
-    if "unique" in msg or "duplicate" in msg:
-        raise HTTPException(400, "Model zaten koleksiyonda")
-    raise HTTPException(500, "Koleksiyona eklenemedi")
+        except Exception as e:
+        conn.rollback()
+        conn.close()
+        msg = str(e).lower()
+        if "unique" in msg or "duplicate" in msg:
+            raise HTTPException(400, "Model zaten koleksiyonda")
+        raise HTTPException(500, "Koleksiyona eklenemedi")
     conn.close()
     return {"message": "Koleksiyona eklendi"}
 
