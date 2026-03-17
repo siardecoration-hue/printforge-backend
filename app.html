@@ -939,6 +939,46 @@ if (dz) {
 var modelRetryCount = 0;
 var originalModelUrl = '';
 var proxyModelUrl = '';
+var activeModelBlobUrl = '';
+
+function revokeModelBlobUrl() {
+    if (activeModelBlobUrl) {
+        URL.revokeObjectURL(activeModelBlobUrl);
+        activeModelBlobUrl = '';
+    }
+}
+
+function normalizeModelUrl(url) {
+    if (!url) return '';
+    if (url.indexOf('blob:') === 0 || url.indexOf('data:') === 0) return url;
+    if (/^https?:\/\//i.test(url)) return url;
+    return API + (url[0] === '/' ? '' : '/') + url;
+}
+
+function resolveModelSource(url) {
+    var normalized = normalizeModelUrl(url);
+    if (!normalized) return Promise.reject(new Error('Model URL yok'));
+
+    var isApiModel = normalized.indexOf(API + '/api/model/') === 0;
+    if (!isApiModel) return Promise.resolve(normalized);
+
+    var headers = {};
+    if (currentToken) headers['Authorization'] = 'Bearer ' + currentToken;
+
+    return fetch(normalized, { headers: headers })
+    .then(function(res) {
+        if (!res.ok) throw new Error('Model dosyasi alinamadi (' + res.status + ')');
+        return res.blob();
+    })
+    .then(function(blob) {
+        if (!blob || blob.size === 0) throw new Error('Bos model dosyasi');
+        var type = (blob.type || '').toLowerCase();
+        if (type.indexOf('text/html') >= 0) throw new Error('Model yerine HTML dondu');
+        revokeModelBlobUrl();
+        activeModelBlobUrl = URL.createObjectURL(blob);
+        return activeModelBlobUrl;
+    });
+}
 
 function waitForModelViewer(callback) {
     if (customElements.get('model-viewer')) {
@@ -963,6 +1003,7 @@ function showModel(taskId, isDemo, directUrl) {
     proxyModelUrl = API + '/api/model/' + taskId + '/view';
     originalModelUrl = directUrl || '';
     modelRetryCount = 0;
+    revokeModelBlobUrl();
 
     var container = document.getElementById('viewerContainer');
     var empty = document.getElementById('viewerEmpty');
@@ -972,6 +1013,8 @@ function showModel(taskId, isDemo, directUrl) {
 
     if (empty) empty.style.display = 'none';
     error.classList.add('hidden');
+    var directBtn = document.getElementById('btnDirectUrl');
+    if (directBtn) directBtn.style.display = 'none';
     loading.classList.remove('hidden');
     loading.querySelector('.viewer-loading-text').textContent = 'Model yükleniyor...';
     toolbar.classList.add('active');
@@ -1028,49 +1071,54 @@ function tryLoadFromList(urls, index, taskId, isDemo) {
     var url = urls[index];
     loading.querySelector('.viewer-loading-text').textContent = 'Model yükleniyor... (' + (index+1) + '/' + urls.length + ')';
 
-    var old = container.querySelector('model-viewer');
-    if (old) old.remove();
+    resolveModelSource(url)
+    .then(function(finalSrc) {
+        var old = container.querySelector('model-viewer');
+        if (old) old.remove();
 
-    var mv = document.createElement('model-viewer');
-    mv.setAttribute('src', url);
-    mv.setAttribute('camera-controls', '');
-    mv.setAttribute('touch-action', 'pan-y');
-    mv.setAttribute('auto-rotate', '');
-    mv.setAttribute('auto-rotate-delay', '0');
-    mv.setAttribute('rotation-per-second', '30deg');
-    mv.setAttribute('exposure', '1');
-    mv.setAttribute('shadow-intensity', '0');
-    mv.setAttribute('environment-image', 'neutral');
-    mv.setAttribute('camera-orbit', '45deg 55deg auto');
-    mv.style.cssText = 'width:100%;height:100%;min-height:400px;background:transparent;';
+        var mv = document.createElement('model-viewer');
+        mv.setAttribute('src', finalSrc);
+        mv.setAttribute('camera-controls', '');
+        mv.setAttribute('touch-action', 'pan-y');
+        mv.setAttribute('auto-rotate', '');
+        mv.setAttribute('auto-rotate-delay', '0');
+        mv.setAttribute('rotation-per-second', '30deg');
+        mv.setAttribute('exposure', '1');
+        mv.setAttribute('shadow-intensity', '0');
+        mv.setAttribute('environment-image', 'neutral');
+        mv.setAttribute('camera-orbit', '45deg 55deg auto');
+        mv.style.cssText = 'width:100%;height:100%;min-height:400px;background:transparent;';
 
-    var settled = false;
+        var settled = false;
+        var loadTimeout = setTimeout(function() {
+            if (settled) return;
+            settled = true;
+            tryLoadFromList(urls, index + 1, taskId, false);
+        }, 30000);
 
-    var loadTimeout = setTimeout(function() {
-        if (settled) return;
-        settled = true;
+        mv.addEventListener('load', function() {
+            if (settled) return;
+            settled = true;
+            clearTimeout(loadTimeout);
+            loading.classList.add('hidden');
+            error.classList.add('hidden');
+            document.getElementById('viewerInfo').textContent = taskId;
+            document.getElementById('downloadInfo').textContent = taskId;
+            toast('Model yüklendi!', 'success');
+        });
+
+        mv.addEventListener('error', function() {
+            if (settled) return;
+            settled = true;
+            clearTimeout(loadTimeout);
+            tryLoadFromList(urls, index + 1, taskId, false);
+        });
+
+        container.insertBefore(mv, loading);
+    })
+    .catch(function() {
         tryLoadFromList(urls, index + 1, taskId, false);
-    }, 30000);
-
-    mv.addEventListener('load', function() {
-        if (settled) return;
-        settled = true;
-        clearTimeout(loadTimeout);
-        loading.classList.add('hidden');
-        error.classList.add('hidden');
-        document.getElementById('viewerInfo').textContent = taskId;
-        document.getElementById('downloadInfo').textContent = taskId;
-        toast('Model yüklendi!', 'success');
     });
-
-    mv.addEventListener('error', function() {
-        if (settled) return;
-        settled = true;
-        clearTimeout(loadTimeout);
-        tryLoadFromList(urls, index + 1, taskId, false);
-    });
-
-    container.insertBefore(mv, loading);
 }
 
 function retryLoadModel() {
