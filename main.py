@@ -617,7 +617,7 @@ def serve_profile(username: str):
 async def register(req: RegisterReq, request: Request):
     ip = get_client_ip(request)
 
-    if not check_rate_limit(ip, "register", 3, 3600):
+    if not check_rate_limit(ip, "register", 20, 300):
         raise HTTPException(429, "Cok fazla kayit denemesi. 1 saat sonra tekrar deneyin.")
 
     valid, msg = validate_password(req.password)
