@@ -994,6 +994,7 @@ function resolveModelSource(url, depth) {
             return {
                 blob: blob,
                 contentType: (res.headers.get('content-type') || '').toLowerCase(),
+                status: res.status,
                 finalUrl: res.url || normalized
             };
         });
@@ -1018,8 +1019,16 @@ function resolveModelSource(url, depth) {
             });
         }
 
-        // Bazi backendler modeli octet-stream donduruyor, model-viewer icin GLB MIME sabitliyoruz.
-        if (!type || type.indexOf('application/octet-stream') >= 0) {
+        // Bazi backendler GLB endpoint'te generic MIME donduruyor.
+        // /glb veya .glb yolundan gelen dosyalari GLB olarak normalize ediyoruz.
+        var finalUrlLower = (payload.finalUrl || '').toLowerCase();
+        var looksLikeGlbPath = finalUrlLower.indexOf('/glb') >= 0 || finalUrlLower.indexOf('.glb') >= 0;
+        if (looksLikeGlbPath && type.indexOf('model/gltf+json') < 0 && type.indexOf('application/json') < 0 && type.indexOf('text/') < 0) {
+            blob = new Blob([blob], { type: 'model/gltf-binary' });
+        }
+
+        // Ek fallback: herhangi bir octet-stream veya bos tipte GLB varsay.
+        if (!blob.type || blob.type.toLowerCase().indexOf('octet-stream') >= 0) {
             var finalUrlLower = (payload.finalUrl || '').toLowerCase();
             if (finalUrlLower.indexOf('.glb') >= 0 || finalUrlLower.indexOf('/view') >= 0) {
                 blob = new Blob([blob], { type: 'model/gltf-binary' });
