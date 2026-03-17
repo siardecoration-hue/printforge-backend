@@ -955,7 +955,25 @@ function normalizeModelUrl(url) {
     return API + (url[0] === '/' ? '' : '/') + url;
 }
 
-function resolveModelSource(url) {
+function extractUrlFromPayload(text) {
+    if (!text) return '';
+    var trimmed = text.trim();
+
+    // JSON cevabinda model linki donuyor olabilir.
+    try {
+        var parsed = JSON.parse(trimmed);
+        return parsed.model_url || parsed.url || parsed.download_url || '';
+    } catch (e) {}
+
+    // Sadece URL metni donmus olabilir.
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    return '';
+}
+
+function resolveModelSource(url, depth) {
+    depth = depth || 0;
+    if (depth > 3) return Promise.reject(new Error('Model yonlendirme limiti asildi'));
+
     var normalized = normalizeModelUrl(url);
     if (!normalized) return Promise.reject(new Error('Model URL yok'));
 
@@ -965,15 +983,38 @@ function resolveModelSource(url) {
     var headers = {};
     if (currentToken) headers['Authorization'] = 'Bearer ' + currentToken;
 
-    return fetch(normalized, { headers: headers })
+    return fetch(normalized, { headers: headers, cache: 'no-store' })
     .then(function(res) {
         if (!res.ok) throw new Error('Model dosyasi alinamadi (' + res.status + ')');
-        return res.blob();
+        return res.blob().then(function(blob) {
+            return {
+                blob: blob,
+                contentType: (res.headers.get('content-type') || '').toLowerCase(),
+                finalUrl: res.url || normalized
+            };
+        });
     })
-    .then(function(blob) {
+    .then(function(payload) {
+        var blob = payload.blob;
         if (!blob || blob.size === 0) throw new Error('Bos model dosyasi');
-        var type = (blob.type || '').toLowerCase();
-        if (type.indexOf('text/html') >= 0) throw new Error('Model yerine HTML dondu');
+
+        var type = (blob.type || payload.contentType || '').toLowerCase();
+        if (type.indexOf('application/json') >= 0 || type.indexOf('text/plain') >= 0 || type.indexOf('text/html') >= 0) {
+            return blob.text().then(function(text) {
+                var nestedUrl = extractUrlFromPayload(text);
+                if (nestedUrl) return resolveModelSource(nestedUrl, depth + 1);
+                throw new Error('Model yerine gecersiz metin/JSON dondu');
+            });
+        }
+
+        // Bazi backendler modeli octet-stream donduruyor, model-viewer icin GLB MIME sabitliyoruz.
+        if (!type || type.indexOf('application/octet-stream') >= 0) {
+            var finalUrlLower = (payload.finalUrl || '').toLowerCase();
+            if (finalUrlLower.indexOf('.glb') >= 0 || finalUrlLower.indexOf('/view') >= 0) {
+                blob = new Blob([blob], { type: 'model/gltf-binary' });
+            }
+        }
+
         revokeModelBlobUrl();
         activeModelBlobUrl = URL.createObjectURL(blob);
         return activeModelBlobUrl;
@@ -1116,7 +1157,11 @@ function tryLoadFromList(urls, index, taskId, isDemo) {
 
         container.insertBefore(mv, loading);
     })
-    .catch(function() {
+    .catch(function(err) {
+        var debug = document.getElementById('viewerDebugInfo');
+        if (debug) {
+            debug.textContent = 'Yukleme denemesi hatasi: ' + ((err && err.message) ? err.message : 'Bilinmeyen hata');
+        }
         tryLoadFromList(urls, index + 1, taskId, false);
     });
 }
