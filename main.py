@@ -6,7 +6,7 @@ import asyncio, uuid, httpx, base64, random, json, os, io, re
 import hashlib, secrets, sqlite3, hmac, time
 from datetime import datetime, timedelta
 from typing import Optional, List
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 try:
     import jwt as pyjwt
@@ -1154,37 +1154,74 @@ async def get_status(task_id: str):
 
 
 # ════════ MODEL SUNMA ════════
+# import satirini yukarida su hale getir:
+# from urllib.parse import urlencode, urlparse
+
+
+# ════════ MODEL SUNMA ════════
+ALLOWED_MODEL_HOSTS = {
+    "tripo-data.rg1.data.tripo3d.com",
+    "raw.githubusercontent.com",   # demo modeller
+    "githubusercontent.com"
+}
+
+def is_allowed_model_url(url: str) -> bool:
+    try:
+        p = urlparse(url)
+        if p.scheme not in ("http", "https"):
+            return False
+        host = (p.hostname or "").lower()
+        return host in ALLOWED_MODEL_HOSTS
+    except:
+        return False
+
+async def fetch_model_from_upstream(url: str):
+    if not is_allowed_model_url(url):
+        raise HTTPException(400, "Model kaynagi izinli degil")
+
+    try:
+        async with httpx.AsyncClient(timeout=120, follow_redirects=True) as c:
+            r = await c.get(
+                url,
+                headers={"Accept": "model/gltf-binary,application/octet-stream,*/*"}
+            )
+    except Exception as e:
+        raise HTTPException(502, f"Upstream erisim hatasi: {e}")
+
+    if r.status_code != 200 or len(r.content) < 100:
+        raise HTTPException(
+            502,
+            f"Upstream gecersiz yanit: status={r.status_code}, size={len(r.content)}"
+        )
+
+    ct = (r.headers.get("content-type") or "").lower()
+    if ("gltf" in ct) or ("octet-stream" in ct) or (ct == ""):
+        media_type = "model/gltf-binary"
+    else:
+        media_type = ct
+
+    return r.content, media_type
+
 async def cache_model(tid, url):
-    """Model GLB dosyasini indir ve cache'le - 3 deneme yapar"""
+    """Model dosyasini indirip RAM cache'e atar."""
     if tid in model_cache:
         return True
     while len(model_cache) >= MAX_CACHE:
         del model_cache[next(iter(model_cache))]
-    for attempt in range(3):
-        try:
-            timeout_val = 30 + (attempt * 30)  # 30s, 60s, 90s
-            async with httpx.AsyncClient(timeout=timeout_val, follow_redirects=True) as c:
-                print(f"[CACHE] Deneme {attempt+1}/3: {url[:80]}... (timeout={timeout_val}s)")
-                r = await c.get(url)
-                if r.status_code == 200 and len(r.content) > 100:
-                    model_cache[tid] = r.content
-                    print(f"[CACHE] Basarili! {len(r.content)} bytes cached for {tid}")
-                    return True
-                else:
-                    print(f"[CACHE] HTTP {r.status_code}, size={len(r.content)}")
-        except Exception as e:
-            print(f"[CACHE] Deneme {attempt+1} basarisiz: {e}")
-            if attempt < 2:
-                await asyncio.sleep(2)
-    print(f"[CACHE] Tum denemeler basarisiz: {tid}")
+    try:
+        data, _ = await fetch_model_from_upstream(url)
+        if len(data) > 100:
+            model_cache[tid] = data
+            return True
+    except Exception as e:
+        print(f"[CACHE] basarisiz: {e}")
     return False
 
 def get_model_url(tid):
-    """Task veya DB'den model URL'sini bul"""
-    # Oncelikle aktif task'tan
+    # Once aktif task
     if tid in tasks and tasks[tid].get("model_url"):
         return tasks[tid]["model_url"]
-    # Sonra veritabanından
+    # Sonra DB
     try:
         conn = get_db()
         row = conn.execute("SELECT model_url FROM models WHERE task_id=?", (tid,)).fetchone()
@@ -1205,41 +1242,68 @@ async def ensure_cached(tid):
 
 @app.get("/api/model/{task_id}/view")
 async def model_view(task_id: str):
-    # 1. Cache'de varsa hemen dön
+    # 1) Cache hit
     if task_id in model_cache:
-        print(f"[VIEW] Cache hit: {task_id} ({len(model_cache[task_id])} bytes)")
-        return Response(content=model_cache[task_id], media_type="model/gltf-binary",
-            headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=3600",
-                      "Access-Control-Allow-Headers": "*"})
-    
-    # 2. URL'yi bul
+        return Response(
+            content=model_cache[task_id],
+            media_type="model/gltf-binary",
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "*",
+                "Cache-Control": "no-store",
+                "X-Model-Proxy": "1"
+            }
+        )
+
+    # 2) Kaynagi bul
     url = get_model_url(task_id)
     if not url:
-        raise HTTPException(404, "Model bulunamadi - URL yok")
-    
-    # 3. Cache'lemeyi dene
-    print(f"[VIEW] Cache miss, indiriliyor: {url[:80]}")
-    if await cache_model(task_id, url):
-        return Response(content=model_cache[task_id], media_type="model/gltf-binary",
-            headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=3600",
-                      "Access-Control-Allow-Headers": "*"})
-    
-    # 4. Cache basarisiz → dogrudan proxy (redirect CORS sorunu yaratir!)
-    print(f"[VIEW] Cache basarisiz, dogrudan proxy deneniyor: {url[:80]}")
-    try:
-        async with httpx.AsyncClient(timeout=60, follow_redirects=True) as c:
-            r = await c.get(url)
-            if r.status_code == 200 and len(r.content) > 100:
-                # Cache'e de ekle
-                if len(model_cache) < MAX_CACHE:
-                    model_cache[task_id] = r.content
-                return Response(content=r.content, media_type="model/gltf-binary",
-                    headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=3600",
-                              "Access-Control-Allow-Headers": "*"})
-    except Exception as e:
-        print(f"[VIEW] Proxy hata: {e}")
-    
-    raise HTTPException(503, "Model gecici olarak yuklenemiyor, lutfen tekrar deneyin")
+        raise HTTPException(404, "Model bulunamadi")
+
+    # 3) Backend proxy fetch (redirect/cors clienta birakilmaz)
+    data, media_type = await fetch_model_from_upstream(url)
+
+    # 4) Cachele
+    if len(data) > 100:
+        while len(model_cache) >= MAX_CACHE:
+            del model_cache[next(iter(model_cache))]
+        model_cache[task_id] = data
+
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "*",
+            "Cache-Control": "no-store",
+            "X-Model-Proxy": "1"
+        }
+    )
+
+@app.get("/api/model/{task_id}/proxy")
+async def model_proxy(task_id: str, url: str = ""):
+    # Frontend isterse url query ile gelir, yoksa task url kullanilir
+    target_url = url or get_model_url(task_id)
+    if not target_url:
+        raise HTTPException(404, "Model URL bulunamadi")
+
+    data, media_type = await fetch_model_from_upstream(target_url)
+
+    if len(data) > 100:
+        while len(model_cache) >= MAX_CACHE:
+            del model_cache[next(iter(model_cache))]
+        model_cache[task_id] = data
+
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "*",
+            "Cache-Control": "no-store",
+            "X-Model-Proxy": "1"
+        }
+    )
 
 @app.get("/api/model/{task_id}/glb")
 async def download_glb(task_id: str):
@@ -1247,17 +1311,32 @@ async def download_glb(task_id: str):
     conn.execute("UPDATE models SET downloads=downloads+1 WHERE task_id=?", (task_id,))
     conn.commit()
     conn.close()
+
+    # Cache varsa direkt ver
     if task_id in model_cache:
-        return Response(content=model_cache[task_id], media_type="model/gltf-binary",
-            headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.glb"'})
-    if await ensure_cached(task_id):
-        return Response(content=model_cache[task_id], media_type="model/gltf-binary",
-            headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.glb"'})
-    # Fallback: redirect to original URL
+        return Response(
+            content=model_cache[task_id],
+            media_type="model/gltf-binary",
+            headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.glb"'}
+        )
+
+    # Yoksa upstreamden backend fetch et
     url = get_model_url(task_id)
-    if url:
-        return RedirectResponse(url=url, status_code=302)
-    raise HTTPException(404, "Model bulunamadi")
+    if not url:
+        raise HTTPException(404, "Model bulunamadi")
+
+    data, _ = await fetch_model_from_upstream(url)
+
+    if len(data) > 100:
+        while len(model_cache) >= MAX_CACHE:
+            del model_cache[next(iter(model_cache))]
+        model_cache[task_id] = data
+
+    return Response(
+        content=data,
+        media_type="model/gltf-binary",
+        headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.glb"'}
+    )
 
 @app.get("/api/model/{task_id}/stl")
 async def download_stl(task_id: str):
@@ -1294,7 +1373,6 @@ async def download_obj(task_id: str):
             headers={"Content-Disposition": f'attachment; filename="printforge_{task_id}.obj"'})
     except Exception as e:
         raise HTTPException(500, f"OBJ hatasi: {e}")
-
 
 # ════════ GALERI ════════
 @app.get("/api/gallery")
