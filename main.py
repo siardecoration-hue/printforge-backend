@@ -1178,7 +1178,7 @@ async def get_status(task_id: str):
 async def model_view(task_id: str):
     fp = model_file_path(task_id)
 
-    # 1) Diskte varsa direkt dön
+    # 1) Diskte varsa direkt ver
     if os.path.exists(fp):
         return FileResponse(
             fp,
@@ -1186,7 +1186,7 @@ async def model_view(task_id: str):
             headers={"Cache-Control": "public, max-age=3600"}
         )
 
-    # 2) Cache'te varsa dön
+    # 2) RAM cache'te varsa ver
     if task_id in model_cache and len(model_cache[task_id]) >= 4 and model_cache[task_id][:4] == b"glTF":
         return Response(
             content=model_cache[task_id],
@@ -1194,49 +1194,24 @@ async def model_view(task_id: str):
             headers={"Cache-Control": "public, max-age=3600"}
         )
 
-    # 3) DB/task URL'den bir kere indirip diske yaz
+    # 3) URL'den indirip diske yaz, sonra ver
     url = get_model_url(task_id)
     if not url:
         raise HTTPException(404, "Model bulunamadi")
 
     try:
         await persist_model_glb(task_id, url)
+    except Exception as e:
+        raise HTTPException(502, f"Model indirilemedi: {e}")
+
+    if os.path.exists(fp):
         return FileResponse(
             fp,
             media_type="model/gltf-binary",
             headers={"Cache-Control": "public, max-age=3600"}
         )
-    except Exception as e:
-        raise HTTPException(502, f"Model indirilemedi: {e}")
 
-@app.get("/api/model/{task_id}/glb")
-async def download_glb(task_id: str):
-    conn = get_db()
-    conn.execute("UPDATE models SET downloads=downloads+1 WHERE task_id=?", (task_id,))
-    conn.commit()
-    conn.close()
-
-    fp = model_file_path(task_id)
-    if os.path.exists(fp):
-        return FileResponse(
-            fp,
-            media_type="model/gltf-binary",
-            filename=f"printforge_{task_id}.glb"
-        )
-
-    url = get_model_url(task_id)
-    if not url:
-        raise HTTPException(404, "Model bulunamadi")
-
-    try:
-        await persist_model_glb(task_id, url)
-        return FileResponse(
-            fp,
-            media_type="model/gltf-binary",
-            filename=f"printforge_{task_id}.glb"
-        )
-    except Exception as e:
-        raise HTTPException(502, f"GLB indirilemedi: {e}")
+    raise HTTPException(500, "Model kaydedilemedi")
 # ════════ GALERI ════════
 @app.get("/api/gallery")
 async def gallery(page: int = 1, limit: int = 20, sort: str = "newest", search: str = "", category: str = "", tag: str = ""):
